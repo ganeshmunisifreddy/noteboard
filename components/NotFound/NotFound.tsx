@@ -21,7 +21,6 @@ const NotFound = (props: Props) => {
         <Image
           src={NoNotesIcon}
           alt="Notes by nine.technology"
-          layout="intrinsic"
         />
       )}
       <p>{text}</p>
