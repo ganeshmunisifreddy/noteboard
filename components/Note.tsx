@@ -1,6 +1,6 @@
 import React from "react";
 import styles from "../styles/Note.module.css";
-import { Trash, Palette, Thumbtack, ThumbtackSolid } from "react-uicons-beta";
+import { Trash2, Palette, Pin } from "lucide-react";
 
 const textEllipsis = (text: string) => {
   let sliceLength: number = 200;
@@ -46,16 +46,16 @@ const Note = (props: any) => {
             className={styles.iconButton}
             onClick={(e: any) => handlePinNote(e, index)}
           >
-            {note.pinned ? <ThumbtackSolid /> : <Thumbtack />}
+            <Pin size={16} fill={note.pinned ? "currentColor" : "none"} />
           </div>
           {/* <div className={styles.iconButton} onClick={handleAction}>
-            <Palette />
+            <Palette size={16} />
           </div> */}
           <div
             className={styles.iconButton}
             onClick={(e: any) => handleDeleteNote(e, index)}
           >
-            <Trash />
+            <Trash2 size={16} />
           </div>
         </div>
       </div>
