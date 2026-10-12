@@ -1,5 +1,5 @@
 import React from "react";
-import { Add, Plus } from "react-uicons-beta";
+import { CirclePlus, Plus } from "lucide-react";
 
 type Props = {
   handleModal: any;
@@ -12,12 +12,12 @@ const Header = (props: Props) => {
       <div className="logo">Notes</div>
       {/* <div className="searchBox"></div> */}
       <button className="add-note__btn button__primary" onClick={handleModal}>
-        <Add fill="#fff" size={16} style={{ marginRight: 6 }} />
+        <CirclePlus color="#fff" size={16} style={{ marginRight: 6 }} />
         Add new
       </button>
       <button className="add-note__fab button__primary" onClick={handleModal}>
         <span>
-          <Plus fill="#fff" size={18} />
+          <Plus color="#fff" size={18} />
         </span>
       </button>
     </header>
