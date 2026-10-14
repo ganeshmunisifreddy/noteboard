@@ -1,7 +1,7 @@
 import type { KeyboardEvent, MouseEvent } from 'react';
 import styles from '../styles/Note.module.css';
 import { Trash2, Pin } from 'lucide-react';
-import type { Note } from '../lib/notes';
+import type { Note } from '../lib/legacyNotes';
 
 type Props = {
   note: Note;

@@ -7,7 +7,7 @@ import NoteCard from '../components/Note';
 import Header from '../components/Header';
 import NoteModal from '../components/NoteModal';
 import NotFound from '../components/NotFound';
-import { saveNotes, useNotes, type Note } from '../lib/notes';
+import { saveNotes, useNotes, type Note } from '../lib/legacyNotes';
 import styles from '../styles/Home.module.css';
 import noteStyles from '../styles/Note.module.css';
 

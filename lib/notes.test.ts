@@ -1,0 +1,182 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { db } from './db';
+import {
+  TRASH_RETENTION_MS,
+  createLabel,
+  createNote,
+  deleteForever,
+  deleteLabel,
+  duplicateNote,
+  emptyTrash,
+  purgeOldTrash,
+  renameLabel,
+  restoreNote,
+  restoreSnapshot,
+  setArchived,
+  toggleItem,
+  togglePin,
+  trashNote,
+  updateNote,
+} from './notes';
+
+beforeEach(async () => {
+  await db.delete();
+  await db.open();
+  localStorage.clear();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe('createNote', () => {
+  it('fills defaults and sets the hasNotes marker', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1000);
+    const note = await createNote({ kind: 'list', title: 'Groceries' });
+    expect(note).toMatchObject({
+      kind: 'list',
+      title: 'Groceries',
+      content: '',
+      items: [],
+      color: 'default',
+      labelIds: [],
+      pinned: false,
+      archived: false,
+      trashedAt: null,
+      createdAt: 1000,
+      updatedAt: 1000,
+    });
+    expect(await db.notes.get(note.id)).toEqual(note);
+    expect(localStorage.getItem('hasNotes')).toBe('1');
+  });
+
+  it('keeps a given id', async () => {
+    const note = await createNote({ id: 'fixed', kind: 'note' });
+    expect(note.id).toBe('fixed');
+  });
+});
+
+describe('updateNote', () => {
+  it('saves changes and bumps updatedAt', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1000);
+    const note = await createNote({ kind: 'note' });
+    vi.spyOn(Date, 'now').mockReturnValue(5000);
+    await updateNote(note.id, { title: 'New', color: 'blue' });
+    expect(await db.notes.get(note.id)).toMatchObject({ title: 'New', color: 'blue', updatedAt: 5000 });
+  });
+
+  it('unpins when archiving and unarchives when pinning', async () => {
+    const note = await createNote({ kind: 'note', pinned: true });
+    await setArchived(note.id, true);
+    expect(await db.notes.get(note.id)).toMatchObject({ archived: true, pinned: false });
+    await togglePin(note.id);
+    expect(await db.notes.get(note.id)).toMatchObject({ archived: false, pinned: true });
+  });
+});
+
+describe('toggleItem', () => {
+  it('ticks a checklist item', async () => {
+    const note = await createNote({ kind: 'list', items: [{ id: 'i1', text: 'Milk', done: false }] });
+    await toggleItem(note.id, 'i1');
+    expect((await db.notes.get(note.id))?.items[0].done).toBe(true);
+  });
+});
+
+describe('trash', () => {
+  it('trashes, restores and updates the marker', async () => {
+    const note = await createNote({ kind: 'note', title: 'A' });
+    await trashNote(note.id);
+    expect((await db.notes.get(note.id))?.trashedAt).not.toBeNull();
+    expect(localStorage.getItem('hasNotes')).toBeNull();
+    await restoreNote(note.id);
+    expect((await db.notes.get(note.id))?.trashedAt).toBeNull();
+    expect(localStorage.getItem('hasNotes')).toBe('1');
+  });
+
+  it('does not count archived notes for the marker', async () => {
+    const note = await createNote({ kind: 'note', title: 'A' });
+    await setArchived(note.id, true);
+    expect(localStorage.getItem('hasNotes')).toBeNull();
+  });
+
+  it('empties only trashed notes', async () => {
+    const kept = await createNote({ kind: 'note', title: 'Keep' });
+    const gone = await createNote({ kind: 'note', title: 'Gone' });
+    await trashNote(gone.id);
+    await emptyTrash();
+    expect((await db.notes.toArray()).map((n) => n.id)).toEqual([kept.id]);
+  });
+
+  it('deletes forever', async () => {
+    const note = await createNote({ kind: 'note' });
+    await deleteForever(note.id);
+    expect(await db.notes.get(note.id)).toBeUndefined();
+  });
+
+  it('purges notes trashed more than 30 days ago', async () => {
+    const now = 100 * TRASH_RETENTION_MS;
+    const old = await createNote({ kind: 'note' });
+    const recent = await createNote({ kind: 'note' });
+    await db.notes.update(old.id, { trashedAt: now - TRASH_RETENTION_MS - 1 });
+    await db.notes.update(recent.id, { trashedAt: now - 1000 });
+    expect(await purgeOldTrash(now)).toBe(1);
+    expect((await db.notes.toArray()).map((n) => n.id)).toEqual([recent.id]);
+  });
+});
+
+describe('restoreSnapshot', () => {
+  it('puts a note back exactly as it was', async () => {
+    const note = await createNote({ kind: 'note', title: 'Before', pinned: true });
+    await setArchived(note.id, true);
+    await restoreSnapshot(note);
+    expect(await db.notes.get(note.id)).toEqual(note);
+  });
+});
+
+describe('duplicateNote', () => {
+  it('copies content with new ids and no pin', async () => {
+    const note = await createNote({
+      kind: 'list',
+      title: 'Trip',
+      pinned: true,
+      color: 'green',
+      labelIds: ['l1'],
+      items: [{ id: 'i1', text: 'Passport', done: true }],
+    });
+    const copy = await duplicateNote(note.id);
+    expect(copy).toMatchObject({ kind: 'list', title: 'Trip', color: 'green', labelIds: ['l1'], pinned: false });
+    expect(copy?.id).not.toBe(note.id);
+    expect(copy?.items[0]).toMatchObject({ text: 'Passport', done: true });
+    expect(copy?.items[0].id).not.toBe('i1');
+  });
+
+  it('returns undefined for a missing note', async () => {
+    expect(await duplicateNote('missing')).toBeUndefined();
+  });
+});
+
+describe('labels', () => {
+  it('creates once, ignoring case and spaces', async () => {
+    const work = await createLabel(' Work ');
+    expect(work.name).toBe('Work');
+    expect(await createLabel('work')).toEqual(work);
+    await expect(createLabel('  ')).rejects.toThrow('Label name is required');
+  });
+
+  it('refuses to rename onto another label', async () => {
+    const work = await createLabel('Work');
+    await createLabel('Home');
+    await expect(renameLabel(work.id, 'home')).rejects.toThrow('A label with that name already exists');
+    await renameLabel(work.id, 'Office');
+    expect((await db.labels.get(work.id))?.name).toBe('Office');
+  });
+
+  it('removes a deleted label from notes but keeps the notes', async () => {
+    const work = await createLabel('Work');
+    const home = await createLabel('Home');
+    const note = await createNote({ kind: 'note', labelIds: [work.id, home.id] });
+    await deleteLabel(work.id);
+    expect(await db.labels.get(work.id)).toBeUndefined();
+    expect((await db.notes.get(note.id))?.labelIds).toEqual([home.id]);
+  });
+});

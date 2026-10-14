@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, type ChangeEvent } from 'react';
 import Modal from '../components/Modal';
-import type { Note } from '../lib/notes';
+import type { Note } from '../lib/legacyNotes';
 import styles from '../styles/Note.module.css';
 
 type EditableNote = Omit<Note, 'id'> & { id?: string };
