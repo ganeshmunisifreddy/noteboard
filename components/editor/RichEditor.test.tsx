@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import RichEditor, { openLinkOnModClick } from './RichEditor';
 
@@ -28,6 +28,15 @@ describe('RichEditor', () => {
       expect(screen.getByRole('textbox', { name: 'Note' }).querySelector('strong')).toHaveTextContent('Second'),
     );
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('lets Escape through so it can leave the editor', async () => {
+    render(<RichEditor {...props} value='Hello' />);
+    const box = await screen.findByRole('textbox', { name: 'Note' });
+    // ProseMirror cancels Escape by default; the note page ignores cancelled keys.
+    const escape = createEvent.keyDown(box, { key: 'Escape', keyCode: 27 });
+    fireEvent(box, escape);
+    expect(escape.defaultPrevented).toBe(false);
   });
 
   it('is read-only in Trash', async () => {

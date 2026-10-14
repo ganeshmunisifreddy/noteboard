@@ -17,6 +17,16 @@ const router = vi.hoisted(() => ({
 
 vi.mock('next/router', () => ({ useRouter: () => router }));
 vi.mock('next/head', () => ({ default: () => null }));
+// Typing into Tiptap's contenteditable is unreliable in jsdom; the editor is
+// tested in RichEditor.test.tsx and FormatBar.test.tsx.
+vi.mock('./RichEditor', async () => {
+  const { default: NoteBody } = await import('./NoteBody');
+  return {
+    default: ({ value, onChange, readOnly, autoFocus }: import('./RichEditor').RichEditorProps) => (
+      <NoteBody value={value} onChange={onChange} readOnly={readOnly} autoFocus={autoFocus} />
+    ),
+  };
+});
 
 beforeEach(async () => {
   await db.delete();
@@ -179,5 +189,17 @@ describe('NotePage', () => {
         query: { new: 'note', id: expect.any(String) },
       }),
     );
+  });
+
+  it('shows the formatting bar slot under the top bar only for text notes', async () => {
+    await createNote({ id: 'n20', kind: 'list', title: 'Shop' });
+    router.query = { id: 'n20' };
+    render(
+      <ToastProvider>
+        <NotePage />
+      </ToastProvider>,
+    );
+    await screen.findByRole('textbox', { name: 'Title' });
+    expect(screen.queryByRole('toolbar', { name: 'Formatting' })).toBeNull();
   });
 });

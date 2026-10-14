@@ -5,6 +5,7 @@ A notes and checklists app by Nine Technology, built with [Next.js](https://next
 ## Features
 
 - Notes and checklists, with pin, colour, labels, archive and trash (30-day auto-delete, undo)
+- Formatting in text notes (headings, bold, italic, lists, quotes, code, links), stored as Markdown
 - Drag cards into your own order (mouse, touch, or the grip button with arrow keys)
 - Backup and restore (JSON, merges with what's there) and export as Markdown, from the ⋯ menu
 - Search and filters (All, Notes, Lists, labels), kept in the URL
@@ -42,6 +43,7 @@ In production the app runs under pm2 via `ecosystem.config.js`.
 - `components/board/`, `components/editor/`, `components/ui/`: UI (Radix Primitives + CSS Modules)
 - `lib/notes.ts`: notes and labels store; `lib/db.ts`: IndexedDB schema
 - `lib/backup.ts`: backup format, restore merge and Markdown export; `lib/order.ts` and `lib/masonry.ts`: board order and layout
+- `lib/markdown.ts`: how notes are read as Markdown (cards, search, conversion and the editor share it); `components/editor/RichEditor.tsx`: the Tiptap editor
 - `lib/migrate.ts`: one-time move of notes from the old `localStorage` format (the old data is kept as `notes-backup-v1`)
 - `styles/tokens.css`: colours, spacing and type, light and dark
 - `worker/index.js`: serves the board and editor offline

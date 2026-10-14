@@ -42,6 +42,11 @@ const RichEditor = ({ value, onChange, readOnly, autoFocus, barSlot }: RichEdito
     editorProps: {
       attributes: { class: styles.prose, role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Note' },
       handleClick: (_view, _pos, event) => openLinkOnModClick(event),
+      // ProseMirror cancels Escape, which would stop Esc from leaving the
+      // editor. Returning true here skips ProseMirror's own key handling.
+      handleDOMEvents: {
+        keydown: (_view, event) => event.key === 'Escape' && !event.isComposing,
+      },
       handleKeyDown: (_view, event) => {
         if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'k') return false;
         setLinkOpen(true);

@@ -18,11 +18,13 @@ import { leaveEditor, noteHref, openEditor } from '../../lib/routes';
 import { isQuotaError } from '../../lib/storage';
 import { formatEdited, useNow } from '../../lib/time';
 import type { Note, NoteKind } from '../../lib/types';
+import MarkdownPreview from '../board/MarkdownPreview';
 import { useToast } from '../ui/Toast';
 import ChecklistEditor from './ChecklistEditor';
 import EditorToolbar from './EditorToolbar';
 import NoteBody from './NoteBody';
 import styles from './NoteEditor.module.css';
+import { useRichEditor } from './useRichEditor';
 
 export type Draft = Pick<Note, 'kind' | 'title' | 'content' | 'items' | 'color' | 'labelIds' | 'pinned' | 'archived'>;
 
@@ -200,6 +202,10 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
     leaveEditor(router);
   };
 
+  const rich = useRichEditor();
+  // The formatting bar is drawn here, under the top bar, by the rich editor.
+  const [barSlot, setBarSlot] = useState<HTMLDivElement | null>(null);
+
   const labelNames = draft.labelIds
     .map((id) => labels.find((l) => l.id === id)?.name)
     .filter((name): name is string => !!name);
@@ -209,19 +215,22 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
       <Head>
         <title>{`${draft.title || 'Untitled'} | Noteboard`}</title>
       </Head>
-      <EditorToolbar
-        draft={draft}
-        trashed={trashed}
-        onBack={() => leaveEditor(router)}
-        onChange={update}
-        onTogglePin={togglePin}
-        onSwitchKind={() => update(convertKind(draftRef.current))}
-        onArchive={() => void archive()}
-        onCopy={() => void copy()}
-        onDelete={() => void remove()}
-        onRestore={() => void restore()}
-        onDeleteForever={() => void removeForever()}
-      />
+      <div className={styles.top}>
+        <EditorToolbar
+          draft={draft}
+          trashed={trashed}
+          onBack={() => leaveEditor(router)}
+          onChange={update}
+          onTogglePin={togglePin}
+          onSwitchKind={() => update(convertKind(draftRef.current))}
+          onArchive={() => void archive()}
+          onCopy={() => void copy()}
+          onDelete={() => void remove()}
+          onRestore={() => void restore()}
+          onDeleteForever={() => void removeForever()}
+        />
+        <div ref={setBarSlot} />
+      </div>
       <main className={styles.body}>
         {trashed && <p className={styles.notice}>This note is in Trash. Restore it to edit.</p>}
         <input
@@ -233,12 +242,30 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
           onChange={(e) => update({ title: e.target.value })}
         />
         {draft.kind === 'note' ? (
-          <NoteBody
-            value={draft.content}
-            readOnly={trashed}
-            autoFocus={stored === null}
-            onChange={(content) => update({ content })}
-          />
+          rich.status === 'ready' ? (
+            <rich.Editor
+              value={draft.content}
+              readOnly={trashed}
+              autoFocus={stored === null}
+              onChange={(content) => update({ content })}
+              barSlot={barSlot}
+            />
+          ) : rich.status === 'loading' ? (
+            // Shown read-only while the editor loads, so the page doesn't flash empty.
+            <MarkdownPreview markdown={draft.content} className={styles.loading} />
+          ) : (
+            <>
+              <p className={styles.notice} role='status'>
+                Formatting tools couldn&apos;t load. You can still edit the text.
+              </p>
+              <NoteBody
+                value={draft.content}
+                readOnly={trashed}
+                autoFocus={stored === null}
+                onChange={(content) => update({ content })}
+              />
+            </>
+          )
         ) : (
           <ChecklistEditor
             items={draft.items}
