@@ -33,6 +33,25 @@ export type Note = {
 
 export type Label = { id: string; name: string };
 
+// An image in a note's gallery. Image data is kept as bytes plus a type:
+// unlike Blobs, bytes survive IndexedDB everywhere (tests included).
+export type Attachment = {
+  id: string;
+  noteId: string;
+  position: number; // gallery order
+  type: string; // of the full image
+  width: number;
+  height: number;
+  size: number; // bytes of the full image
+  alt: string; // description; '' when none
+  createdAt: number;
+  thumb: ArrayBuffer;
+  thumbType: string;
+};
+
+// The full-size image, read only when it is shown.
+export type ImageFile = { id: string; bytes: ArrayBuffer };
+
 // Fields the board and editor change directly.
 export type NoteChanges = Partial<
   Pick<Note, 'kind' | 'title' | 'content' | 'items' | 'color' | 'labelIds' | 'pinned' | 'archived' | 'position'>
