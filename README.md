@@ -11,7 +11,7 @@ A notes and checklists app by Nine Technology, built with [Next.js](https://next
 
 ## Getting Started
 
-Requires Node.js 20.9 or later.
+Requires Node.js 24 (pinned in `package.json` `engines` and `.nvmrc`; Vercel builds with it).
 
 ```bash
 npm install
