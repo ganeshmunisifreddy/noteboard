@@ -51,10 +51,15 @@ export const selectBoardNotes = (notes: Note[], labels: Label[], filter: BoardFi
   if (filter.view === 'trash') {
     return { pinned: [], others: visible.sort((a, b) => (b.trashedAt ?? 0) - (a.trashedAt ?? 0)) };
   }
-  const byRecent = visible.sort((a, b) => b.updatedAt - a.updatedAt);
-  if (filter.view === 'archive') return { pinned: [], others: byRecent };
-  return { pinned: byRecent.filter((n) => n.pinned), others: byRecent.filter((n) => !n.pinned) };
+  if (filter.view === 'archive') {
+    return { pinned: [], others: visible.sort((a, b) => b.updatedAt - a.updatedAt) };
+  }
+  const byPosition = visible.sort((a, b) => a.position - b.position || b.updatedAt - a.updatedAt);
+  return { pinned: byPosition.filter((n) => n.pinned), others: byPosition.filter((n) => !n.pinned) };
 };
+
+export const isReorderable = (filter: BoardFilter) =>
+  (filter.view === 'all' || filter.view === 'notes' || filter.view === 'lists') && filter.query.trim() === '';
 
 export const emptyMessage = (filter: BoardFilter): string => {
   const query = filter.query.trim();

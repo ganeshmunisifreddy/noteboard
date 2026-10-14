@@ -34,8 +34,10 @@ describe('migrateFromLocalStorage', () => {
       trashedAt: null,
       createdAt: 1000,
       updatedAt: 1000,
+      position: 0,
     });
     expect((await db.notes.get('b'))?.updatedAt).toBe(999);
+    expect((await db.notes.get('b'))?.position).toBe(1);
     expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
     expect(localStorage.getItem(BACKUP_KEY)).toContain('First');
   });

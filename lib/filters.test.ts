@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   emptyMessage,
   filterToQuery,
+  isReorderable,
   matchesQuery,
   matchesView,
   parseFilter,
@@ -101,14 +102,25 @@ describe('matchesQuery', () => {
 });
 
 describe('selectBoardNotes', () => {
-  it('splits pinned from others, newest first', () => {
-    const a = makeNote({ id: 'a', updatedAt: 1 });
-    const b = makeNote({ id: 'b', updatedAt: 3, pinned: true });
-    const c = makeNote({ id: 'c', updatedAt: 2 });
-    const d = makeNote({ id: 'd', updatedAt: 4, pinned: true });
+  it('splits pinned from others, in board order', () => {
+    const a = makeNote({ id: 'a', position: 3, updatedAt: 9 });
+    const b = makeNote({ id: 'b', position: 2, pinned: true });
+    const c = makeNote({ id: 'c', position: 1 });
+    const d = makeNote({ id: 'd', position: 0, pinned: true });
     const result = selectBoardNotes([a, b, c, d], [], all);
     expect(result.pinned.map((n) => n.id)).toEqual(['d', 'b']);
     expect(result.others.map((n) => n.id)).toEqual(['c', 'a']);
+  });
+  it('breaks position ties by most recent edit', () => {
+    const a = makeNote({ id: 'a', position: 1, updatedAt: 1 });
+    const b = makeNote({ id: 'b', position: 1, updatedAt: 2 });
+    expect(selectBoardNotes([a, b], [], all).others.map((n) => n.id)).toEqual(['b', 'a']);
+  });
+  it('keeps archive newest first', () => {
+    const a = makeNote({ id: 'a', archived: true, position: 0, updatedAt: 1 });
+    const b = makeNote({ id: 'b', archived: true, position: 1, updatedAt: 2 });
+    const result = selectBoardNotes([a, b], [], { ...all, view: 'archive' });
+    expect(result.others.map((n) => n.id)).toEqual(['b', 'a']);
   });
   it('lists trash by deletion time with no pinned section', () => {
     const a = makeNote({ id: 'a', trashedAt: 10, pinned: true });
@@ -133,5 +145,17 @@ describe('emptyMessage', () => {
     expect(emptyMessage({ ...all, view: 'trash' })).toBe('Trash is empty');
     expect(emptyMessage({ ...all, labelId: 'l1' })).toBe('No notes with this label');
     expect(emptyMessage({ ...all, query: ' milk ' })).toBe('No results for “milk”');
+  });
+});
+
+describe('isReorderable', () => {
+  it('allows dragging on the board and its filters, not archive, trash or search', () => {
+    expect(isReorderable(all)).toBe(true);
+    expect(isReorderable({ ...all, view: 'lists' })).toBe(true);
+    expect(isReorderable({ ...all, labelId: 'l1' })).toBe(true);
+    expect(isReorderable({ ...all, view: 'archive' })).toBe(false);
+    expect(isReorderable({ ...all, view: 'trash' })).toBe(false);
+    expect(isReorderable({ ...all, query: 'milk' })).toBe(false);
+    expect(isReorderable({ ...all, query: '  ' })).toBe(true);
   });
 });

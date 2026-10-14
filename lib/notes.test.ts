@@ -8,6 +8,7 @@ import {
   deleteLabel,
   duplicateNote,
   emptyTrash,
+  moveNote,
   purgeOldTrash,
   renameLabel,
   restoreNote,
@@ -178,5 +179,78 @@ describe('labels', () => {
     await deleteLabel(work.id);
     expect(await db.labels.get(work.id)).toBeUndefined();
     expect((await db.notes.get(note.id))?.labelIds).toEqual([home.id]);
+  });
+});
+
+describe('positions', () => {
+  const order = async () => (await db.notes.orderBy('position').toArray()).map((n) => n.id);
+
+  it('puts new notes and copies at the top', async () => {
+    const a = await createNote({ id: 'a', kind: 'note', title: 'A' });
+    const b = await createNote({ id: 'b', kind: 'note', title: 'B' });
+    expect(b.position).toBeLessThan(a.position);
+    await duplicateNote('a');
+    expect((await order())[0]).not.toBe('b');
+  });
+
+  it('keeps its place when edited', async () => {
+    const a = await createNote({ id: 'a', kind: 'note', position: 5 });
+    await updateNote('a', { title: 'Changed', color: 'blue', content: 'x' });
+    expect((await db.notes.get('a'))?.position).toBe(a.position);
+  });
+
+  it('moves a note to the top when pinned or unpinned', async () => {
+    await createNote({ id: 'a', kind: 'note', position: 0 });
+    await createNote({ id: 'b', kind: 'note', position: 1 });
+    await togglePin('b');
+    expect(await order()).toEqual(['b', 'a']);
+    await togglePin('a');
+    expect(await order()).toEqual(['a', 'b']);
+  });
+
+  it('moves restored and unarchived notes to the top', async () => {
+    await createNote({ id: 'a', kind: 'note', position: 0 });
+    await createNote({ id: 'b', kind: 'note', position: 1 });
+    await createNote({ id: 'c', kind: 'note', position: 2 });
+    await trashNote('b');
+    await restoreNote('b');
+    expect((await order())[0]).toBe('b');
+    await setArchived('c', true);
+    await setArchived('c', false);
+    expect((await order())[0]).toBe('c');
+  });
+
+  it('moves a note between two others', async () => {
+    await createNote({ id: 'a', kind: 'note', position: 0 });
+    await createNote({ id: 'b', kind: 'note', position: 1 });
+    await createNote({ id: 'c', kind: 'note', position: 2 });
+    await moveNote('c', 'a', 'b');
+    expect(await order()).toEqual(['a', 'c', 'b']);
+    await moveNote('a', 'b', null);
+    expect(await order()).toEqual(['c', 'b', 'a']);
+    await moveNote('a', null, 'c');
+    expect(await order()).toEqual(['a', 'c', 'b']);
+  });
+
+  it('does not count a move as an edit', async () => {
+    await createNote({ id: 'a', kind: 'note', position: 0 });
+    await createNote({ id: 'b', kind: 'note', position: 1 });
+    await db.notes.update('a', { updatedAt: 1000 });
+    await moveNote('a', 'b', null);
+    expect((await db.notes.get('a'))?.updatedAt).toBe(1000);
+  });
+
+  it('renumbers without changing the order of other notes', async () => {
+    await createNote({ id: 'a', kind: 'note', position: 1 });
+    await createNote({ id: 'hidden', kind: 'note', position: 1 + 1e-7 });
+    await createNote({ id: 'b', kind: 'note', position: 1 + 2e-7 });
+    await createNote({ id: 'z', kind: 'note', position: 9 });
+    // In a filtered view showing a, b and z, drop z between a and b.
+    await moveNote('z', 'a', 'b');
+    const ids = await order();
+    expect(ids.indexOf('a')).toBeLessThan(ids.indexOf('hidden'));
+    expect(ids.indexOf('hidden')).toBeLessThan(ids.indexOf('b'));
+    expect(ids.indexOf('a')).toBeLessThan(ids.indexOf('z'));
+    expect(ids.indexOf('z')).toBeLessThan(ids.indexOf('b'));
   });
 });

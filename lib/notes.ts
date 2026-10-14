@@ -4,6 +4,7 @@ import { v4 as uuid } from 'uuid';
 import { toggleItemIn } from './checklist';
 import { db } from './db';
 import { selectBoardNotes, type BoardNotes } from './filters';
+import { needsRenumber, positionBetween } from './order';
 import { requestPersistentStorage, setHasNotesMarker } from './storage';
 import type { BoardFilter, Label, Note, NoteChanges, NoteKind } from './types';
 
@@ -21,6 +22,12 @@ const afterWrite = async () => {
   await refreshHasNotesMarker();
 };
 
+// A position above every note, so it lands at the top of its section.
+const nextTopPosition = async () => {
+  const first = await db.notes.orderBy('position').first();
+  return first ? first.position - 1 : 0;
+};
+
 // Pinning and archiving exclude each other, as in Google Keep.
 const normalize = (changes: NoteChanges): NoteChanges => {
   if (changes.archived) return { ...changes, pinned: false };
@@ -31,6 +38,7 @@ const normalize = (changes: NoteChanges): NoteChanges => {
 export const createNote = async (input: NewNote): Promise<Note> => {
   const now = Date.now();
   const fields = normalize({ pinned: input.pinned ?? false, archived: input.archived ?? false });
+  const position = input.position ?? (await nextTopPosition());
   const note: Note = {
     id: input.id ?? uuid(),
     kind: input.kind,
@@ -44,6 +52,7 @@ export const createNote = async (input: NewNote): Promise<Note> => {
     trashedAt: null,
     createdAt: now,
     updatedAt: now,
+    position,
   };
   await db.notes.add(note);
   await afterWrite();
@@ -51,7 +60,17 @@ export const createNote = async (input: NewNote): Promise<Note> => {
 };
 
 export const updateNote = async (id: string, changes: NoteChanges) => {
-  await db.notes.update(id, { ...normalize(changes), updatedAt: Date.now() });
+  const next = normalize(changes);
+  const current = await db.notes.get(id);
+  const patch: NoteChanges & { updatedAt: number } = { ...next, updatedAt: Date.now() };
+  // Pinning, unpinning and unarchiving bring the note to the top of the
+  // section it lands in; ordinary edits leave it where the user put it.
+  const pinChanged = next.pinned !== undefined && next.pinned !== current?.pinned;
+  const unarchived = next.archived === false && current?.archived === true;
+  if (current && next.position === undefined && (pinChanged || unarchived)) {
+    patch.position = await nextTopPosition();
+  }
+  await db.notes.update(id, patch);
   await afterWrite();
 };
 
@@ -73,7 +92,7 @@ export const trashNote = async (id: string) => {
 };
 
 export const restoreNote = async (id: string) => {
-  await db.notes.update(id, { trashedAt: null });
+  await db.notes.update(id, { trashedAt: null, position: await nextTopPosition() });
   await afterWrite();
 };
 
@@ -99,6 +118,28 @@ export const getNote = (id: string) => db.notes.get(id);
 export const restoreSnapshot = async (note: Note) => {
   await db.notes.put(note);
   await afterWrite();
+};
+
+// Places a note between two neighbours (null = start or end of the list).
+// Not an edit, so `updatedAt` is unchanged.
+export const moveNote = async (id: string, beforeId: string | null, afterId: string | null) => {
+  await db.transaction('rw', db.notes, async () => {
+    const find = async (noteId: string | null) => (noteId ? ((await db.notes.get(noteId))?.position ?? null) : null);
+    let before = await find(beforeId);
+    let after = await find(afterId);
+    if (needsRenumber(before, after)) {
+      const all = await db.notes.orderBy('position').toArray();
+      await Promise.all(all.map((note, index) => db.notes.update(note.id, { position: index })));
+      before = await find(beforeId);
+      after = await find(afterId);
+    }
+    await db.notes.update(id, { position: positionBetween(before, after) });
+  });
+};
+
+export const getAllData = async () => {
+  const [notes, labels] = await Promise.all([db.notes.toArray(), db.labels.toArray()]);
+  return { notes, labels };
 };
 
 export const duplicateNote = async (id: string): Promise<Note | undefined> => {

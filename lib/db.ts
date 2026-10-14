@@ -14,3 +14,14 @@ db.version(1).stores({
   notes: 'id, updatedAt, trashedAt, *labelIds',
   labels: 'id, &name',
 });
+
+// v2: manual board order. Existing notes keep today's newest-first order.
+db.version(2)
+  .stores({
+    notes: 'id, updatedAt, trashedAt, position, *labelIds',
+    labels: 'id, &name',
+  })
+  .upgrade(async (tx) => {
+    const notes = await tx.table('notes').orderBy('updatedAt').reverse().toArray();
+    await Promise.all(notes.map((note, index) => tx.table('notes').update(note.id, { position: index })));
+  });
