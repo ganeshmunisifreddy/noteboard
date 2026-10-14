@@ -1,4 +1,5 @@
 import { createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import RichEditor, { openLinkOnModClick } from './RichEditor';
 
@@ -42,6 +43,28 @@ describe('RichEditor', () => {
   it('is read-only in Trash', async () => {
     render(<RichEditor {...props} readOnly value='Gone' />);
     expect(await screen.findByRole('textbox', { name: 'Note' })).toHaveAttribute('contenteditable', 'false');
+  });
+
+  it('does not report a change when only the cursor moves', async () => {
+    // The editor adds an empty line after a final list, heading or code block.
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(<RichEditor {...props} onChange={onChange} value={'- a\n- b'} />);
+    await user.click(await screen.findByRole('textbox', { name: 'Note' }));
+    await user.keyboard('{Control>}a{/Control}');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('does not take focus from another field when it loads', async () => {
+    const title = document.createElement('input');
+    document.body.append(title);
+    title.focus();
+    render(<RichEditor {...props} autoFocus value='' />);
+    await screen.findByRole('textbox', { name: 'Note' });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(title).toHaveFocus();
+    title.remove();
   });
 });
 

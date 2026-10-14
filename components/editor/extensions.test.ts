@@ -1,7 +1,8 @@
 import { Editor } from '@tiptap/core';
 import { Slice } from '@tiptap/pm/model';
 import { afterEach, describe, expect, it } from 'vitest';
-import { tidyMarkdown, toPlainText } from '../../lib/markdown';
+import { convertKind, newItem } from '../../lib/checklist';
+import { markdownLines, tidyMarkdown, toPlainText } from '../../lib/markdown';
 import { editorExtensions } from './extensions';
 
 let editor: Editor | null = null;
@@ -58,5 +59,43 @@ describe('editor Markdown', () => {
     const target = load('');
     expect(paste(target, ['text/html', 'text/plain'], '## x')).toBeFalsy();
     expect(paste(target, ['text/plain'], 'just words')).toBeFalsy();
+  });
+
+  it('keeps old notes readable after an edit', () => {
+    const notes = ['Groceries\n\n- [ ] buy milk\n- [x] call mom', '[Wifi]: hunter2\n[Door]: 4512', 'Name | Qty\n--- | ---\nmilk | 2'];
+    for (const old of notes) {
+      const target = load(old);
+      expect(() => target.state.doc.check(), old).not.toThrow();
+      target.commands.insertContentAt(1, '!');
+      const [first, ...rest] = markdownLines(old);
+      expect(markdownLines(tidyMarkdown(target.getMarkdown())), old).toEqual([`!${first}`, ...rest]);
+      target.destroy();
+    }
+    editor = null;
+  });
+
+  it('writes text that looks like a block marker so it stays text', () => {
+    const texts = ['# tag', '- dash', '1. one', '1) two', '---', '+ plus', '> quote', '==='];
+    const target = load('');
+    target.commands.setContent({
+      type: 'doc',
+      content: texts.map((text) => ({ type: 'paragraph', content: [{ type: 'text', text }] })),
+    });
+    expect(markdownLines(tidyMarkdown(target.getMarkdown()))).toEqual(texts);
+  });
+
+  it('keeps list item text through converting, editing and converting back', () => {
+    const typed = ['# tag', '1. one', '- dash', '+ plus', '---', '***', '&amp;', '*urgent*'];
+    const note = convertKind({ kind: 'list', content: '', items: typed.map((text) => newItem(text)) });
+    const target = load(note.content);
+    target.commands.insertContentAt(target.state.doc.content.size, { type: 'paragraph', content: [{ type: 'text', text: 'x' }] });
+    const back = convertKind({ kind: 'note', content: tidyMarkdown(target.getMarkdown()), items: [] });
+    expect(back.items.map((i) => i.text)).toEqual([...typed, 'x']);
+  });
+
+  it('pastes text into a code block as it is', () => {
+    const target = load('```\nx\n```');
+    target.commands.setTextSelection(2);
+    expect(paste(target, ['text/plain'], '# comment\n- item')).toBeFalsy();
   });
 });

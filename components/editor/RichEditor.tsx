@@ -25,18 +25,26 @@ export const openLinkOnModClick = (event: MouseEvent): boolean => {
   return true;
 };
 
+// A new note's text gets focus, unless the user has already moved on (e.g.
+// into the title) while the editor was loading.
+const nothingFocused = () => !document.activeElement || document.activeElement === document.body;
+
 const RichEditor = ({ value, onChange, readOnly, autoFocus, barSlot }: RichEditorProps) => {
   const [extensions] = useState(editorExtensions);
   // The Markdown the editor last reported, so a change from outside (not an
   // echo of the user's own edit) can be loaded in.
   const reported = useRef(value);
+  // The editor's own Markdown for what it shows. Moving the cursor can make
+  // the editor add an empty line (after a final list or heading), which
+  // reports an update without changing the Markdown.
+  const shown = useRef<string | null>(null);
   const [linkOpen, setLinkOpen] = useState(false);
   const editor = useEditor({
     extensions,
     content: value,
     contentType: 'markdown',
     editable: !readOnly,
-    autofocus: autoFocus ? 'end' : false,
+    autofocus: autoFocus && nothingFocused() ? 'end' : false,
     immediatelyRender: true,
     shouldRerenderOnTransaction: false,
     editorProps: {
@@ -59,8 +67,11 @@ const RichEditor = ({ value, onChange, readOnly, autoFocus, barSlot }: RichEdito
 
   // Only edits are reported; loading a note is not an edit.
   useEffect(() => {
+    shown.current = tidyMarkdown(editor.getMarkdown());
     const onUpdate = () => {
       const markdown = tidyMarkdown(editor.getMarkdown());
+      if (markdown === shown.current) return;
+      shown.current = markdown;
       reported.current = markdown;
       report(markdown);
     };
@@ -74,6 +85,7 @@ const RichEditor = ({ value, onChange, readOnly, autoFocus, barSlot }: RichEdito
     if (value === reported.current) return;
     reported.current = value;
     editor.commands.setContent(value, { contentType: 'markdown', emitUpdate: false });
+    shown.current = tidyMarkdown(editor.getMarkdown());
   }, [editor, value]);
 
   useEffect(() => {

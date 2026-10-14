@@ -1,20 +1,51 @@
-import { Marked, type Token } from 'marked';
+import { Lexer, Marked, type Token } from 'marked';
+
+// Task-list markers ("- [ ] milk") stay text: the editor has no task items.
+// Escaping the bracket keeps the line a plain list item. Fenced code is left
+// as it is.
+export const normalizeMarkdown = (markdown: string) => {
+  let inFence = false;
+  return markdown
+    .split('\n')
+    .map((line) => {
+      if (/^ {0,3}(```|~~~)/.test(line)) {
+        inFence = !inFence;
+        return line;
+      }
+      return inFence ? line : line.replace(/^(\s*(?:[-*+]|\d+[.)])[ \t]+)\[([ xX])\]/, '$1\\[$2]');
+    })
+    .join('\n');
+};
+
+class NoteLexer extends Lexer {
+  lex(src: string) {
+    return super.lex(normalizeMarkdown(src));
+  }
+}
 
 // How Noteboard reads Markdown, shared by the editor, cards, search and
 // conversion: GitHub-flavoured, a single line break is a line break, and
-// indented text or raw HTML stay plain text. Returning undefined (not false)
-// from a tokenizer switches that rule off.
-export const createMarked = () =>
-  new Marked(
+// indented text, raw HTML, reference definitions, pipe tables and task
+// markers stay plain text (old notes are full of such lines). Returning
+// undefined (not false) from a tokenizer switches that rule off.
+export const createMarked = () => {
+  const instance = new Marked(
     { gfm: true, breaks: true },
     {
       tokenizer: {
         code: () => undefined,
         html: () => undefined,
         tag: () => undefined,
+        def: () => undefined,
+        table: () => undefined,
       },
     },
   );
+  // Tiptap creates lexers from instance.Lexer; marked's own lexer() doesn't.
+  instance.Lexer = NoteLexer as typeof instance.Lexer;
+  instance.lexer = (src, options) => new NoteLexer(options ?? instance.defaults).lex(src);
+  return instance;
+};
 
 const reader = createMarked();
 
@@ -95,7 +126,9 @@ export const isMarkdownEmpty = (markdown: string) => markdownLines(markdown).len
 const escapeText = (text: string) =>
   text
     .trim()
-    .replace(/[\\`*_~[\]<>]/g, '\\$&')
+    .replace(/[\\`*_~[\]<>&]/g, '\\$&')
+    .replace(/^(-)(?=(\s*-){2,}\s*$)/, '\\$1')
+    .replace(/^=/, '\\=')
     .replace(/^#/, '\\#')
     .replace(/^([-+])(?=\s)/, '\\$1')
     .replace(/^(\d+)([.)])/, '$1\\$2');
@@ -127,5 +160,21 @@ export const looksLikeMarkdown = (text: string) =>
   /(^|\n) {0,3}(#{1,6} |[-*+] |\d+[.)] |> |```|---[ \t]*(\n|$))|\*\*\S[^*]*\*\*|~~\S[^~]*~~|\[[^\]]+\]\([^)\s]+\)|`[^`\n]+`/.test(
     text,
   );
+
+// Starts of lines that Markdown would read as a heading, list, quote,
+// divider or heading underline. Paragraph text that begins this way is
+// escaped when saved, so it stays text.
+export const escapeLineStarts = (text: string) =>
+  text
+    .split('\n')
+    .map((line) =>
+      line
+        .replace(/^(\s*)(#{1,6})(?=\s|$)/, '$1\\$2')
+        .replace(/^(\s*)([-+*>])(?=\s|$)/, '$1\\$2')
+        .replace(/^(\s*\d+)([.)])(?=\s|$)/, '$1\\$2')
+        .replace(/^(\s*)([-_])(?=(\s*\2){2,}\s*$)/, '$1\\$2')
+        .replace(/^(\s*)(=+\s*)$/, '$1\\$2'),
+    )
+    .join('\n');
 
 export const tidyMarkdown = (markdown: string) => markdown.replace(/\s+$/, '');
