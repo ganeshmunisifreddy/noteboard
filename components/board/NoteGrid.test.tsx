@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../../lib/db';
@@ -42,6 +42,31 @@ describe('NoteGrid', () => {
     await user.keyboard('{ArrowRight}{ArrowRight}');
     await waitFor(async () => expect(await savedOrder()).toEqual(['b', 'c', 'a']));
     expect(screen.getByText('Moved A to position 3 of 3')).toBeInTheDocument();
+  });
+
+  it('does not take focus back after the user has moved on', async () => {
+    const notes = await threeNotes();
+    const user = userEvent.setup();
+    const props = { notes, labelNames: new Map<string, string>(), mode: 'board' as const, onOpen: vi.fn() };
+    const { rerender } = render(<NoteGrid {...props} reorderable />);
+    screen.getByRole('button', { name: 'Move A' }).focus();
+    await user.keyboard('{ArrowRight}');
+    await waitFor(async () => expect(await savedOrder()).toEqual(['b', 'a', 'c']));
+    // Clicking blank space blurs the grip without focusing anything else.
+    act(() => (document.activeElement as HTMLElement).blur());
+    rerender(<NoteGrid {...props} notes={[...notes]} reorderable />);
+    expect(screen.getByRole('button', { name: 'Move A' })).not.toHaveFocus();
+  });
+
+  it('moves a note from the grip menu, without dragging', async () => {
+    const notes = await threeNotes();
+    const user = userEvent.setup();
+    render(<NoteGrid notes={notes} labelNames={new Map()} mode='board' onOpen={vi.fn()} reorderable />);
+    await user.click(screen.getByRole('button', { name: 'Move A' }));
+    expect(await screen.findByRole('menuitem', { name: 'Move later' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Move earlier' })).toBeNull();
+    await user.click(screen.getByRole('menuitem', { name: 'Move to end' }));
+    await waitFor(async () => expect(await savedOrder()).toEqual(['b', 'c', 'a']));
   });
 
   it('moves a note to the end with End', async () => {

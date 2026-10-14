@@ -8,6 +8,7 @@ import {
   toggleItem,
   togglePin,
   trashNote,
+  undoTrash,
   updateNote,
 } from '../../lib/notes';
 import type { Note } from '../../lib/types';
@@ -53,7 +54,7 @@ const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle }: Props) => {
 
   const trash = async () => {
     await trashNote(note.id);
-    toast({ message: 'Moved to trash', actionLabel: 'Undo', onAction: () => void restoreNote(note.id) });
+    toast({ message: 'Moved to trash', actionLabel: 'Undo', onAction: () => void undoTrash(note.id) });
   };
 
   const removeForever = () => {

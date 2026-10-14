@@ -54,7 +54,9 @@ export const selectBoardNotes = (notes: Note[], labels: Label[], filter: BoardFi
   if (filter.view === 'archive') {
     return { pinned: [], others: visible.sort((a, b) => b.updatedAt - a.updatedAt) };
   }
-  const byPosition = visible.sort((a, b) => a.position - b.position || b.updatedAt - a.updatedAt);
+  // Ties (e.g. positions from a restored backup) are broken by id, the order
+  // IndexedDB keeps them in, so an edit or a renumber never moves a note.
+  const byPosition = visible.sort((a, b) => a.position - b.position || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return { pinned: byPosition.filter((n) => n.pinned), others: byPosition.filter((n) => !n.pinned) };
 };
 

@@ -96,6 +96,12 @@ export const restoreNote = async (id: string) => {
   await afterWrite();
 };
 
+// Undo for "Move to trash": back where it was, unlike Restore from Trash.
+export const undoTrash = async (id: string) => {
+  await db.notes.update(id, { trashedAt: null });
+  await afterWrite();
+};
+
 export const deleteForever = async (id: string) => {
   await db.notes.delete(id);
   await afterWrite();

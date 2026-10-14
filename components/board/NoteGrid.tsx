@@ -17,14 +17,15 @@ import {
   type MeasuringConfiguration,
 } from '@dnd-kit/core';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { GripVertical } from 'lucide-react';
-import { useCallback, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, GripVertical } from 'lucide-react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { assignColumns, columnCountFor, gapFor } from '../../lib/masonry';
 import { moveNote } from '../../lib/notes';
 import { moveId, moveToIndex, neighbors } from '../../lib/order';
 import type { Note } from '../../lib/types';
 import IconButton from '../ui/IconButton';
+import Menu, { type MenuItem } from '../ui/Menu';
 import { useToast } from '../ui/Toast';
 import NoteCard, { type CardMode } from './NoteCard';
 import styles from './NoteGrid.module.css';
@@ -189,8 +190,11 @@ const NoteGrid = ({ notes, labelNames, mode, onOpen, reorderable }: Props) => {
   const [preview, setPreview] = useState<{ base: Note[]; ids: string[] } | null>(null);
   const [announcement, setAnnouncement] = useState('');
   // Reordering moves the card's DOM node, which drops focus; the grip that
-  // was used is focused again until the user moves focus elsewhere.
+  // was used is focused again in the render that moves it, and only then.
   const refocusId = useRef<string | null>(null);
+  useEffect(() => {
+    refocusId.current = null;
+  });
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     // Press and hold, so a normal swipe still scrolls the board.
@@ -247,18 +251,39 @@ const NoteGrid = ({ notes, labelNames, mode, onOpen, reorderable }: Props) => {
     }
   };
 
+  // Start from the order on screen: an earlier move may not be saved yet.
+  const moveTo = (id: string, next: number) => {
+    const index = shownIds.indexOf(id);
+    if (next < 0 || next >= shownIds.length || next === index) return false;
+    const nextIds = moveToIndex(shownIds, id, next);
+    setPreview({ base: notes, ids: nextIds });
+    void save(nextIds, id);
+    return true;
+  };
+
   const onHandleKeyDown = (id: string) => (event: KeyboardEvent<HTMLButtonElement>) => {
     const target = KEY_TARGETS[event.key];
     if (!target) return;
+    // Also stops the menu opening on ArrowDown.
     event.preventDefault();
-    // Start from the order on screen: an earlier move may not be saved yet.
+    if (moveTo(id, target(shownIds.indexOf(id), shownIds.length - 1))) refocusId.current = id;
+  };
+
+  // The grip's menu moves a note without dragging (WCAG 2.5.7). The menu
+  // puts focus back on the grip itself when it closes.
+  const moveItems = (id: string): MenuItem[] => {
     const index = shownIds.indexOf(id);
-    const next = target(index, shownIds.length - 1);
-    if (next < 0 || next >= shownIds.length || next === index) return;
-    const nextIds = moveToIndex(shownIds, id, next);
-    refocusId.current = id;
-    setPreview({ base: notes, ids: nextIds });
-    void save(nextIds, id);
+    const last = shownIds.length - 1;
+    const items: MenuItem[] = [];
+    if (index > 0) {
+      items.push({ label: 'Move to start', icon: <ArrowUpToLine size={16} aria-hidden />, onSelect: () => moveTo(id, 0) });
+      items.push({ label: 'Move earlier', icon: <ArrowUp size={16} aria-hidden />, onSelect: () => moveTo(id, index - 1) });
+    }
+    if (index < last) {
+      items.push({ label: 'Move later', icon: <ArrowDown size={16} aria-hidden />, onSelect: () => moveTo(id, index + 1) });
+      items.push({ label: 'Move to end', icon: <ArrowDownToLine size={16} aria-hidden />, onSelect: () => moveTo(id, last) });
+    }
+    return items;
   };
 
   const onDragStart = ({ active }: DragStartEvent) => {
@@ -290,21 +315,23 @@ const NoteGrid = ({ notes, labelNames, mode, onOpen, reorderable }: Props) => {
       labelNames={note.labelIds.map((id) => labelNames.get(id)).filter((name): name is string => !!name)}
       dragHandle={
         withHandle ? (
-          <IconButton
-            ref={(el) => {
-              if (el && refocusId.current === note.id && document.activeElement !== el) el.focus();
-            }}
-            label={`Move ${note.title || 'Untitled'}`}
-            aria-describedby={hintId}
-            className={styles.handle}
-            onKeyDown={onHandleKeyDown(note.id)}
-            onBlur={(e) => {
-              // relatedTarget is null when the blur came from moving the node.
-              if (e.relatedTarget) refocusId.current = null;
-            }}
-          >
-            <GripVertical size={16} aria-hidden />
-          </IconButton>
+          <Menu
+            align='start'
+            items={moveItems(note.id)}
+            trigger={
+              <IconButton
+                ref={(el) => {
+                  if (el && refocusId.current === note.id && document.activeElement !== el) el.focus();
+                }}
+                label={`Move ${note.title || 'Untitled'}`}
+                aria-describedby={hintId}
+                className={styles.handle}
+                onKeyDown={onHandleKeyDown(note.id)}
+              >
+                <GripVertical size={16} aria-hidden />
+              </IconButton>
+            }
+          />
         ) : undefined
       }
     />
@@ -342,7 +369,7 @@ const NoteGrid = ({ notes, labelNames, mode, onOpen, reorderable }: Props) => {
                 dragging={note.id === activeId}
                 measure={measure}
               >
-                {card(note, reorderable)}
+                {card(note, reorderable && ordered.length > 1)}
               </Cell>
             );
           })}
@@ -359,7 +386,7 @@ const NoteGrid = ({ notes, labelNames, mode, onOpen, reorderable }: Props) => {
       </DragOverlay>
       {reorderable && (
         <p id={hintId} className={styles.srOnly}>
-          Use the arrow keys to move this note earlier or later.
+          Opens a menu to move this note. The arrow keys also move it earlier or later.
         </p>
       )}
       <p role='status' className={styles.srOnly}>

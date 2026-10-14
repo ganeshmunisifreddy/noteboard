@@ -111,10 +111,12 @@ describe('selectBoardNotes', () => {
     expect(result.pinned.map((n) => n.id)).toEqual(['d', 'b']);
     expect(result.others.map((n) => n.id)).toEqual(['c', 'a']);
   });
-  it('breaks position ties by most recent edit', () => {
+  it('breaks position ties by id, as stored, so editing never moves a note', () => {
     const a = makeNote({ id: 'a', position: 1, updatedAt: 1 });
     const b = makeNote({ id: 'b', position: 1, updatedAt: 2 });
-    expect(selectBoardNotes([a, b], [], all).others.map((n) => n.id)).toEqual(['b', 'a']);
+    expect(selectBoardNotes([b, a], [], all).others.map((n) => n.id)).toEqual(['a', 'b']);
+    const edited = { ...a, updatedAt: 3 };
+    expect(selectBoardNotes([b, edited], [], all).others.map((n) => n.id)).toEqual(['a', 'b']);
   });
   it('keeps archive newest first', () => {
     const a = makeNote({ id: 'a', archived: true, position: 0, updatedAt: 1 });

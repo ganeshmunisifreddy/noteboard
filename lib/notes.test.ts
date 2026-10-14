@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from './db';
+import { selectBoardNotes } from './filters';
 import {
   TRASH_RETENTION_MS,
   createLabel,
@@ -252,5 +253,22 @@ describe('positions', () => {
     expect(ids.indexOf('hidden')).toBeLessThan(ids.indexOf('b'));
     expect(ids.indexOf('a')).toBeLessThan(ids.indexOf('z'));
     expect(ids.indexOf('z')).toBeLessThan(ids.indexOf('b'));
+  });
+
+  it('renumbers tied notes in the order the board shows them', async () => {
+    await createNote({ id: 'n1', kind: 'note', position: 1 });
+    await createNote({ id: 'n2', kind: 'note', position: 1 + 1e-7 });
+    await createNote({ id: 'z1', kind: 'list', position: 3 });
+    await createNote({ id: 'a1', kind: 'list', position: 3 });
+    await createNote({ id: 'x', kind: 'note', position: 9 });
+    // z1 was edited last; IndexedDB keeps ties in id order (a1 first).
+    await db.notes.update('a1', { updatedAt: 1 });
+    await db.notes.update('z1', { updatedAt: 2 });
+    const board = async () =>
+      selectBoardNotes(await db.notes.toArray(), [], { view: 'all', labelId: null, query: '' }).others.map((n) => n.id);
+    const shown = (await board()).filter((id) => id === 'a1' || id === 'z1');
+    // In Notes, drop x between n1 and n2: their gap is too small, so all renumber.
+    await moveNote('x', 'n1', 'n2');
+    expect((await board()).filter((id) => id === 'a1' || id === 'z1')).toEqual(shown);
   });
 });
