@@ -1,9 +1,11 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { Label, Note } from './types';
+import type { Attachment, ImageFile, Label, Note } from './types';
 
 export type NoteboardDB = Dexie & {
   notes: EntityTable<Note, 'id'>;
   labels: EntityTable<Label, 'id'>;
+  attachments: EntityTable<Attachment, 'id'>;
+  imageFiles: EntityTable<ImageFile, 'id'>;
 };
 
 export const db = new Dexie('noteboard') as NoteboardDB;
@@ -25,3 +27,12 @@ db.version(2)
     const notes = await tx.table('notes').orderBy('updatedAt').reverse().toArray();
     await Promise.all(notes.map((note, index) => tx.table('notes').update(note.id, { position: index })));
   });
+
+// v3: images. Details and thumbnails in `attachments`; full images in
+// `imageFiles`, read only when shown.
+db.version(3).stores({
+  notes: 'id, updatedAt, trashedAt, position, *labelIds',
+  labels: 'id, &name',
+  attachments: 'id, noteId',
+  imageFiles: 'id',
+});

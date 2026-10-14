@@ -23,4 +23,18 @@ describe('schema v2 upgrade', () => {
       ['old', 2],
     ]);
   });
+
+  it('adds image tables and keeps notes', async () => {
+    db.close();
+    await Dexie.delete('noteboard');
+    const v2 = new Dexie('noteboard');
+    v2.version(2).stores({ notes: 'id, updatedAt, trashedAt, position, *labelIds', labels: 'id, &name' });
+    await v2.table('notes').add({ id: 'kept', updatedAt: 1, position: 0 });
+    v2.close();
+
+    await db.open();
+    expect((await db.notes.get('kept'))?.position).toBe(0);
+    expect(await db.attachments.count()).toBe(0);
+    expect(await db.imageFiles.count()).toBe(0);
+  });
 });

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { v4 as uuid } from 'uuid';
+import { copyAttachments, deleteAttachmentsOf } from './attachments';
 import { toggleItemIn } from './checklist';
 import { db } from './db';
 import { selectBoardNotes, type BoardNotes } from './filters';
@@ -112,18 +113,31 @@ export const undoTrash = async (id: string) => {
   await afterWrite();
 };
 
+// A note's images go with it, in the same transaction.
 export const deleteForever = async (id: string) => {
-  await db.notes.delete(id);
+  await db.transaction('rw', db.notes, db.attachments, db.imageFiles, async () => {
+    await db.notes.delete(id);
+    await deleteAttachmentsOf([id]);
+  });
   await afterWrite();
 };
 
 export const emptyTrash = async () => {
-  await db.notes.where('trashedAt').aboveOrEqual(0).delete();
+  await db.transaction('rw', db.notes, db.attachments, db.imageFiles, async () => {
+    const ids = await db.notes.where('trashedAt').aboveOrEqual(0).primaryKeys();
+    await db.notes.bulkDelete(ids);
+    await deleteAttachmentsOf(ids);
+  });
   await afterWrite();
 };
 
 export const purgeOldTrash = async (now = Date.now()) => {
-  const removed = await db.notes.where('trashedAt').below(now - TRASH_RETENTION_MS).delete();
+  const removed = await db.transaction('rw', db.notes, db.attachments, db.imageFiles, async () => {
+    const ids = await db.notes.where('trashedAt').below(now - TRASH_RETENTION_MS).primaryKeys();
+    await db.notes.bulkDelete(ids);
+    await deleteAttachmentsOf(ids);
+    return ids.length;
+  });
   if (removed > 0) await afterWrite();
   return removed;
 };
@@ -161,7 +175,7 @@ export const getAllData = async () => {
 export const duplicateNote = async (id: string): Promise<Note | undefined> => {
   const note = await db.notes.get(id);
   if (!note) return undefined;
-  return createNote({
+  const copy = await createNote({
     kind: note.kind,
     title: note.title,
     content: note.content,
@@ -169,6 +183,8 @@ export const duplicateNote = async (id: string): Promise<Note | undefined> => {
     color: note.color,
     labelIds: note.labelIds,
   });
+  await db.transaction('rw', db.attachments, db.imageFiles, () => copyAttachments(id, copy.id));
+  return copy;
 };
 
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
