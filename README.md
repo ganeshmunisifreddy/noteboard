@@ -5,6 +5,8 @@ A notes and checklists app by Nine Technology, built with [Next.js](https://next
 ## Features
 
 - Notes and checklists, with pin, colour, labels, archive and trash (30-day auto-delete, undo)
+- Drag cards into your own order (mouse, touch, or the grip button with arrow keys)
+- Backup and restore (JSON, merges with what's there) and export as Markdown, from the ⋯ menu
 - Search and filters (All, Notes, Lists, labels), kept in the URL
 - Light and dark themes
 - Keyboard shortcuts: `n` new note, `l` new list, `/` search, `Esc` leave the editor
@@ -39,6 +41,7 @@ In production the app runs under pm2 via `ecosystem.config.js`.
 - `pages/_offline.tsx`: fallback page served by the service worker when offline
 - `components/board/`, `components/editor/`, `components/ui/`: UI (Radix Primitives + CSS Modules)
 - `lib/notes.ts`: notes and labels store; `lib/db.ts`: IndexedDB schema
+- `lib/backup.ts`: backup format, restore merge and Markdown export; `lib/order.ts` and `lib/masonry.ts`: board order and layout
 - `lib/migrate.ts`: one-time move of notes from the old `localStorage` format (the old data is kept as `notes-backup-v1`)
 - `styles/tokens.css`: colours, spacing and type, light and dark
 - `worker/index.js`: serves the board and editor offline

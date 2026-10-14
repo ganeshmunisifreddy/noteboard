@@ -1,7 +1,7 @@
 import type { NextPage } from 'next';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import FilterChips from '../components/board/FilterChips';
 import type { CardMode } from '../components/board/NoteCard';
 import NoteGrid from '../components/board/NoteGrid';
@@ -9,6 +9,7 @@ import TopBar from '../components/board/TopBar';
 import NotFound from '../components/NotFound';
 import LabelsDialog from '../components/ui/LabelsDialog';
 import { useToast } from '../components/ui/Toast';
+import { downloadBackup, downloadMarkdown, restoreBackup, restoreErrorMessage, restoredMessage } from '../lib/backup';
 import { emptyMessage, filterToQuery, isReorderable, parseFilter } from '../lib/filters';
 import { emptyTrash, useBoardNotes, useLabels } from '../lib/notes';
 import { markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../lib/routes';
@@ -28,6 +29,7 @@ const Home: NextPage = () => {
   // Bumped after Back/Forward so the search box picks up the URL's query
   // (typing only replaces the URL, so it never triggers this).
   const [historyKey, setHistoryKey] = useState(0);
+  const restoreInput = useRef<HTMLInputElement>(null);
   const loaded = status !== 'pending' && board !== undefined;
 
   useEffect(() => {
@@ -88,6 +90,32 @@ const Home: NextPage = () => {
     toast({ message: 'Trash emptied' });
   };
 
+  const backUp = async () => {
+    try {
+      await downloadBackup();
+      toast({ message: 'Backup downloaded' });
+    } catch {
+      toast({ message: 'Couldn’t create the backup.' });
+    }
+  };
+
+  const exportMarkdown = async () => {
+    try {
+      await downloadMarkdown();
+      toast({ message: 'Markdown file downloaded' });
+    } catch {
+      toast({ message: 'Couldn’t export your notes.' });
+    }
+  };
+
+  const restore = async (file: File) => {
+    try {
+      toast({ message: restoredMessage(await restoreBackup(await file.text())) });
+    } catch (error) {
+      toast({ message: restoreErrorMessage(error) });
+    }
+  };
+
   const mode: CardMode = filter.view === 'trash' ? 'trash' : filter.view === 'archive' ? 'archive' : 'board';
   const pinned = loaded && board ? board.pinned : [];
   const others = loaded && board ? board.others : [];
@@ -112,6 +140,9 @@ const Home: NextPage = () => {
         labels={labels ?? []}
         onSelect={showFilter}
         onManageLabels={() => setLabelsOpen(true)}
+        onBackup={() => void backUp()}
+        onRestore={() => restoreInput.current?.click()}
+        onExport={() => void exportMarkdown()}
       />
       <main className={styles.main}>
         {mode === 'trash' && total > 0 && (
@@ -142,6 +173,18 @@ const Home: NextPage = () => {
           </div>
         )}
       </main>
+      <input
+        ref={restoreInput}
+        type='file'
+        accept='.json,application/json'
+        hidden
+        aria-hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) void restore(file);
+        }}
+      />
       <LabelsDialog open={labelsOpen} onOpenChange={setLabelsOpen} />
     </>
   );

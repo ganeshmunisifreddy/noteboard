@@ -1,7 +1,8 @@
 import { v4 as uuid } from 'uuid';
 import { db } from './db';
 import { selectBoardNotes } from './filters';
-import { refreshHasNotesMarker } from './notes';
+import { downloadFile } from './download';
+import { getAllData, refreshHasNotesMarker } from './notes';
 import { isQuotaError } from './storage';
 import { NOTE_COLORS, type ChecklistItem, type Label, type Note, type NoteColor } from './types';
 
@@ -201,3 +202,13 @@ const dateStamp = (date: Date) =>
 
 export const backupFileName = (date: Date) => `noteboard-backup-${dateStamp(date)}.json`;
 export const markdownFileName = (date: Date) => `noteboard-notes-${dateStamp(date)}.md`;
+
+export const downloadBackup = async (now = new Date()) => {
+  const { notes, labels } = await getAllData();
+  downloadFile(backupFileName(now), JSON.stringify(buildBackup(notes, labels, now), null, 2), 'application/json');
+};
+
+export const downloadMarkdown = async (now = new Date()) => {
+  const { notes, labels } = await getAllData();
+  downloadFile(markdownFileName(now), toMarkdown(notes, labels), 'text/markdown');
+};
