@@ -1,0 +1,62 @@
+import { render, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import RichEditor, { openLinkOnModClick } from './RichEditor';
+
+const props = { onChange: vi.fn(), readOnly: false, autoFocus: false };
+
+describe('RichEditor', () => {
+  it('shows a note formatted, keeping line breaks', async () => {
+    render(<RichEditor {...props} value={'**Book** hotel\nPack'} />);
+    const box = await screen.findByRole('textbox', { name: 'Note' });
+    expect(box.querySelector('strong')).toHaveTextContent('Book');
+    expect(box.querySelector('br')).not.toBeNull();
+  });
+
+  it('does not report a change when a note is opened', async () => {
+    const onChange = vi.fn();
+    render(<RichEditor {...props} onChange={onChange} value='## Old note' />);
+    await screen.findByRole('textbox', { name: 'Note' });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('loads a change made outside the editor without reporting it', async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<RichEditor {...props} onChange={onChange} value='First' />);
+    rerender(<RichEditor {...props} onChange={onChange} value='**Second**' />);
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Note' }).querySelector('strong')).toHaveTextContent('Second'),
+    );
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('is read-only in Trash', async () => {
+    render(<RichEditor {...props} readOnly value='Gone' />);
+    expect(await screen.findByRole('textbox', { name: 'Note' })).toHaveAttribute('contenteditable', 'false');
+  });
+});
+
+describe('openLinkOnModClick', () => {
+  const clickOn = (href: string, withModifier: boolean) => {
+    const link = document.createElement('a');
+    link.setAttribute('href', href);
+    link.textContent = 'x';
+    document.body.append(link);
+    return { target: link, metaKey: withModifier, ctrlKey: false } as unknown as MouseEvent;
+  };
+
+  it('opens web links with Cmd/Ctrl+click only', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    expect(openLinkOnModClick(clickOn('https://a.com', false))).toBe(false);
+    expect(openLinkOnModClick(clickOn('https://a.com', true))).toBe(true);
+    expect(open).toHaveBeenCalledWith('https://a.com', '_blank', 'noopener,noreferrer');
+    open.mockRestore();
+  });
+
+  it('never opens unsafe links', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    expect(openLinkOnModClick(clickOn('javascript:alert(1)', true))).toBe(false);
+    expect(open).not.toHaveBeenCalled();
+    open.mockRestore();
+  });
+});
