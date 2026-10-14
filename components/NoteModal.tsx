@@ -1,31 +1,34 @@
-import React, { useEffect, useState, useRef } from "react";
-import Modal from "../components/Modal";
-import styles from "../styles/Note.module.css";
+import { useEffect, useState, useRef, type ChangeEvent } from 'react';
+import Modal from '../components/Modal';
+import type { Note } from '../lib/notes';
+import styles from '../styles/Note.module.css';
 
-type Props = {};
+type EditableNote = Omit<Note, 'id'> & { id?: string };
 
-const defaultNote = {
-  title: "",
-  content: "",
+type Props = {
+  note?: Note;
+  onClose: () => void;
+  handleSave: (note: EditableNote) => void;
+};
+
+const defaultNote: EditableNote = {
+  title: '',
+  content: '',
   pinned: false,
 };
 
-const EditNote = (props: any) => {
-  const { open, onClose, note: eNote, handleSave } = props;
-  const [note, setNote] = useState<any>({ ...defaultNote });
+const EditNote = (props: Props) => {
+  const { onClose, note: eNote, handleSave } = props;
+  // Mounted only while open, so the note being edited is known up front.
+  const [note, setNote] = useState<EditableNote>(
+    () => eNote || { ...defaultNote },
+  );
 
-  useEffect(() => {
-    if (eNote) {
-      setNote(eNote);
-    }
-  }, [eNote]);
-
-  const handleChange = (e: any, type: string) => {
-    let value = e.target.value;
-    let newNote = { ...note };
-    if (type === "title") newNote.title = value;
-    if (type === "content") newNote.content = value;
-    setNote(newNote);
+  const handleChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+    type: 'title' | 'content',
+  ) => {
+    setNote({ ...note, [type]: e.target.value });
   };
 
   // const handleApply = () => {
@@ -39,30 +42,32 @@ const EditNote = (props: any) => {
     onClose();
   };
 
-  const inputRef = useRef<any>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    inputRef.current.focus();
+    inputRef.current?.focus();
   }, []);
 
   return (
-    <Modal open={open} onClose={handleClose}>
+    <Modal onClose={handleClose} label={eNote ? 'Edit note' : 'New note'}>
       <div className={styles.modalContainer}>
         <div className={styles.modalTitle}>
           <input
             className={styles.titleInput}
-            placeholder="Title"
+            placeholder='Title'
+            aria-label='Title'
             value={note.title}
-            onChange={(e: any) => handleChange(e, "title")}
+            onChange={(e) => handleChange(e, 'title')}
           />
         </div>
         <div className={styles.modalContent}>
           <textarea
             ref={inputRef}
-            placeholder="Please enter your note..."
+            placeholder='Please enter your note...'
+            aria-label='Note'
             className={styles.editArea}
             value={note.content}
-            onChange={(e: any) => handleChange(e, "content")}
+            onChange={(e) => handleChange(e, 'content')}
           ></textarea>
         </div>
         {/* <div className={styles.modalActions}>

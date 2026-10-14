@@ -8,3 +8,7 @@
   flex-flow: row wrap;
   width: 100%;
 }
+
+:global(html[data-has-notes]) .emptyState {
+  display: none;
+}

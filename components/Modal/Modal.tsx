@@ -1,29 +1,36 @@
-import React, { useEffect, useRef, useState } from "react";
-import styles from "./Modal.module.css";
+import { useEffect, type MouseEvent, type ReactNode } from 'react';
+import styles from './Modal.module.css';
 
 type Props = {
-  children: any;
-  open: boolean;
-  onClose: any;
+  children: ReactNode;
+  onClose: () => void;
+  label?: string;
 };
 
 const Modal = (props: Props) => {
-  const { children, open, onClose } = props;
+  const { children, onClose, label } = props;
 
-  const modalRef = useRef<any>(null);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
 
-  const preventClose = (event: any) => {
+  const preventClose = (event: MouseEvent) => {
     event.stopPropagation();
-    event.preventDefault();
   };
-
-  if (!open) {
-    return null;
-  }
 
   return (
     <div className={styles.root} onClick={onClose}>
-      <div className={styles.container} onClick={preventClose} ref={modalRef}>
+      <div
+        className={styles.container}
+        onClick={preventClose}
+        role='dialog'
+        aria-modal='true'
+        aria-label={label}
+      >
         {children}
       </div>
     </div>
