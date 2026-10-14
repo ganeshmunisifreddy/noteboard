@@ -1,7 +1,9 @@
 import { EditorContent, useEditor } from '@tiptap/react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { safeUrl, tidyMarkdown } from '../../lib/markdown';
 import { editorExtensions } from './extensions';
+import FormatBar from './FormatBar';
 import styles from './RichEditor.module.css';
 
 export type RichEditorProps = {
@@ -23,11 +25,12 @@ export const openLinkOnModClick = (event: MouseEvent): boolean => {
   return true;
 };
 
-const RichEditor = ({ value, onChange, readOnly, autoFocus }: RichEditorProps) => {
+const RichEditor = ({ value, onChange, readOnly, autoFocus, barSlot }: RichEditorProps) => {
   const [extensions] = useState(editorExtensions);
   // The Markdown the editor last reported, so a change from outside (not an
   // echo of the user's own edit) can be loaded in.
   const reported = useRef(value);
+  const [linkOpen, setLinkOpen] = useState(false);
   const editor = useEditor({
     extensions,
     content: value,
@@ -39,6 +42,11 @@ const RichEditor = ({ value, onChange, readOnly, autoFocus }: RichEditorProps) =
     editorProps: {
       attributes: { class: styles.prose, role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Note' },
       handleClick: (_view, _pos, event) => openLinkOnModClick(event),
+      handleKeyDown: (_view, event) => {
+        if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'k') return false;
+        setLinkOpen(true);
+        return true;
+      },
     },
   });
 
@@ -67,7 +75,14 @@ const RichEditor = ({ value, onChange, readOnly, autoFocus }: RichEditorProps) =
     editor.setEditable(!readOnly, false);
   }, [editor, readOnly]);
 
-  return <EditorContent editor={editor} className={styles.content} />;
+  return (
+    <>
+      {barSlot &&
+        !readOnly &&
+        createPortal(<FormatBar editor={editor} linkOpen={linkOpen} onLinkOpenChange={setLinkOpen} />, barSlot)}
+      <EditorContent editor={editor} className={styles.content} />
+    </>
+  );
 };
 
 export default RichEditor;

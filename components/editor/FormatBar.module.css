@@ -1,0 +1,32 @@
+/* One row; scrolls sideways on narrow screens instead of wrapping. */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  background: var(--note-bg);
+  color: var(--text);
+}
+
+.bar::-webkit-scrollbar {
+  display: none;
+}
+
+.bar > * {
+  flex: none;
+}
+
+.bar [aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.separator {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: color-mix(in srgb, var(--text) 20%, transparent);
+}
