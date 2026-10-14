@@ -2,11 +2,12 @@ import type { NextRouter } from 'next/router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { leaveEditor, markOnBoard, newNoteHref, noteHref, openEditor } from './routes';
 
-const fakeRouter = (pathname: string) =>
-  ({ pathname, push: vi.fn(), replace: vi.fn(), back: vi.fn() }) as unknown as NextRouter;
+const fakeRouter = (pathname: string, asPath = pathname) =>
+  ({ pathname, asPath, push: vi.fn(), replace: vi.fn(), back: vi.fn() }) as unknown as NextRouter;
 
 beforeEach(() => {
   markOnBoard();
+  sessionStorage.clear();
 });
 
 describe('hrefs', () => {
@@ -45,5 +46,24 @@ describe('openEditor / leaveEditor', () => {
     expect(editor.replace).toHaveBeenCalledWith(noteHref('b'));
     leaveEditor(editor);
     expect(editor.back).toHaveBeenCalled();
+  });
+});
+
+describe('after a refresh in the editor', () => {
+  it('returns to the board with the filter it was opened from', async () => {
+    openEditor(fakeRouter('/', '/?view=lists'), noteHref('a'));
+    vi.resetModules();
+    const fresh = await import('./routes');
+    const editor = fakeRouter('/note');
+    fresh.leaveEditor(editor);
+    expect(editor.push).toHaveBeenCalledWith('/?view=lists');
+    expect(editor.back).not.toHaveBeenCalled();
+  });
+
+  it('remembers the board scroll position for the way back', () => {
+    window.scrollY = 320;
+    openEditor(fakeRouter('/', '/?label=l1'), noteHref('a'));
+    expect(JSON.parse(sessionStorage.getItem('boardScroll') ?? 'null')).toEqual({ url: '/?label=l1', y: 320 });
+    window.scrollY = 0;
   });
 });

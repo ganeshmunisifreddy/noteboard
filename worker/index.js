@@ -4,8 +4,11 @@
 // The board and editor are static pages that read everything from IndexedDB,
 // so one cached copy of each serves every query string (?view=…, ?id=…)
 // offline, including notes never opened before.
+import { networkFirst } from './networkFirst';
+
 const SHELL_CACHE = 'app-shell';
 const SHELL_PATHS = ['/', '/note'];
+const NETWORK_TIMEOUT_MS = 3000;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -23,14 +26,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   event.respondWith(
-    fetch(request)
-      .then((response) => {
-        if (response.ok) {
-          const copy = response.clone();
-          event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.put(url.pathname, copy)));
-        }
-        return response;
-      })
-      .catch(async () => (await caches.match(url.pathname, { cacheName: SHELL_CACHE })) || Response.error()),
+    networkFirst(
+      () =>
+        fetch(request).then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.put(url.pathname, copy)));
+          }
+          return response;
+        }),
+      () => caches.match(url.pathname, { cacheName: SHELL_CACHE }),
+      NETWORK_TIMEOUT_MS,
+    ).catch(() => Response.error()),
   );
 });

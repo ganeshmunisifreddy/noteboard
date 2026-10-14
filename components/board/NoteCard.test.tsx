@@ -33,6 +33,13 @@ describe('NoteCard', () => {
     expect(onOpen).toHaveBeenCalledWith('c1');
   });
 
+  it('describes the card contents to screen readers', async () => {
+    const note = await createNote({ id: 'c2', kind: 'note', content: 'Buy stamps' });
+    render(<NoteCard note={note} labelNames={['Errands']} mode='board' onOpen={vi.fn()} />);
+    const open = screen.getByRole('button', { name: 'Open note: Untitled' });
+    expect(open).toHaveAccessibleDescription('Buy stamps Errands');
+  });
+
   it('ticks a list item without opening the note', async () => {
     const note = await groceries();
     const onOpen = vi.fn();

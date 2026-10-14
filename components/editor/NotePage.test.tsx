@@ -1,9 +1,10 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../../lib/db';
 import { createNote } from '../../lib/notes';
 import NotePage from '../../pages/note';
+import { ToastProvider } from '../ui/Toast';
 
 const router = vi.hoisted(() => ({
   pathname: '/note',
@@ -93,6 +94,46 @@ describe('NotePage', () => {
     await screen.findByRole('textbox', { name: 'Title' });
     await user.keyboard('{Escape}');
     expect(router.push).toHaveBeenCalledWith('/');
+  });
+
+  it('stays in the editor when Escape ends an IME composition', async () => {
+    await createNote({ id: 'n8', kind: 'note', title: 'IME' });
+    router.query = { id: 'n8' };
+    render(<NotePage />);
+    const body = await screen.findByRole('textbox', { name: 'Note' });
+    fireEvent.keyDown(body, { key: 'Escape', isComposing: true });
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it('saves straight away when the tab is hidden', async () => {
+    await createNote({ id: 'n9', kind: 'note', title: 'Hide' });
+    router.query = { id: 'n9' };
+    const user = userEvent.setup();
+    render(<NotePage />);
+    await user.type(await screen.findByRole('textbox', { name: 'Note' }), 'Swipe');
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(await savedContent('n9')).toBe('Swipe');
+  });
+
+  it('puts an archived note back exactly as it was on Undo', async () => {
+    await createNote({ id: 'n10', kind: 'note', title: 'Keep order', pinned: true });
+    await db.notes.update('n10', { updatedAt: 1000 });
+    router.query = { id: 'n10' };
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <NotePage />
+      </ToastProvider>,
+    );
+    await screen.findByRole('textbox', { name: 'Title' });
+    await user.click(screen.getByRole('button', { name: 'Archive' }));
+    await user.click(await screen.findByRole('button', { name: 'Undo' }));
+    await waitFor(async () =>
+      expect(await db.notes.get('n10')).toMatchObject({ archived: false, pinned: true, updatedAt: 1000 }),
+    );
   });
 
   it('shows a trashed note read-only with Restore', async () => {

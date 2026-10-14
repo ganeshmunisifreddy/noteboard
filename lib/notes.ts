@@ -93,6 +93,8 @@ export const purgeOldTrash = async (now = Date.now()) => {
   return removed;
 };
 
+export const getNote = (id: string) => db.notes.get(id);
+
 // Puts a note back exactly as it was; used by Undo.
 export const restoreSnapshot = async (note: Note) => {
   await db.notes.put(note);

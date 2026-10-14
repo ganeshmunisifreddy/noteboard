@@ -1,4 +1,5 @@
 import { Archive, ArchiveRestore, EllipsisVertical, Palette, Pin, RotateCcw, Trash2 } from 'lucide-react';
+import { useId } from 'react';
 import {
   deleteForever,
   restoreNote,
@@ -29,9 +30,20 @@ const PREVIEW_ITEMS = 8;
 
 const NoteCard = ({ note, labelNames, mode, onOpen }: Props) => {
   const toast = useToast();
+  const id = useId();
   const openItems = note.items.filter((i) => !i.done);
   const doneCount = note.items.length - openItems.length;
   const isEmpty = !note.title && (note.kind === 'note' ? !note.content : note.items.length === 0);
+  const showContent = note.kind === 'note' && !!note.content;
+  const showItems = note.kind === 'list' && openItems.length > 0;
+  // The open button is named by the title; the preview describes it.
+  const describedBy = [
+    showContent && `${id}-content`,
+    showItems && `${id}-items`,
+    labelNames.length > 0 && `${id}-labels`,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const archive = async () => {
     await setArchived(note.id, true);
@@ -55,12 +67,17 @@ const NoteCard = ({ note, labelNames, mode, onOpen }: Props) => {
         type='button'
         className={styles.open}
         aria-label={`Open note: ${note.title || 'Untitled'}`}
+        aria-describedby={describedBy || undefined}
         onClick={() => onOpen(note.id)}
       />
       {note.title && <h3 className={styles.title}>{note.title}</h3>}
-      {note.kind === 'note' && note.content && <p className={styles.content}>{note.content}</p>}
-      {note.kind === 'list' && openItems.length > 0 && (
-        <ul className={styles.items}>
+      {showContent && (
+        <p id={`${id}-content`} className={styles.content}>
+          {note.content}
+        </p>
+      )}
+      {showItems && (
+        <ul id={`${id}-items`} className={styles.items}>
           {openItems.slice(0, PREVIEW_ITEMS).map((item) => (
             <li key={item.id} className={styles.item}>
               <input
@@ -79,7 +96,7 @@ const NoteCard = ({ note, labelNames, mode, onOpen }: Props) => {
       {doneCount > 0 && <p className={styles.more}>+{doneCount} completed</p>}
       {isEmpty && <p className={styles.more}>Empty note</p>}
       {labelNames.length > 0 && (
-        <ul className={styles.labels} aria-label='Labels'>
+        <ul id={`${id}-labels`} className={styles.labels} aria-label='Labels'>
           {labelNames.map((name) => (
             <li key={name} className={styles.label}>
               {name}

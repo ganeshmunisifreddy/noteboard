@@ -6,7 +6,9 @@ import {
   createNote,
   deleteForever,
   duplicateNote,
+  getNote,
   restoreNote,
+  restoreSnapshot,
   trashNote,
   updateNote,
   useLabels,
@@ -119,12 +121,13 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
     });
   });
 
-  const onPageHide = useEffectEvent(() => {
+  const onHide = useEffectEvent(() => {
     void flush();
   });
 
   const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
-    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    // Escape also cancels IME composition (Japanese, Chinese, …).
+    if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing) return;
     // Popovers and menus close themselves on Escape.
     if (event.target instanceof Element && event.target.closest('[role="dialog"],[role="menu"]')) return;
     leaveEditor(router);
@@ -132,12 +135,18 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
 
   useEffect(() => {
     mountedRef.current = true;
-    const hide = () => onPageHide();
+    const hide = () => onHide();
+    // Mobile browsers can kill a backgrounded tab without firing pagehide.
+    const visibility = () => {
+      if (document.visibilityState === 'hidden') onHide();
+    };
     const key = (event: KeyboardEvent) => onKeyDown(event);
     window.addEventListener('pagehide', hide);
+    document.addEventListener('visibilitychange', visibility);
     document.addEventListener('keydown', key);
     return () => {
       window.removeEventListener('pagehide', hide);
+      document.removeEventListener('visibilitychange', visibility);
       document.removeEventListener('keydown', key);
       mountedRef.current = false;
       onLeave();
@@ -148,16 +157,15 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
 
   const archive = async () => {
     const archiving = !draft.archived;
-    const wasPinned = draft.pinned;
+    // Snapshot after saving pending edits, so Undo restores this exact
+    // version, including its pin and place on the board.
+    await flush();
+    const before = createdRef.current ? await getNote(noteId) : undefined;
     update({ archived: archiving, pinned: archiving ? false : draft.pinned });
     await flush();
-    if (!archiving || !createdRef.current) return;
+    if (!archiving || !before) return;
     leaveEditor(router);
-    toast({
-      message: 'Note archived',
-      actionLabel: 'Undo',
-      onAction: () => void updateNote(noteId, { archived: false, pinned: wasPinned }),
-    });
+    toast({ message: 'Note archived', actionLabel: 'Undo', onAction: () => void restoreSnapshot(before) });
   };
 
   const remove = async () => {

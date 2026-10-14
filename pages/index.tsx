@@ -11,7 +11,7 @@ import LabelsDialog from '../components/ui/LabelsDialog';
 import { useToast } from '../components/ui/Toast';
 import { emptyMessage, filterToQuery, parseFilter } from '../lib/filters';
 import { emptyTrash, useBoardNotes, useLabels } from '../lib/notes';
-import { markOnBoard, newNoteHref, noteHref, openEditor } from '../lib/routes';
+import { markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../lib/routes';
 import { useStartup } from '../lib/startup';
 import { hasNotesMarker } from '../lib/storage';
 import type { BoardFilter, NoteKind } from '../lib/types';
@@ -25,11 +25,32 @@ const Home: NextPage = () => {
   const board = useBoardNotes(filter);
   const labels = useLabels();
   const [labelsOpen, setLabelsOpen] = useState(false);
+  // Bumped after Back/Forward so the search box picks up the URL's query
+  // (typing only replaces the URL, so it never triggers this).
+  const [historyKey, setHistoryKey] = useState(0);
   const loaded = status !== 'pending' && board !== undefined;
 
   useEffect(() => {
     markOnBoard();
   }, []);
+
+  useEffect(() => {
+    let popped = false;
+    const onPopState = () => {
+      popped = true;
+    };
+    const onRouteChangeComplete = () => {
+      if (!popped) return;
+      popped = false;
+      setHistoryKey((key) => key + 1);
+    };
+    window.addEventListener('popstate', onPopState);
+    router.events.on('routeChangeComplete', onRouteChangeComplete);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+      router.events.off('routeChangeComplete', onRouteChangeComplete);
+    };
+  }, [router.events]);
 
   // Coming back from the editor skips _document's pre-paint script, so hide
   // the empty state again until the notes have loaded.
@@ -42,6 +63,13 @@ const Home: NextPage = () => {
   useEffect(() => {
     if (loaded) document.documentElement.removeAttribute('data-has-notes');
   }, [loaded]);
+
+  // Back from the editor: return to where the user was on the board.
+  useEffect(() => {
+    if (!loaded) return;
+    const y = takeBoardScroll(router.asPath);
+    if (y !== null) window.scrollTo(0, y);
+  }, [loaded, router.asPath]);
 
   const labelNames = useMemo(() => new Map((labels ?? []).map((l) => [l.id, l.name])), [labels]);
 
@@ -74,7 +102,7 @@ const Home: NextPage = () => {
       </Head>
       <TopBar
         initialQuery={filter.query}
-        searchKey={router.isReady ? 'ready' : 'loading'}
+        searchKey={router.isReady ? `ready-${historyKey}` : 'loading'}
         onQueryChange={search}
         onNew={newNote}
       />
