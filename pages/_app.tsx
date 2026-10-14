@@ -2,6 +2,9 @@ import '../styles/tokens.css'
 import '../styles/globals.css'
 import type { AppProps } from 'next/app'
 import { Lato } from 'next/font/google'
+import { MotionConfig } from 'framer-motion'
+import StorageBanner from '../components/ui/StorageBanner'
+import { ToastProvider } from '../components/ui/Toast'
 import { useSystemThemeSync } from '../lib/theme'
 
 const lato = Lato({
@@ -20,7 +23,12 @@ function MyApp({ Component, pageProps }: AppProps) {
           font-family: ${lato.style.fontFamily};
         }
       `}</style>
-      <Component {...pageProps} />
+      <MotionConfig reducedMotion='user'>
+        <ToastProvider>
+          <StorageBanner />
+          <Component {...pageProps} />
+        </ToastProvider>
+      </MotionConfig>
     </>
   )
 }
