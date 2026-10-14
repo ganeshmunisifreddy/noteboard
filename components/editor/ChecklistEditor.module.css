@@ -1,0 +1,81 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+}
+
+.row:focus-within {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 0;
+  border: none;
+  background: transparent;
+  font-size: var(--text-md);
+  line-height: 1.5;
+  color: var(--text);
+  outline: none;
+}
+
+.text::placeholder {
+  color: var(--note-ink);
+}
+
+.done .text {
+  text-decoration: line-through;
+  color: var(--note-ink);
+}
+
+.remove {
+  opacity: 0;
+}
+
+.row:hover .remove,
+.row:focus-within .remove {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .remove {
+    opacity: 1;
+  }
+}
+
+.addRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  color: var(--note-ink);
+}
+
+.doneToggle {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 6px 8px 6px 0;
+  border: none;
+  background: none;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--note-ink);
+}

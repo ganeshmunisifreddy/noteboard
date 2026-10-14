@@ -1,117 +1,148 @@
-import type { NextPage } from "next";
-import Head from "next/head";
-import { useEffect, useState } from "react";
-import { v4 as uuid } from "uuid";
-import Note from "../components/Note";
-import styles from "../styles/Home.module.css";
-import Header from "../components/Header";
-import NoteModal from "../components/NoteModal";
-import NotFound from "../components/NotFound";
+import type { NextPage } from 'next';
+import Head from 'next/head';
+import { useRouter } from 'next/router';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import FilterChips from '../components/board/FilterChips';
+import type { CardMode } from '../components/board/NoteCard';
+import NoteGrid from '../components/board/NoteGrid';
+import TopBar from '../components/board/TopBar';
+import NotFound from '../components/NotFound';
+import LabelsDialog from '../components/ui/LabelsDialog';
+import { useToast } from '../components/ui/Toast';
+import { emptyMessage, filterToQuery, parseFilter } from '../lib/filters';
+import { emptyTrash, useBoardNotes, useLabels } from '../lib/notes';
+import { markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../lib/routes';
+import { useStartup } from '../lib/startup';
+import { hasNotesMarker } from '../lib/storage';
+import type { BoardFilter, NoteKind } from '../lib/types';
+import styles from '../styles/Home.module.css';
 
 const Home: NextPage = () => {
-  const [notes, setNotes] = useState<any>([]);
-  const [open, setOpen] = useState<boolean>(false);
-  const [noteIndex, setNoteIndex] = useState<any>();
-
-  const closeModal = () => {
-    setOpen(false);
-    setNoteIndex(null);
-  };
-
-  const openModal = () => {
-    setOpen(true);
-  };
-
-  const handleSave = (note: any) => {
-    let newNotes = [...notes];
-    if (noteIndex === 0 || noteIndex) {
-      newNotes[noteIndex] = note;
-    } else {
-      let newNote = {
-        id: uuid(),
-        ...note,
-      };
-      newNotes.unshift(newNote);
-    }
-    newNotes.sort((a: any, b: any) => {
-      return Number(b.pinned) - Number(a.pinned);
-    });
-    setNotes(newNotes);
-    localStorage.setItem("notes", JSON.stringify(newNotes));
-    closeModal();
-  };
-
-  const handleEdit = (noteIndex: number) => {
-    setOpen(true);
-    setNoteIndex(noteIndex);
-  };
-
-  const handleDelete = (noteIndex: number) => {
-    let oldNotes = [...notes];
-    oldNotes.splice(noteIndex, 1);
-    setNotes(oldNotes);
-    localStorage.setItem("notes", JSON.stringify(oldNotes));
-  };
-
-  const handlePin = (noteIndex: number) => {
-    let oldNotes = [...notes];
-    //oldNotes[noteIndex].pinned = !oldNotes[noteIndex].pinned;
-    let item = {
-      ...oldNotes[noteIndex],
-    };
-    item.pinned = !item.pinned;
-    oldNotes.splice(noteIndex, 1);
-    oldNotes.unshift(item);
-    oldNotes.sort((a: any, b: any) => {
-      return Number(b.pinned) - Number(a.pinned);
-    });
-    setNotes(oldNotes);
-    localStorage.setItem("notes", JSON.stringify(oldNotes));
-  };
+  const router = useRouter();
+  const toast = useToast();
+  const status = useStartup();
+  const filter = parseFilter(router.query);
+  const board = useBoardNotes(filter);
+  const labels = useLabels();
+  const [labelsOpen, setLabelsOpen] = useState(false);
+  // Bumped after Back/Forward so the search box picks up the URL's query
+  // (typing only replaces the URL, so it never triggers this).
+  const [historyKey, setHistoryKey] = useState(0);
+  const loaded = status !== 'pending' && board !== undefined;
 
   useEffect(() => {
-    let notes = localStorage.getItem("notes");
-    if (notes) {
-      let parsedNotes = JSON.parse(notes);
-      setNotes(parsedNotes);
-    }
+    markOnBoard();
   }, []);
 
+  useEffect(() => {
+    let popped = false;
+    const onPopState = () => {
+      popped = true;
+    };
+    const onRouteChangeComplete = () => {
+      if (!popped) return;
+      popped = false;
+      setHistoryKey((key) => key + 1);
+    };
+    window.addEventListener('popstate', onPopState);
+    router.events.on('routeChangeComplete', onRouteChangeComplete);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+      router.events.off('routeChangeComplete', onRouteChangeComplete);
+    };
+  }, [router.events]);
+
+  // Coming back from the editor skips _document's pre-paint script, so hide
+  // the empty state again until the notes have loaded.
+  useLayoutEffect(() => {
+    if (hasNotesMarker()) document.documentElement.setAttribute('data-has-notes', '');
+  }, []);
+
+  // Notes are on screen now, so stop force-hiding the empty state
+  // (the attribute is set before first paint in _document).
+  useEffect(() => {
+    if (loaded) document.documentElement.removeAttribute('data-has-notes');
+  }, [loaded]);
+
+  // Back from the editor: return to where the user was on the board.
+  useEffect(() => {
+    if (!loaded) return;
+    const y = takeBoardScroll(router.asPath);
+    if (y !== null) window.scrollTo(0, y);
+  }, [loaded, router.asPath]);
+
+  const labelNames = useMemo(() => new Map((labels ?? []).map((l) => [l.id, l.name])), [labels]);
+
+  const showFilter = (next: Pick<BoardFilter, 'view' | 'labelId'>) =>
+    void router.push({ pathname: '/', query: filterToQuery({ ...filter, ...next }) }, undefined, { shallow: true });
+
+  const search = (query: string) =>
+    void router.replace({ pathname: '/', query: filterToQuery({ ...filter, query }) }, undefined, { shallow: true });
+
+  const openNote = (id: string) => openEditor(router, noteHref(id));
+  const newNote = (kind: NoteKind) => openEditor(router, newNoteHref(kind));
+
+  const clearTrash = async () => {
+    if (!window.confirm('Delete all notes in Trash forever? This can’t be undone.')) return;
+    await emptyTrash();
+    toast({ message: 'Trash emptied' });
+  };
+
+  const mode: CardMode = filter.view === 'trash' ? 'trash' : filter.view === 'archive' ? 'archive' : 'board';
+  const pinned = loaded && board ? board.pinned : [];
+  const others = loaded && board ? board.others : [];
+  const total = pinned.length + others.length;
+  const headings = pinned.length > 0 && others.length > 0;
+
   return (
-    <div className={styles.rootContainer}>
+    <>
       <Head>
-        <title>Notes | Nine Technology</title>
-        <meta name="description" content="Notes app by Nine Technology" />
+        <title>Noteboard</title>
+        <meta name='description' content='Notes and lists by Nine Technology' />
       </Head>
-
-      <Header handleModal={openModal} />
-
+      <TopBar
+        initialQuery={filter.query}
+        searchKey={router.isReady ? `ready-${historyKey}` : 'loading'}
+        onQueryChange={search}
+        onNew={newNote}
+      />
+      <FilterChips
+        filter={filter}
+        labels={labels ?? []}
+        onSelect={showFilter}
+        onManageLabels={() => setLabelsOpen(true)}
+      />
       <main className={styles.main}>
-        {notes.length > 0 && (
-          <div className={styles.notes}>
-            {notes.map((note: any, index: number) => (
-              <Note
-                note={note}
-                key={note.id}
-                index={index}
-                handleEdit={handleEdit}
-                handlePin={handlePin}
-                handleDelete={handleDelete}
-              />
-            ))}
+        {mode === 'trash' && total > 0 && (
+          <div className={styles.trashBar}>
+            <p>Notes in Trash are deleted after 30 days.</p>
+            <button type='button' className={styles.textButton} onClick={() => void clearTrash()}>
+              Empty trash
+            </button>
           </div>
         )}
-        {notes.length === 0 && <NotFound text="Notes you add appear here" />}
+        {pinned.length > 0 && (
+          <section className={styles.section} aria-label='Pinned notes'>
+            {headings && <h2 className={styles.sectionTitle}>Pinned</h2>}
+            <NoteGrid notes={pinned} labelNames={labelNames} mode={mode} onOpen={openNote} />
+          </section>
+        )}
+        {others.length > 0 && (
+          <section className={styles.section} aria-label={headings ? 'Other notes' : 'Notes'}>
+            {headings && <h2 className={styles.sectionTitle}>Others</h2>}
+            <NoteGrid notes={others} labelNames={labelNames} mode={mode} onOpen={openNote} />
+          </section>
+        )}
+        {/* Also rendered on the server and while loading; _document hides it
+            before first paint when notes exist. */}
+        {total === 0 && (
+          <div className={styles.emptyState}>
+            <NotFound text={emptyMessage(filter)} />
+          </div>
+        )}
       </main>
-      {open && (
-        <NoteModal
-          open={open}
-          note={notes[noteIndex]}
-          onClose={closeModal}
-          handleSave={handleSave}
-        />
-      )}
-    </div>
+      <LabelsDialog open={labelsOpen} onOpenChange={setLabelsOpen} />
+    </>
   );
 };
 

@@ -1,0 +1,17 @@
+.body {
+  width: 100%;
+  min-height: 160px;
+  padding: 0;
+  overflow: hidden;
+  border: none;
+  background: transparent;
+  resize: none;
+  font-size: var(--text-md);
+  line-height: 1.6;
+  color: var(--text);
+  outline: none;
+}
+
+.body::placeholder {
+  color: var(--note-ink);
+}

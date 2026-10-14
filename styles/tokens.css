@@ -1,0 +1,108 @@
+:root {
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 20px;
+  --text-xl: 24px;
+}
+
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f6f8fa;
+  --surface: #ffffff;
+  --surface-2: #f1f2f7;
+  --border: #e3e6ee;
+  --text: #171a34;
+  --text-muted: #4a4f6a;
+  --accent: #6a61bf;
+  --accent-hover: #5a51ad;
+  --accent-soft: #ecebf8;
+  --on-accent: #ffffff;
+  --danger: #b3261e;
+  --focus: #6a61bf;
+  --shadow-card: 0 1px 2px rgba(23, 26, 52, 0.06), 0 2px 10px rgba(23, 26, 52, 0.06);
+  --shadow-raised: 0 10px 30px rgba(23, 26, 52, 0.16);
+  --scrim: rgba(23, 26, 52, 0.4);
+  --toast-action: #c9c4ff;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #14151f;
+  --surface: #1d1f2c;
+  --surface-2: #262938;
+  --border: #33364a;
+  --text: #eceef6;
+  --text-muted: #b5b9cc;
+  --accent: #a59ef0;
+  --accent-hover: #bbb5f5;
+  --accent-soft: #2d2a4d;
+  --on-accent: #14151f;
+  --danger: #f2b8b5;
+  --focus: #a59ef0;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-raised: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --scrim: rgba(0, 0, 0, 0.6);
+  --toast-action: #4a42a0;
+}
+
+/* Note colours: --note-bg fills the card or editor, --note-ink is body
+   text on it (a dark shade of the colour, not grey, to keep AA contrast). */
+[data-color='default'] {
+  --note-bg: var(--surface);
+  --note-ink: var(--text-muted);
+}
+[data-color='yellow'] {
+  --note-bg: #fff4c7;
+  --note-ink: #4d3f0c;
+}
+[data-color='green'] {
+  --note-bg: #dcf3e4;
+  --note-ink: #1d4a2e;
+}
+[data-color='blue'] {
+  --note-bg: #dde9fc;
+  --note-ink: #1c3561;
+}
+[data-color='pink'] {
+  --note-bg: #fde2ec;
+  --note-ink: #5e1f37;
+}
+[data-color='purple'] {
+  --note-bg: #ebe6fb;
+  --note-ink: #3b2f73;
+}
+[data-color='grey'] {
+  --note-bg: #eceef3;
+  --note-ink: #3a3f52;
+}
+
+[data-theme='dark'] [data-color='yellow'] {
+  --note-bg: #3b3418;
+  --note-ink: #f1e2a8;
+}
+[data-theme='dark'] [data-color='green'] {
+  --note-bg: #1e3a2a;
+  --note-ink: #b9e6c9;
+}
+[data-theme='dark'] [data-color='blue'] {
+  --note-bg: #1f2e4a;
+  --note-ink: #c4d7f7;
+}
+[data-theme='dark'] [data-color='pink'] {
+  --note-bg: #42202e;
+  --note-ink: #f4c4d6;
+}
+[data-theme='dark'] [data-color='purple'] {
+  --note-bg: #2e2850;
+  --note-ink: #d4ccf8;
+}
+[data-theme='dark'] [data-color='grey'] {
+  --note-bg: #2a2d3a;
+  --note-ink: #c9ccd8;
+}
