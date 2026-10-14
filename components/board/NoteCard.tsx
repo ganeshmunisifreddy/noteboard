@@ -1,5 +1,5 @@
 import { Archive, ArchiveRestore, EllipsisVertical, Palette, Pin, RotateCcw, Trash2 } from 'lucide-react';
-import { useId } from 'react';
+import { useId, type ReactNode } from 'react';
 import {
   deleteForever,
   restoreNote,
@@ -8,6 +8,7 @@ import {
   toggleItem,
   togglePin,
   trashNote,
+  undoTrash,
   updateNote,
 } from '../../lib/notes';
 import type { Note } from '../../lib/types';
@@ -24,11 +25,12 @@ type Props = {
   labelNames: string[];
   mode: CardMode;
   onOpen: (id: string) => void;
+  dragHandle?: ReactNode;
 };
 
 const PREVIEW_ITEMS = 8;
 
-const NoteCard = ({ note, labelNames, mode, onOpen }: Props) => {
+const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle }: Props) => {
   const toast = useToast();
   const id = useId();
   const openItems = note.items.filter((i) => !i.done);
@@ -52,7 +54,7 @@ const NoteCard = ({ note, labelNames, mode, onOpen }: Props) => {
 
   const trash = async () => {
     await trashNote(note.id);
-    toast({ message: 'Moved to trash', actionLabel: 'Undo', onAction: () => void restoreNote(note.id) });
+    toast({ message: 'Moved to trash', actionLabel: 'Undo', onAction: () => void undoTrash(note.id) });
   };
 
   const removeForever = () => {
@@ -105,6 +107,7 @@ const NoteCard = ({ note, labelNames, mode, onOpen }: Props) => {
         </ul>
       )}
       <div className={styles.actions}>
+        {dragHandle}
         {mode === 'trash' ? (
           <>
             <IconButton label='Restore' onClick={() => void restoreNote(note.id)}>

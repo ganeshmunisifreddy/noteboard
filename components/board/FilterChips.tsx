@@ -11,9 +11,12 @@ type Props = {
   labels: Label[];
   onSelect: (next: Selection) => void;
   onManageLabels: () => void;
+  onBackup: () => void;
+  onRestore: () => void;
+  onExport: () => void;
 };
 
-const FilterChips = ({ filter, labels, onSelect, onManageLabels }: Props) => {
+const FilterChips = ({ filter, labels, onSelect, onManageLabels, onBackup, onRestore, onExport }: Props) => {
   const isView = (view: BoardView) => filter.view === view && filter.labelId === null;
 
   const chip = (key: string, content: ReactNode, active: boolean, next: Selection) => (
@@ -46,6 +49,9 @@ const FilterChips = ({ filter, labels, onSelect, onManageLabels }: Props) => {
         onArchive={() => onSelect({ view: 'archive', labelId: null })}
         onTrash={() => onSelect({ view: 'trash', labelId: null })}
         onManageLabels={onManageLabels}
+        onBackup={onBackup}
+        onRestore={onRestore}
+        onExport={onExport}
       />
     </nav>
   );

@@ -10,6 +10,7 @@ import {
   restoreNote,
   restoreSnapshot,
   trashNote,
+  undoTrash,
   updateNote,
   useLabels,
 } from '../../lib/notes';
@@ -117,7 +118,7 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
       // A note the user emptied goes to Trash rather than lingering blank.
       if (!createdRef.current || !editedRef.current || trashed || !isNoteEmpty(draftRef.current)) return;
       await trashNote(noteId);
-      toast({ message: 'Empty note moved to trash', actionLabel: 'Undo', onAction: () => void restoreNote(noteId) });
+      toast({ message: 'Empty note moved to trash', actionLabel: 'Undo', onAction: () => void undoTrash(noteId) });
     });
   });
 
@@ -173,7 +174,7 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
     editedRef.current = false;
     if (createdRef.current) {
       await trashNote(noteId);
-      toast({ message: 'Moved to trash', actionLabel: 'Undo', onAction: () => void restoreNote(noteId) });
+      toast({ message: 'Moved to trash', actionLabel: 'Undo', onAction: () => void undoTrash(noteId) });
     }
     leaveEditor(router);
   };

@@ -10,7 +10,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
 
-const toNote = (entry: Record<string, unknown>, timestamp: number): Note => ({
+const toNote = (entry: Record<string, unknown>, timestamp: number, position: number): Note => ({
   id: typeof entry.id === 'string' && entry.id ? entry.id : uuid(),
   kind: 'note',
   title: text(entry.title),
@@ -23,6 +23,7 @@ const toNote = (entry: Record<string, unknown>, timestamp: number): Note => ({
   trashedAt: null,
   createdAt: timestamp,
   updatedAt: timestamp,
+  position,
 });
 
 // Moves notes saved by the localStorage version into IndexedDB, once.
@@ -47,7 +48,7 @@ export const migrateFromLocalStorage = async (now = Date.now()): Promise<number>
   if ((await db.notes.count()) > 0) return 0;
 
   // The old store kept newest first, so earlier entries get later timestamps.
-  const notes = parsed.filter(isRecord).map((entry, index) => toNote(entry, now - index));
+  const notes = parsed.filter(isRecord).map((entry, index) => toNote(entry, now - index, index));
   await db.notes.bulkPut(notes);
 
   try {

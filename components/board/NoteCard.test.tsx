@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../../lib/db';
 import { createNote } from '../../lib/notes';
+import { ToastProvider } from '../ui/Toast';
 import NoteCard from './NoteCard';
 
 beforeEach(async () => {
@@ -68,6 +69,21 @@ describe('NoteCard', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
     await waitFor(async () => expect((await db.notes.get('c1'))?.trashedAt).not.toBeNull());
     expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('puts a deleted note back in its place on Undo', async () => {
+    await createNote({ id: 'top', kind: 'note', title: 'Top', position: 0 });
+    const note = await createNote({ id: 'c1', kind: 'note', title: 'Groceries', position: 5 });
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <NoteCard note={note} labelNames={[]} mode='board' onOpen={vi.fn()} />
+      </ToastProvider>,
+    );
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+    await user.click(await screen.findByRole('button', { name: 'Undo' }));
+    await waitFor(async () => expect(await db.notes.get('c1')).toMatchObject({ trashedAt: null, position: 5 }));
   });
 
   it('offers restore in trash and no editing controls', async () => {
