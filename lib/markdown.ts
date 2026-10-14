@@ -1,4 +1,4 @@
-import { Lexer, Marked, type Token } from 'marked';
+import { Lexer, Marked, Tokenizer, type Token } from 'marked';
 
 // Task-list markers ("- [ ] milk") stay text: the editor has no task items.
 // Escaping the bracket keeps the line a plain list item. Fenced code is left
@@ -38,6 +38,12 @@ export const createMarked = () => {
         tag: () => undefined,
         def: () => undefined,
         table: () => undefined,
+        // Images aren't supported yet: "![photo](url)" reads as "!" and a
+        // link, so the address survives an edit.
+        link(src) {
+          const token = Tokenizer.prototype.link.call(this, src);
+          return token && token.type === 'image' ? undefined : token;
+        },
       },
     },
   );
@@ -49,16 +55,39 @@ export const createMarked = () => {
 
 const reader = createMarked();
 
-export const parseMarkdown = (markdown: string): Token[] => reader.lexer(markdown);
+// Cards, search and conversion read the same notes over and over.
+const parsed = new Map<string, Token[]>();
+const PARSED_LIMIT = 500;
 
-const NAMED: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+// The tokens are shared between callers; they must not be changed.
+export const parseMarkdown = (markdown: string): Token[] => {
+  const cached = parsed.get(markdown);
+  if (cached) return cached;
+  const tokens = reader.lexer(markdown);
+  if (parsed.size >= PARSED_LIMIT) parsed.delete(parsed.keys().next().value as string);
+  parsed.set(markdown, tokens);
+  return tokens;
+};
 
-// Text tokens keep HTML entities (the editor saves "<" as "&lt;").
+const NAMED: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"' };
+
+// Characters 128-159 as Windows-1252, as browsers (and the editor) read them.
+const WINDOWS_1252 =
+  '€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008dŽ\u008f' +
+  '\u0090‘’“”•–—˜™š›œ\u009džŸ';
+
+const fromCodePoint = (value: number) => {
+  if (value === 0 || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff)) return '�';
+  return value >= 128 && value <= 159 ? WINDOWS_1252[value - 128] : String.fromCodePoint(value);
+};
+
+// Text tokens keep HTML entities (the editor saves "<" as "&lt;"). Decodes
+// exactly what the editor decodes, so cards and the editor show the same text.
 export const decodeEntities = (text: string) =>
-  text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, code: string) => {
-    if (code[0] !== '#') return NAMED[code.toLowerCase()] ?? match;
-    const value = code[1].toLowerCase() === 'x' ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
-    return value > 0 && value <= 0x10ffff ? String.fromCodePoint(value) : match;
+  text.replace(/&(?:#(\d{1,7})|#[xX]([0-9a-fA-F]{1,6})|(lt|gt|quot|amp));/g, (_match, dec, hex, name) => {
+    if (dec !== undefined) return fromCodePoint(Number(dec));
+    if (hex !== undefined) return fromCodePoint(parseInt(hex, 16));
+    return NAMED[name];
   });
 
 // The words inline tokens show, without Markdown symbols.
@@ -78,6 +107,9 @@ const inlineText = (tokens: Token[] | undefined): string =>
     })
     .join('');
 
+// A bare list marker is an empty item (marked reads "- " alone as text).
+const isBareMarker = (line: string) => /^([-*+]|\d+[.)])$/.test(line);
+
 // One entry per line of text, in reading order.
 const blockLines = (tokens: Token[]): string[] =>
   tokens.flatMap((token): string[] => {
@@ -92,9 +124,10 @@ const blockLines = (tokens: Token[]): string[] =>
         return token.items.flatMap((item: { tokens: Token[] }) => blockLines(item.tokens));
       case 'blockquote':
         return blockLines(token.tokens ?? []);
-      default:
-        if ('tokens' in token && token.tokens) return inlineText(token.tokens).split('\n');
-        return decodeEntities(token.raw).split('\n');
+      default: {
+        const text = 'tokens' in token && token.tokens ? inlineText(token.tokens) : decodeEntities(token.raw);
+        return text.split('\n').filter((line) => !isBareMarker(line.trim()));
+      }
     }
   });
 
@@ -105,13 +138,10 @@ const linkUrls = (tokens: Token[]): string[] =>
     ...(token.type === 'list' ? token.items.flatMap((item: { tokens: Token[] }) => linkUrls(item.tokens)) : []),
   ]);
 
-// A bare list marker is an empty item (marked reads "- " alone as text).
-const isBareMarker = (line: string) => /^([-*+]|\d+[.)])$/.test(line);
-
 export const markdownLines = (markdown: string): string[] =>
   blockLines(parseMarkdown(markdown))
     .map((line) => line.trim())
-    .filter((line) => line !== '' && !isBareMarker(line));
+    .filter((line) => line !== '');
 
 // Text plus link addresses, so search finds "booking.com" in a link.
 export const toPlainText = (markdown: string): string => {

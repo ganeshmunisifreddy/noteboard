@@ -1,5 +1,5 @@
 import type { Token } from 'marked';
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { decodeEntities, parseMarkdown } from '../../lib/markdown';
 import styles from './MarkdownPreview.module.css';
 
@@ -76,13 +76,32 @@ const read = (markdown: string): Token[] | null => {
   }
 };
 
-type Props = { markdown: string; id?: string; className?: string };
+// clamp: the parent caps the height; the last visible line fades out when
+// the text doesn't fit.
+type Props = { markdown: string; id?: string; className?: string; clamp?: boolean };
 
 // Renders Markdown from tokens to elements; nothing goes through innerHTML.
-const MarkdownPreview = ({ markdown, id, className }: Props) => {
+const MarkdownPreview = ({ markdown, id, className, clamp = false }: Props) => {
   const tokens = read(markdown);
+  const ref = useRef<HTMLDivElement>(null);
+  const [clamped, setClamped] = useState(false);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!clamp || !element || typeof ResizeObserver === 'undefined') return;
+    // The first call comes as soon as the element is observed.
+    const observer = new ResizeObserver(() => setClamped(element.scrollHeight > element.clientHeight + 1));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [clamp, markdown]);
+
   return (
-    <div id={id} className={className ? `${styles.preview} ${className}` : styles.preview}>
+    <div
+      ref={ref}
+      id={id}
+      className={className ? `${styles.preview} ${className}` : styles.preview}
+      data-clamped={clamp && clamped ? 'true' : undefined}
+    >
       {tokens ? blocks(tokens) : <p>{markdown}</p>}
     </div>
   );

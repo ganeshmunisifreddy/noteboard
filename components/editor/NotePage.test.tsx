@@ -191,7 +191,7 @@ describe('NotePage', () => {
     );
   });
 
-  it('shows the formatting bar slot under the top bar only for text notes', async () => {
+  it('does not show the formatting bar for list notes', async () => {
     await createNote({ id: 'n20', kind: 'list', title: 'Shop' });
     router.query = { id: 'n20' };
     render(

@@ -1,4 +1,4 @@
-import { EditorContent, useEditor } from '@tiptap/react';
+import { EditorContent, useEditor, type UseEditorOptions } from '@tiptap/react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { safeUrl, tidyMarkdown } from '../../lib/markdown';
@@ -30,38 +30,59 @@ export const openLinkOnModClick = (event: MouseEvent): boolean => {
 const nothingFocused = () => !document.activeElement || document.activeElement === document.body;
 
 const RichEditor = ({ value, onChange, readOnly, autoFocus, barSlot }: RichEditorProps) => {
-  const [extensions] = useState(editorExtensions);
-  // The Markdown the editor last reported, so a change from outside (not an
-  // echo of the user's own edit) can be loaded in.
-  const reported = useRef(value);
+  // Markdown the editor reported that the page may still hand back (a save
+  // can land after newer edits); seeing one again is an echo, not a change
+  // from outside.
+  const reported = useRef<string[]>([value]);
   // The editor's own Markdown for what it shows. Moving the cursor can make
   // the editor add an empty line (after a final list or heading), which
   // reports an update without changing the Markdown.
   const shown = useRef<string | null>(null);
   const [linkOpen, setLinkOpen] = useState(false);
-  const editor = useEditor({
-    extensions,
-    content: value,
-    contentType: 'markdown',
-    editable: !readOnly,
-    autofocus: autoFocus && nothingFocused() ? 'end' : false,
-    immediatelyRender: true,
-    shouldRerenderOnTransaction: false,
-    editorProps: {
-      attributes: { class: styles.prose, role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Note' },
-      handleClick: (_view, _pos, event) => openLinkOnModClick(event),
-      // ProseMirror cancels Escape, which would stop Esc from leaving the
-      // editor. Returning true here skips ProseMirror's own key handling.
-      handleDOMEvents: {
-        keydown: (_view, event) => event.key === 'Escape' && !event.isComposing,
+  // Read when ProseMirror (re)applies the editor's attributes.
+  const readOnlyNow = useRef(readOnly);
+  // Options are read once: the content, editable state and focus are kept in
+  // step by the effects below. New option objects on every render would make
+  // Tiptap reconfigure the editor each time.
+  const [options] = useState(
+    (): UseEditorOptions => ({
+      extensions: editorExtensions(),
+      content: value,
+      contentType: 'markdown',
+      editable: !readOnly,
+      autofocus: autoFocus && nothingFocused() ? 'end' : false,
+      immediatelyRender: true,
+      shouldRerenderOnTransaction: false,
+      editorProps: {
+        attributes: () => ({
+          class: styles.prose,
+          role: 'textbox',
+          'aria-multiline': 'true',
+          'aria-label': 'Note',
+          'aria-readonly': String(readOnlyNow.current),
+        }),
+        handleDOMEvents: {
+          // ProseMirror cancels Escape, which would stop Esc from leaving
+          // the editor. Returning true skips ProseMirror's own handling.
+          keydown: (_view, event) => event.key === 'Escape' && !event.isComposing,
+          // Links never navigate on a plain click (read-only notes in Trash
+          // included); Cmd/Ctrl+click opens a safe link in a new tab.
+          click: (_view, event) => {
+            if (!(event.target instanceof Element) || !event.target.closest('a')) return false;
+            event.preventDefault();
+            openLinkOnModClick(event);
+            return false;
+          },
+        },
+        handleKeyDown: (_view, event) => {
+          if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'k') return false;
+          setLinkOpen(true);
+          return true;
+        },
       },
-      handleKeyDown: (_view, event) => {
-        if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'k') return false;
-        setLinkOpen(true);
-        return true;
-      },
-    },
-  });
+    }),
+  );
+  const editor = useEditor(options);
 
   const report = useEffectEvent((markdown: string) => onChange(markdown));
 
@@ -72,7 +93,7 @@ const RichEditor = ({ value, onChange, readOnly, autoFocus, barSlot }: RichEdito
       const markdown = tidyMarkdown(editor.getMarkdown());
       if (markdown === shown.current) return;
       shown.current = markdown;
-      reported.current = markdown;
+      reported.current = [...reported.current.slice(-19), markdown];
       report(markdown);
     };
     editor.on('update', onUpdate);
@@ -82,13 +103,14 @@ const RichEditor = ({ value, onChange, readOnly, autoFocus, barSlot }: RichEdito
   }, [editor]);
 
   useEffect(() => {
-    if (value === reported.current) return;
-    reported.current = value;
+    if (reported.current.includes(value)) return;
+    reported.current = [value];
     editor.commands.setContent(value, { contentType: 'markdown', emitUpdate: false });
     shown.current = tidyMarkdown(editor.getMarkdown());
   }, [editor, value]);
 
   useEffect(() => {
+    readOnlyNow.current = readOnly;
     editor.setEditable(!readOnly, false);
   }, [editor, readOnly]);
 

@@ -24,7 +24,11 @@ import ChecklistEditor from './ChecklistEditor';
 import EditorToolbar from './EditorToolbar';
 import NoteBody from './NoteBody';
 import styles from './NoteEditor.module.css';
-import { useRichEditor } from './useRichEditor';
+import { preloadRichEditor, useRichEditor } from './useRichEditor';
+
+// A note opened directly (not from the board) starts loading the editor as
+// soon as this page's code runs, not after the first render.
+if (typeof window !== 'undefined') preloadRichEditor().catch(() => {});
 
 export type Draft = Pick<Note, 'kind' | 'title' | 'content' | 'items' | 'color' | 'labelIds' | 'pinned' | 'archived'>;
 

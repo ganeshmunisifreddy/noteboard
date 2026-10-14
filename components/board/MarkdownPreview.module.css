@@ -1,13 +1,25 @@
-.preview > * + * {
-  margin-top: 0.35em;
+/* Spaces and indentation show as typed (line breaks are <br>s). */
+.preview {
+  white-space: pre-wrap;
 }
 
-.preview p,
-.preview ul,
-.preview ol,
-.preview blockquote,
-.preview pre {
+.preview :where(p, ul, ol, blockquote, pre) {
   margin: 0;
+}
+
+/* Every line box is the same height, so a height cap ends on a whole line. */
+.preview > * + * {
+  margin-top: 1lh;
+}
+
+.preview li + li,
+.preview li > * + * {
+  margin-top: 0;
+}
+
+/* Fade the last visible line when the text doesn't fit. */
+.preview[data-clamped='true'] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1lh), transparent);
 }
 
 .preview ul,
@@ -21,6 +33,8 @@
 
 .heading[data-level='1'] {
   font-size: 1.15em;
+  /* Same line box as the body text (1.5 at 1em). */
+  line-height: calc(1.5 / 1.15);
 }
 
 .preview blockquote {
@@ -41,7 +55,9 @@
 }
 
 .preview pre {
-  padding: 0.4em 0.6em;
+  /* Smaller code text keeps the body's line height. */
+  line-height: calc(1.5 / 0.92);
+  padding: 0 0.6em;
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, currentColor 10%, transparent);
   white-space: pre-wrap;
@@ -53,9 +69,11 @@
 }
 
 .preview hr {
-  margin: 0.5em 0;
+  height: 1lh;
+  margin-bottom: 0;
   border: none;
-  border-top: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  background: linear-gradient(currentColor, currentColor) center / 100% 1px no-repeat;
+  opacity: 0.25;
 }
 
 .link {

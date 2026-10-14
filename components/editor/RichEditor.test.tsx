@@ -1,6 +1,7 @@
 import { createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { Editor } from '@tiptap/core';
 import RichEditor, { openLinkOnModClick } from './RichEditor';
 
 const props = { onChange: vi.fn(), readOnly: false, autoFocus: false };
@@ -65,6 +66,39 @@ describe('RichEditor', () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(title).toHaveFocus();
     title.remove();
+  });
+
+  it('tells screen readers when it is read-only', async () => {
+    const { rerender } = render(<RichEditor {...props} readOnly value='Gone' />);
+    const box = await screen.findByRole('textbox', { name: 'Note' });
+    expect(box).toHaveAttribute('aria-readonly', 'true');
+    rerender(<RichEditor {...props} readOnly={false} value='Gone' />);
+    await waitFor(() => expect(box).toHaveAttribute('aria-readonly', 'false'));
+  });
+
+  it('follows a link only on Cmd/Ctrl+click, also in Trash', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(<RichEditor {...props} readOnly value='[site](https://a.com)' />);
+    const link = (await screen.findByRole('textbox', { name: 'Note' })).querySelector('a') as HTMLAnchorElement;
+    const plain = createEvent.click(link);
+    fireEvent(link, plain);
+    expect(plain.defaultPrevented).toBe(true);
+    expect(open).not.toHaveBeenCalled();
+    const withModifier = createEvent.click(link, { ctrlKey: true });
+    fireEvent(link, withModifier);
+    expect(withModifier.defaultPrevented).toBe(true);
+    expect(open).toHaveBeenCalledTimes(1);
+    open.mockRestore();
+  });
+
+  it('does not reconfigure the editor on every render', async () => {
+    const { rerender } = render(<RichEditor {...props} value='Hello' />);
+    await screen.findByRole('textbox', { name: 'Note' });
+    const setOptions = vi.spyOn(Editor.prototype, 'setOptions');
+    rerender(<RichEditor {...props} onChange={vi.fn()} value='Hello' />);
+    rerender(<RichEditor {...props} onChange={vi.fn()} value='Hello' />);
+    expect(setOptions).not.toHaveBeenCalled();
+    setOptions.mockRestore();
   });
 });
 

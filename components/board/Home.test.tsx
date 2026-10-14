@@ -29,6 +29,9 @@ const router = vi.hoisted(() => {
 vi.mock('next/router', () => ({ useRouter: () => router }));
 vi.mock('next/head', () => ({ default: () => null }));
 
+const editorLoad = vi.hoisted(() => ({ preload: vi.fn(() => Promise.resolve()) }));
+vi.mock('../editor/useRichEditor', () => ({ preloadRichEditor: editorLoad.preload }));
+
 beforeEach(async () => {
   await db.delete();
   await db.open();
@@ -85,5 +88,10 @@ describe('Home', () => {
     });
     fireEvent.change(input, { target: { files: [new File([backup], 'backup.json', { type: 'application/json' })] } });
     expect(await screen.findByText('From backup')).toBeInTheDocument();
+  });
+
+  it('loads the note editor in the background', async () => {
+    render(<Home />);
+    await waitFor(() => expect(editorLoad.preload).toHaveBeenCalled(), { timeout: 3000 });
   });
 });

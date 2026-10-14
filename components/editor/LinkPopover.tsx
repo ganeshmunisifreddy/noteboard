@@ -81,7 +81,13 @@ const LinkPopover = ({ editor, open, onOpenChange, active }: Props) => (
   <Popover.Root open={open} onOpenChange={onOpenChange}>
     <Toolbar.Button asChild>
       <Popover.Trigger asChild>
-        <IconButton label='Link' aria-pressed={active} onMouseDown={(e) => e.preventDefault()}>
+        {/* A menu button reports "expanded", so being on a link shows in the
+            name and the look, not as a pressed state. */}
+        <IconButton
+          label={active ? 'Edit link' : 'Add link'}
+          data-active={active || undefined}
+          onMouseDown={(e) => e.preventDefault()}
+        >
           <Link size={18} aria-hidden />
         </IconButton>
       </Popover.Trigger>

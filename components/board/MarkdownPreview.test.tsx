@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import MarkdownPreview from './MarkdownPreview';
 
 const view = (markdown: string) => render(<MarkdownPreview markdown={markdown} />).container;
@@ -33,5 +33,45 @@ describe('MarkdownPreview', () => {
 
   it('does not turn indented text into code', () => {
     expect(view('    indented').querySelector('pre')).toBeNull();
+  });
+
+  it('keeps runs of spaces and indentation', () => {
+    const container = view('a    b\n    c');
+    expect(container.querySelector('p')?.textContent).toBe('a    b    c');
+  });
+});
+
+describe('MarkdownPreview clamping', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const measure = (scrollHeight: number) => {
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(scrollHeight);
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100);
+    // Browsers report a first size as soon as an element is observed.
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(private readonly callback: () => void) {}
+        observe() {
+          this.callback();
+        }
+        disconnect() {}
+      },
+    );
+  };
+
+  it('fades the last line when the text is cut off', () => {
+    measure(300);
+    const { container } = render(<MarkdownPreview markdown='long' clamp />);
+    expect(container.firstElementChild).toHaveAttribute('data-clamped', 'true');
+  });
+
+  it('does not fade text that fits', () => {
+    measure(100);
+    const { container } = render(<MarkdownPreview markdown='short' clamp />);
+    expect(container.firstElementChild).not.toHaveAttribute('data-clamped');
   });
 });

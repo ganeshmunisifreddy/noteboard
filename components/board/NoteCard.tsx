@@ -75,7 +75,7 @@ const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle }: Props) => {
       />
       {note.title && <h3 className={styles.title}>{note.title}</h3>}
       {showContent && (
-        <MarkdownPreview id={`${id}-content`} className={styles.content} markdown={note.content} />
+        <MarkdownPreview id={`${id}-content`} className={styles.content} markdown={note.content} clamp />
       )}
       {showItems && (
         <ul id={`${id}-items`} className={styles.items}>

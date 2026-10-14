@@ -25,11 +25,24 @@ describe('parseMarkdown', () => {
   it('treats raw HTML as text', () => {
     expect(JSON.stringify(parseMarkdown('Hi <b>x</b>\n\n<div>y</div>'))).not.toContain('"type":"html"');
   });
+
+  it('reads the same text only once', () => {
+    expect(parseMarkdown('x **y**')).toBe(parseMarkdown('x **y**'));
+  });
+
+  it('keeps image syntax as text with a link, so the address is kept', () => {
+    expect(JSON.stringify(parseMarkdown('see ![photo](http://x.com/a.png)'))).not.toContain('"type":"image"');
+    expect(toPlainText('see ![photo](http://x.com/a.png)')).toBe('see !photo\nhttp://x.com/a.png');
+  });
 });
 
 describe('decodeEntities', () => {
   it('decodes the entities the editor writes', () => {
     expect(decodeEntities('&lt;b&gt; &amp; &quot;x&quot; &#39;y&#39; &#x41; &unknown;')).toBe(`<b> & "x" 'y' A &unknown;`);
+  });
+
+  it('decodes only what the editor decodes', () => {
+    expect(decodeEntities('&nbsp; &copy; &#150; &#0;')).toBe('&nbsp; &copy; \u2013 \uFFFD');
   });
 });
 
@@ -64,6 +77,10 @@ describe('markdownLines', () => {
     expect(markdownLines('[Wifi]: hunter2\n[Door]: 4512')).toEqual(['[Wifi]: hunter2', '[Door]: 4512']);
     expect(markdownLines('Name | Qty\n--- | ---\nmilk | 2')).toEqual(['Name | Qty', '--- | ---', 'milk | 2']);
     expect(isMarkdownEmpty('[Wifi]: hunter2')).toBe(false);
+  });
+
+  it('keeps code lines that are only a list marker', () => {
+    expect(markdownLines('```\n-\n1.\n```')).toEqual(['-', '1.']);
   });
 });
 

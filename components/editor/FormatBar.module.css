@@ -19,7 +19,8 @@
   flex: none;
 }
 
-.bar [aria-pressed='true'] {
+.bar [aria-pressed='true'],
+.bar [data-active='true'] {
   background: var(--accent-soft);
   color: var(--accent);
 }

@@ -98,4 +98,11 @@ describe('editor Markdown', () => {
     target.commands.setTextSelection(2);
     expect(paste(target, ['text/plain'], '# comment\n- item')).toBeFalsy();
   });
+
+  it('keeps image syntax and its address after an edit', () => {
+    const old = 'see ![photo](http://x.com/a.png)';
+    const saved = roundTrip(old);
+    expect(saved).toContain('[photo](http://x.com/a.png)');
+    expect(toPlainText(saved)).toBe(toPlainText(old));
+  });
 });

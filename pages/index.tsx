@@ -6,6 +6,7 @@ import FilterChips from '../components/board/FilterChips';
 import type { CardMode } from '../components/board/NoteCard';
 import NoteGrid from '../components/board/NoteGrid';
 import TopBar from '../components/board/TopBar';
+import { preloadRichEditor } from '../components/editor/useRichEditor';
 import NotFound from '../components/NotFound';
 import LabelsDialog from '../components/ui/LabelsDialog';
 import { useToast } from '../components/ui/Toast';
@@ -34,6 +35,15 @@ const Home: NextPage = () => {
 
   useEffect(() => {
     markOnBoard();
+  }, []);
+
+  // Load the note editor's code once the board has settled, so opening a
+  // note doesn't wait for it.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      preloadRichEditor().catch(() => {});
+    }, 500);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
