@@ -62,17 +62,15 @@ const NoteCard = ({ note, labelNames, mode, onOpen }: Props) => {
       {note.kind === 'list' && openItems.length > 0 && (
         <ul className={styles.items}>
           {openItems.slice(0, PREVIEW_ITEMS).map((item) => (
-            <li key={item.id}>
-              <label className={styles.item}>
-                <input
-                  type='checkbox'
-                  checked={false}
-                  disabled={mode === 'trash'}
-                  aria-label={`Mark “${item.text || 'item'}” done`}
-                  onChange={() => void toggleItem(note.id, item.id)}
-                />
-                <span>{item.text}</span>
-              </label>
+            <li key={item.id} className={styles.item}>
+              <input
+                type='checkbox'
+                checked={false}
+                disabled={mode === 'trash'}
+                aria-label={`Mark “${item.text || 'item'}” done`}
+                onChange={() => void toggleItem(note.id, item.id)}
+              />
+              <span>{item.text}</span>
             </li>
           ))}
         </ul>

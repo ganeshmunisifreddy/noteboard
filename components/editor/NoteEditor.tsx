@@ -70,6 +70,7 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
   const dirtyRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const queueRef = useRef<Promise<void>>(Promise.resolve());
+  const mountedRef = useRef(true);
   const trashed = stored?.trashedAt != null;
 
   const save = async () => {
@@ -82,7 +83,9 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
       } else if (!isNoteEmpty(current)) {
         await createNote({ id: noteId, ...current });
         createdRef.current = true;
-        void router.replace(noteHref(noteId), undefined, { shallow: true });
+        // Saved while leaving: the router is already on another page, and
+        // rewriting the URL now would navigate back into this note.
+        if (mountedRef.current) void router.replace(noteHref(noteId), undefined, { shallow: true });
       }
     } catch (error) {
       dirtyRef.current = true;
@@ -128,6 +131,7 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
   });
 
   useEffect(() => {
+    mountedRef.current = true;
     const hide = () => onPageHide();
     const key = (event: KeyboardEvent) => onKeyDown(event);
     window.addEventListener('pagehide', hide);
@@ -135,6 +139,7 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
     return () => {
       window.removeEventListener('pagehide', hide);
       document.removeEventListener('keydown', key);
+      mountedRef.current = false;
       onLeave();
     };
   }, []);

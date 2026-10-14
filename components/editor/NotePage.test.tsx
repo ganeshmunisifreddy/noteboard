@@ -56,6 +56,16 @@ describe('NotePage', () => {
     await waitFor(async () => expect(await savedContent('n2')).toBe('Quick'));
   });
 
+  it('does not navigate back into a new note saved while leaving', async () => {
+    router.query = { new: 'note', id: 'n7' };
+    const user = userEvent.setup();
+    const { unmount } = render(<NotePage />);
+    await user.type(await screen.findByRole('textbox', { name: 'Note' }), 'Milk');
+    unmount();
+    await waitFor(async () => expect(await savedContent('n7')).toBe('Milk'));
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
   it('moves a note the user emptied to trash on leaving', async () => {
     await createNote({ id: 'n3', kind: 'note', content: 'x' });
     router.query = { id: 'n3' };

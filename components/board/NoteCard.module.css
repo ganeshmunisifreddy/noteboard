@@ -91,13 +91,13 @@
   line-height: 1.4;
   color: var(--note-ink);
   overflow-wrap: anywhere;
-  cursor: pointer;
-  pointer-events: auto;
 }
 
+/* Only the checkbox ticks; the item text opens the card like the rest. */
 .item input {
   flex: none;
   margin-top: 1px;
+  pointer-events: auto;
 }
 
 .more {

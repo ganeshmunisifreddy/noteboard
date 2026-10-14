@@ -11,6 +11,14 @@ export const setHasNotesMarker = (hasNotes: boolean) => {
   }
 };
 
+export const hasNotesMarker = () => {
+  try {
+    return localStorage.getItem(HAS_NOTES_KEY) !== null;
+  } catch {
+    return false;
+  }
+};
+
 let persistRequested = false;
 
 // Asks the browser not to evict our data under storage pressure (Safari

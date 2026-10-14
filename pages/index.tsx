@@ -1,7 +1,7 @@
 import type { NextPage } from 'next';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import FilterChips from '../components/board/FilterChips';
 import type { CardMode } from '../components/board/NoteCard';
 import NoteGrid from '../components/board/NoteGrid';
@@ -13,6 +13,7 @@ import { emptyMessage, filterToQuery, parseFilter } from '../lib/filters';
 import { emptyTrash, useBoardNotes, useLabels } from '../lib/notes';
 import { markOnBoard, newNoteHref, noteHref, openEditor } from '../lib/routes';
 import { useStartup } from '../lib/startup';
+import { hasNotesMarker } from '../lib/storage';
 import type { BoardFilter, NoteKind } from '../lib/types';
 import styles from '../styles/Home.module.css';
 
@@ -28,6 +29,12 @@ const Home: NextPage = () => {
 
   useEffect(() => {
     markOnBoard();
+  }, []);
+
+  // Coming back from the editor skips _document's pre-paint script, so hide
+  // the empty state again until the notes have loaded.
+  useLayoutEffect(() => {
+    if (hasNotesMarker()) document.documentElement.setAttribute('data-has-notes', '');
   }, []);
 
   // Notes are on screen now, so stop force-hiding the empty state

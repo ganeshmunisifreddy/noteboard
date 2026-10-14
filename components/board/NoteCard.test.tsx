@@ -43,6 +43,15 @@ describe('NoteCard', () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
+  it('does not tick an item when its text is clicked', async () => {
+    const note = await groceries();
+    const user = userEvent.setup();
+    render(<NoteCard note={note} labelNames={[]} mode='board' onOpen={vi.fn()} />);
+    await user.click(screen.getByText('Milk'));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect((await db.notes.get('c1'))?.items[0].done).toBe(false);
+  });
+
   it('deletes from the menu without opening the note', async () => {
     const note = await groceries();
     const onOpen = vi.fn();
