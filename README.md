@@ -1,6 +1,13 @@
 # Noteboard
 
-A notes app by Nine Technology, built with [Next.js](https://nextjs.org/) (Pages Router). Notes are stored in the browser's `localStorage`, and the app installs as a PWA with offline support.
+A notes and checklists app by Nine Technology, built with [Next.js](https://nextjs.org/) (Pages Router). Notes are stored in the browser with IndexedDB (via [Dexie](https://dexie.org/)), and the app installs as a PWA that works offline. There is no server-side storage.
+
+## Features
+
+- Notes and checklists, with pin, colour, labels, archive and trash (30-day auto-delete, undo)
+- Search and filters (All, Notes, Lists, labels), kept in the URL
+- Light and dark themes
+- Keyboard shortcuts: `n` new note, `l` new list, `/` search, `Esc` leave the editor
 
 ## Getting Started
 
@@ -21,12 +28,17 @@ Open [http://localhost:4000](http://localhost:4000).
 | `npm run build` | Production build (webpack, required by `next-pwa` to emit `sw.js`) |
 | `npm start`     | Serve the production build on port 9090                           |
 | `npm run lint`  | Run ESLint                                                        |
+| `npm test`      | Run unit and component tests (Vitest)                             |
 
 In production the app runs under pm2 via `ecosystem.config.js`.
 
 ## Project Structure
 
-- `pages/index.tsx`: notes board
+- `pages/index.tsx`: board
+- `pages/note.tsx`: editor (`/note?id=…`)
 - `pages/_offline.tsx`: fallback page served by the service worker when offline
-- `components/`: note card, edit modal, header, empty state
-- `lib/notes.ts`: notes store (`localStorage`, synced across tabs)
+- `components/board/`, `components/editor/`, `components/ui/`: UI (Radix Primitives + CSS Modules)
+- `lib/notes.ts`: notes and labels store; `lib/db.ts`: IndexedDB schema
+- `lib/migrate.ts`: one-time move of notes from the old `localStorage` format (the old data is kept as `notes-backup-v1`)
+- `styles/tokens.css`: colours, spacing and type, light and dark
+- `worker/index.js`: serves the board and editor offline
