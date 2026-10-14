@@ -16,6 +16,7 @@ import ColorPicker from '../ui/ColorPicker';
 import IconButton from '../ui/IconButton';
 import Menu from '../ui/Menu';
 import { useToast } from '../ui/Toast';
+import MarkdownPreview from './MarkdownPreview';
 import styles from './NoteCard.module.css';
 
 export type CardMode = 'board' | 'archive' | 'trash';
@@ -74,9 +75,7 @@ const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle }: Props) => {
       />
       {note.title && <h3 className={styles.title}>{note.title}</h3>}
       {showContent && (
-        <p id={`${id}-content`} className={styles.content}>
-          {note.content}
-        </p>
+        <MarkdownPreview id={`${id}-content`} className={styles.content} markdown={note.content} />
       )}
       {showItems && (
         <ul id={`${id}-items`} className={styles.items}>

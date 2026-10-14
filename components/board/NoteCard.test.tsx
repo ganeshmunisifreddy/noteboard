@@ -96,4 +96,12 @@ describe('NoteCard', () => {
     await user.click(screen.getByRole('button', { name: 'Restore' }));
     await waitFor(async () => expect((await db.notes.get('c1'))?.trashedAt).toBeNull());
   });
+
+  it('shows formatted text on the card', async () => {
+    const note = await createNote({ id: 'c3', kind: 'note', content: '**Buy** stamps\n\n- glue' });
+    const { container } = render(<NoteCard note={note} labelNames={[]} mode='board' onOpen={vi.fn()} />);
+    expect(container.querySelector('strong')).toHaveTextContent('Buy');
+    expect(container.querySelector('li')).toHaveTextContent('glue');
+    expect(screen.getByRole('button', { name: 'Open note: Untitled' })).toHaveAccessibleDescription(/Buy stamps/);
+  });
 });
