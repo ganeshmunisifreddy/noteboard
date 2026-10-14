@@ -17,6 +17,16 @@ const router = vi.hoisted(() => ({
 
 vi.mock('next/router', () => ({ useRouter: () => router }));
 vi.mock('next/head', () => ({ default: () => null }));
+// Typing into Tiptap's contenteditable is unreliable in jsdom; the editor is
+// tested in RichEditor.test.tsx and FormatBar.test.tsx.
+vi.mock('./RichEditor', async () => {
+  const { default: NoteBody } = await import('./NoteBody');
+  return {
+    default: ({ value, onChange, readOnly, autoFocus }: import('./RichEditor').RichEditorProps) => (
+      <NoteBody value={value} onChange={onChange} readOnly={readOnly} autoFocus={autoFocus} />
+    ),
+  };
+});
 
 beforeEach(async () => {
   await db.delete();
@@ -136,6 +146,23 @@ describe('NotePage', () => {
     );
   });
 
+  it('puts a deleted note back in its place on Undo', async () => {
+    await createNote({ id: 'top', kind: 'note', title: 'Top', position: 0 });
+    await createNote({ id: 'n11', kind: 'note', title: 'Stay put', position: 5 });
+    router.query = { id: 'n11' };
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <NotePage />
+      </ToastProvider>,
+    );
+    await screen.findByRole('textbox', { name: 'Title' });
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+    await user.click(await screen.findByRole('button', { name: 'Undo' }));
+    await waitFor(async () => expect(await db.notes.get('n11')).toMatchObject({ trashedAt: null, position: 5 }));
+  });
+
   it('shows a trashed note read-only with Restore', async () => {
     await createNote({ id: 'n6', kind: 'note', title: 'Old' });
     await db.notes.update('n6', { trashedAt: 1 });
@@ -162,5 +189,17 @@ describe('NotePage', () => {
         query: { new: 'note', id: expect.any(String) },
       }),
     );
+  });
+
+  it('does not show the formatting bar for list notes', async () => {
+    await createNote({ id: 'n20', kind: 'list', title: 'Shop' });
+    router.query = { id: 'n20' };
+    render(
+      <ToastProvider>
+        <NotePage />
+      </ToastProvider>,
+    );
+    await screen.findByRole('textbox', { name: 'Title' });
+    expect(screen.queryByRole('toolbar', { name: 'Formatting' })).toBeNull();
   });
 });

@@ -28,13 +28,14 @@ export type Note = {
   trashedAt: number | null; // in Trash when set (ms since epoch)
   createdAt: number;
   updatedAt: number;
+  position: number; // board order; lower comes first
 };
 
 export type Label = { id: string; name: string };
 
 // Fields the board and editor change directly.
 export type NoteChanges = Partial<
-  Pick<Note, 'kind' | 'title' | 'content' | 'items' | 'color' | 'labelIds' | 'pinned' | 'archived'>
+  Pick<Note, 'kind' | 'title' | 'content' | 'items' | 'color' | 'labelIds' | 'pinned' | 'archived' | 'position'>
 >;
 
 export type BoardView = 'all' | 'notes' | 'lists' | 'archive' | 'trash';

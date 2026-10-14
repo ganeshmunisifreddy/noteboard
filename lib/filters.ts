@@ -1,3 +1,4 @@
+import { toPlainText } from './markdown';
 import type { BoardFilter, BoardView, Label, Note } from './types';
 
 const VIEWS: BoardView[] = ['all', 'notes', 'lists', 'archive', 'trash'];
@@ -38,7 +39,7 @@ export const matchesView = (note: Note, filter: BoardFilter): boolean => {
 export const matchesQuery = (note: Note, query: string, labelNames: Map<string, string>): boolean => {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
-  const body = note.kind === 'note' ? [note.content] : note.items.map((i) => i.text);
+  const body = note.kind === 'note' ? [toPlainText(note.content)] : note.items.map((i) => i.text);
   const labels = note.labelIds.map((id) => labelNames.get(id) ?? '');
   return [note.title, ...body, ...labels].some((text) => text.toLowerCase().includes(needle));
 };
@@ -51,10 +52,17 @@ export const selectBoardNotes = (notes: Note[], labels: Label[], filter: BoardFi
   if (filter.view === 'trash') {
     return { pinned: [], others: visible.sort((a, b) => (b.trashedAt ?? 0) - (a.trashedAt ?? 0)) };
   }
-  const byRecent = visible.sort((a, b) => b.updatedAt - a.updatedAt);
-  if (filter.view === 'archive') return { pinned: [], others: byRecent };
-  return { pinned: byRecent.filter((n) => n.pinned), others: byRecent.filter((n) => !n.pinned) };
+  if (filter.view === 'archive') {
+    return { pinned: [], others: visible.sort((a, b) => b.updatedAt - a.updatedAt) };
+  }
+  // Ties (e.g. positions from a restored backup) are broken by id, the order
+  // IndexedDB keeps them in, so an edit or a renumber never moves a note.
+  const byPosition = visible.sort((a, b) => a.position - b.position || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return { pinned: byPosition.filter((n) => n.pinned), others: byPosition.filter((n) => !n.pinned) };
 };
+
+export const isReorderable = (filter: BoardFilter) =>
+  (filter.view === 'all' || filter.view === 'notes' || filter.view === 'lists') && filter.query.trim() === '';
 
 export const emptyMessage = (filter: BoardFilter): string => {
   const query = filter.query.trim();

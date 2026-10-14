@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../../lib/db';
@@ -28,6 +28,9 @@ const router = vi.hoisted(() => {
 
 vi.mock('next/router', () => ({ useRouter: () => router }));
 vi.mock('next/head', () => ({ default: () => null }));
+
+const editorLoad = vi.hoisted(() => ({ preload: vi.fn(() => Promise.resolve()) }));
+vi.mock('../editor/useRichEditor', () => ({ preloadRichEditor: editorLoad.preload }));
 
 beforeEach(async () => {
   await db.delete();
@@ -71,5 +74,24 @@ describe('Home', () => {
     await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 640));
     expect(sessionStorage.getItem('boardScroll')).toBeNull();
     scrollTo.mockRestore();
+  });
+
+  it('restores a backup chosen in the file picker', async () => {
+    const { container } = render(<Home />);
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const backup = JSON.stringify({
+      format: 'noteboard-backup',
+      version: 1,
+      exportedAt: 'x',
+      notes: [{ id: 'r1', title: 'From backup', updatedAt: 5 }],
+      labels: [],
+    });
+    fireEvent.change(input, { target: { files: [new File([backup], 'backup.json', { type: 'application/json' })] } });
+    expect(await screen.findByText('From backup')).toBeInTheDocument();
+  });
+
+  it('loads the note editor in the background', async () => {
+    render(<Home />);
+    await waitFor(() => expect(editorLoad.preload).toHaveBeenCalled(), { timeout: 3000 });
   });
 });

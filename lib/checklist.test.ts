@@ -46,22 +46,29 @@ describe('toggleItemIn', () => {
 });
 
 describe('convertKind', () => {
-  it('turns non-empty lines into unticked items', () => {
-    const result = convertKind({ kind: 'note', content: 'Milk\n\n  \nEggs', items: [] });
+  it('turns lines of text into unticked items, without formatting', () => {
+    const result = convertKind({ kind: 'note', content: '## Shop\n\n- **Milk**\n\n  \n1. Eggs', items: [] });
     expect(result.kind).toBe('list');
     expect(result.content).toBe('');
     expect(result.items.map((i) => [i.text, i.done])).toEqual([
+      ['Shop', false],
       ['Milk', false],
       ['Eggs', false],
     ]);
   });
 
-  it('joins items into lines and drops ticks', () => {
+  it('turns items into a bullet list and drops ticks', () => {
     expect(convertKind({ kind: 'list', content: '', items })).toEqual({
       kind: 'note',
-      content: 'Milk\nEggs\nBread',
+      content: '- Milk\n- Eggs\n- Bread',
       items: [],
     });
+  });
+
+  it('keeps item text as typed through a round trip', () => {
+    const typed = ['*urgent* call', '1. first', '- dash', '#tag'];
+    const note = convertKind({ kind: 'list', content: '', items: typed.map((text) => newItem(text)) });
+    expect(convertKind(note).items.map((i) => i.text)).toEqual(typed);
   });
 });
 
@@ -78,5 +85,10 @@ describe('isNoteEmpty', () => {
   });
   it('ignores items on a text note', () => {
     expect(isNoteEmpty({ kind: 'note', title: '', content: '', items: [newItem('Tea')] })).toBe(true);
+  });
+
+  it('treats a text note with only empty formatting as empty', () => {
+    expect(isNoteEmpty({ kind: 'note', title: '', content: '## \n\n- \n\n---', items: [] })).toBe(true);
+    expect(isNoteEmpty({ kind: 'note', title: '', content: '**x**', items: [] })).toBe(false);
   });
 });

@@ -1,0 +1,28 @@
+import { renderHook, waitFor } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import type { RichEditorProps } from './RichEditor';
+import { preloadRichEditor, useRichEditor } from './useRichEditor';
+
+const Editor = (_props: RichEditorProps) => null;
+const loads = () => Promise.resolve({ default: Editor });
+const fails = () => Promise.reject(new Error('offline'));
+
+describe('useRichEditor', () => {
+  it('gives the editor once its code has loaded', async () => {
+    const { result } = renderHook(() => useRichEditor(loads));
+    expect(result.current.status).toBe('loading');
+    await waitFor(() => expect(result.current).toEqual({ status: 'ready', Editor }));
+  });
+
+  it('reports a failed load', async () => {
+    const { result } = renderHook(() => useRichEditor(fails));
+    await waitFor(() => expect(result.current.status).toBe('failed'));
+  });
+
+  it('is ready at once when the editor was loaded before', async () => {
+    const early = () => Promise.resolve({ default: Editor });
+    await preloadRichEditor(early);
+    const { result } = renderHook(() => useRichEditor(early));
+    expect(result.current).toEqual({ status: 'ready', Editor });
+  });
+});

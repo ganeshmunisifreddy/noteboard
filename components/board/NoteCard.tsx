@@ -1,5 +1,5 @@
 import { Archive, ArchiveRestore, EllipsisVertical, Palette, Pin, RotateCcw, Trash2 } from 'lucide-react';
-import { useId } from 'react';
+import { useId, type ReactNode } from 'react';
 import {
   deleteForever,
   restoreNote,
@@ -8,6 +8,7 @@ import {
   toggleItem,
   togglePin,
   trashNote,
+  undoTrash,
   updateNote,
 } from '../../lib/notes';
 import type { Note } from '../../lib/types';
@@ -15,6 +16,7 @@ import ColorPicker from '../ui/ColorPicker';
 import IconButton from '../ui/IconButton';
 import Menu from '../ui/Menu';
 import { useToast } from '../ui/Toast';
+import MarkdownPreview from './MarkdownPreview';
 import styles from './NoteCard.module.css';
 
 export type CardMode = 'board' | 'archive' | 'trash';
@@ -24,11 +26,12 @@ type Props = {
   labelNames: string[];
   mode: CardMode;
   onOpen: (id: string) => void;
+  dragHandle?: ReactNode;
 };
 
 const PREVIEW_ITEMS = 8;
 
-const NoteCard = ({ note, labelNames, mode, onOpen }: Props) => {
+const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle }: Props) => {
   const toast = useToast();
   const id = useId();
   const openItems = note.items.filter((i) => !i.done);
@@ -52,7 +55,7 @@ const NoteCard = ({ note, labelNames, mode, onOpen }: Props) => {
 
   const trash = async () => {
     await trashNote(note.id);
-    toast({ message: 'Moved to trash', actionLabel: 'Undo', onAction: () => void restoreNote(note.id) });
+    toast({ message: 'Moved to trash', actionLabel: 'Undo', onAction: () => void undoTrash(note.id) });
   };
 
   const removeForever = () => {
@@ -72,9 +75,7 @@ const NoteCard = ({ note, labelNames, mode, onOpen }: Props) => {
       />
       {note.title && <h3 className={styles.title}>{note.title}</h3>}
       {showContent && (
-        <p id={`${id}-content`} className={styles.content}>
-          {note.content}
-        </p>
+        <MarkdownPreview id={`${id}-content`} className={styles.content} markdown={note.content} clamp />
       )}
       {showItems && (
         <ul id={`${id}-items`} className={styles.items}>
@@ -105,6 +106,7 @@ const NoteCard = ({ note, labelNames, mode, onOpen }: Props) => {
         </ul>
       )}
       <div className={styles.actions}>
+        {dragHandle}
         {mode === 'trash' ? (
           <>
             <IconButton label='Restore' onClick={() => void restoreNote(note.id)}>

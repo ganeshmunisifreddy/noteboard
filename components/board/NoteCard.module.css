@@ -62,16 +62,15 @@
   overflow-wrap: anywhere;
 }
 
+/* About 10 lines. Formatted notes have block children, which line-clamp
+   can't count, so the height is capped instead. */
 .content {
-  display: -webkit-box;
+  max-height: calc(1.5em * 10);
   overflow: hidden;
   font-size: var(--text-sm);
   line-height: 1.5;
   color: var(--note-ink);
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 10;
 }
 
 .items {

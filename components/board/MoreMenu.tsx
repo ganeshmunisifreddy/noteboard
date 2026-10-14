@@ -1,4 +1,4 @@
-import { Archive, Check, EllipsisVertical, Tags, Trash2 } from 'lucide-react';
+import { Archive, Check, Download, EllipsisVertical, FileText, Tags, Trash2, Upload } from 'lucide-react';
 import { DropdownMenu } from 'radix-ui';
 import { setTheme, useTheme, type ThemePref } from '../../lib/theme';
 import IconButton from '../ui/IconButton';
@@ -8,6 +8,9 @@ type Props = {
   onArchive: () => void;
   onTrash: () => void;
   onManageLabels: () => void;
+  onBackup: () => void;
+  onRestore: () => void;
+  onExport: () => void;
 };
 
 const THEMES: { value: ThemePref; label: string }[] = [
@@ -18,7 +21,7 @@ const THEMES: { value: ThemePref; label: string }[] = [
 
 // Non-modal so "Manage labels" can open its dialog without the menu
 // fighting it for focus.
-const MoreMenu = ({ onArchive, onTrash, onManageLabels }: Props) => {
+const MoreMenu = ({ onArchive, onTrash, onManageLabels, onBackup, onRestore, onExport }: Props) => {
   const theme = useTheme();
   return (
     <DropdownMenu.Root modal={false}>
@@ -40,6 +43,20 @@ const MoreMenu = ({ onArchive, onTrash, onManageLabels }: Props) => {
           <DropdownMenu.Item className={styles.item} onSelect={onManageLabels}>
             <Tags size={16} aria-hidden />
             Manage labels
+          </DropdownMenu.Item>
+          <DropdownMenu.Separator className={styles.separator} />
+          <DropdownMenu.Label className={styles.label}>Backup</DropdownMenu.Label>
+          <DropdownMenu.Item className={styles.item} onSelect={onBackup}>
+            <Download size={16} aria-hidden />
+            Back up notes
+          </DropdownMenu.Item>
+          <DropdownMenu.Item className={styles.item} onSelect={onRestore}>
+            <Upload size={16} aria-hidden />
+            Restore from backup…
+          </DropdownMenu.Item>
+          <DropdownMenu.Item className={styles.item} onSelect={onExport}>
+            <FileText size={16} aria-hidden />
+            Export as Markdown
           </DropdownMenu.Item>
           <DropdownMenu.Separator className={styles.separator} />
           <DropdownMenu.Label className={styles.label}>Theme</DropdownMenu.Label>

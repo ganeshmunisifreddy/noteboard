@@ -17,6 +17,7 @@ export const makeNote = (overrides: Partial<Note> = {}): Note => {
     trashedAt: null,
     createdAt: 0,
     updatedAt: 0,
+    position: 0,
     ...overrides,
   };
 };

@@ -1,0 +1,81 @@
+/* Spaces and indentation show as typed (line breaks are <br>s). */
+.preview {
+  white-space: pre-wrap;
+}
+
+.preview :where(p, ul, ol, blockquote, pre) {
+  margin: 0;
+}
+
+/* Every line box is the same height, so a height cap ends on a whole line. */
+.preview > * + * {
+  margin-top: 1lh;
+}
+
+.preview li + li,
+.preview li > * + * {
+  margin-top: 0;
+}
+
+/* Fade the last visible line when the text doesn't fit. */
+.preview[data-clamped='true'] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1lh), transparent);
+}
+
+.preview ul,
+.preview ol {
+  padding-left: 1.25em;
+}
+
+.heading {
+  font-weight: 700;
+}
+
+.heading[data-level='1'] {
+  font-size: 1.15em;
+  /* Same line box as the body text (1.5 at 1em). */
+  line-height: calc(1.5 / 1.15);
+}
+
+.preview blockquote {
+  padding-left: 0.6em;
+  border-left: 3px solid color-mix(in srgb, currentColor 30%, transparent);
+}
+
+.preview code,
+.preview pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
+}
+
+.preview code {
+  padding: 0 0.25em;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.preview pre {
+  /* Smaller code text keeps the body's line height. */
+  line-height: calc(1.5 / 0.92);
+  padding: 0 0.6em;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  white-space: pre-wrap;
+}
+
+.preview pre code {
+  padding: 0;
+  background: none;
+}
+
+.preview hr {
+  height: 1lh;
+  margin-bottom: 0;
+  border: none;
+  background: linear-gradient(currentColor, currentColor) center / 100% 1px no-repeat;
+  opacity: 0.25;
+}
+
+.link {
+  text-decoration: underline;
+}

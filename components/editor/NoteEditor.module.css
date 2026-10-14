@@ -61,3 +61,17 @@
     padding: 16px 16px 96px;
   }
 }
+
+/* The top bar and the formatting bar stick together. */
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.loading {
+  min-height: 160px;
+  font-size: var(--text-md);
+  line-height: 1.6;
+  color: var(--text);
+}
