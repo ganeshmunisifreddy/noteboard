@@ -1,4 +1,5 @@
 import { ListTodo, Plus, Search, StickyNote } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { SEARCH_INPUT_ID } from '../../lib/shortcuts';
 import type { NoteKind } from '../../lib/types';
 import Menu, { type MenuItem } from '../ui/Menu';
@@ -9,9 +10,11 @@ type Props = {
   searchKey: string; // remounts the input once the URL is known
   onQueryChange: (query: string) => void;
   onNew: (kind: NoteKind) => void;
+  // App-wide options, after the New button (the theme button and the ⋯ menu).
+  children?: ReactNode;
 };
 
-const TopBar = ({ initialQuery, searchKey, onQueryChange, onNew }: Props) => {
+const TopBar = ({ initialQuery, searchKey, onQueryChange, onNew, children }: Props) => {
   const newItems: MenuItem[] = [
     { label: 'Note', icon: <StickyNote size={16} aria-hidden />, onSelect: () => onNew('note') },
     { label: 'List', icon: <ListTodo size={16} aria-hidden />, onSelect: () => onNew('list') },
@@ -32,15 +35,18 @@ const TopBar = ({ initialQuery, searchKey, onQueryChange, onNew }: Props) => {
           onChange={(e) => onQueryChange(e.target.value)}
         />
       </label>
-      <Menu
-        items={newItems}
-        trigger={
-          <button type='button' className={styles.newButton}>
-            <Plus size={16} aria-hidden />
-            New
-          </button>
-        }
-      />
+      <div className={styles.actions}>
+        <Menu
+          items={newItems}
+          trigger={
+            <button type='button' className={styles.newButton}>
+              <Plus size={16} aria-hidden />
+              New
+            </button>
+          }
+        />
+        {children}
+      </div>
       <Menu
         items={newItems}
         trigger={

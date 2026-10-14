@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../../lib/db';
@@ -93,5 +93,13 @@ describe('Home', () => {
   it('loads the note editor in the background', async () => {
     render(<Home />);
     await waitFor(() => expect(editorLoad.preload).toHaveBeenCalled(), { timeout: 3000 });
+  });
+
+  it('keeps app options in the header and only filters in the filter row', async () => {
+    render(<Home />);
+    const header = await screen.findByRole('banner');
+    expect(within(header).getByRole('button', { name: 'More options' })).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: /Switch to (dark|light) theme/ })).toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'Filters' })).queryByRole('button', { name: 'More options' })).toBeNull();
   });
 });

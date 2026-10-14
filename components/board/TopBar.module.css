@@ -48,12 +48,24 @@
   color: var(--text-muted);
 }
 
+/* New, the theme button and the ⋯ menu, on the right. */
+.actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.actions > :first-child {
+  margin-right: 8px;
+}
+
 .newButton {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   height: 40px;
-  margin-left: auto;
   padding: 0 16px;
   border: none;
   border-radius: var(--radius-md);
@@ -93,6 +105,9 @@
   }
   .newButton {
     display: none;
+  }
+  .actions > :first-child {
+    margin-right: 0;
   }
   .fab {
     display: inline-flex;

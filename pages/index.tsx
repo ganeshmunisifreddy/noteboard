@@ -3,12 +3,14 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import FilterChips from '../components/board/FilterChips';
+import MoreMenu from '../components/board/MoreMenu';
 import type { CardMode } from '../components/board/NoteCard';
 import NoteGrid from '../components/board/NoteGrid';
 import TopBar from '../components/board/TopBar';
 import { preloadRichEditor } from '../components/editor/useRichEditor';
 import NotFound from '../components/NotFound';
 import LabelsDialog from '../components/ui/LabelsDialog';
+import ThemeToggle from '../components/ui/ThemeToggle';
 import { useToast } from '../components/ui/Toast';
 import { downloadBackup, downloadMarkdown, restoreBackup, restoreErrorMessage, restoredMessage } from '../lib/backup';
 import { emptyMessage, filterToQuery, isReorderable, parseFilter } from '../lib/filters';
@@ -144,16 +146,18 @@ const Home: NextPage = () => {
         searchKey={router.isReady ? `ready-${historyKey}` : 'loading'}
         onQueryChange={search}
         onNew={newNote}
-      />
-      <FilterChips
-        filter={filter}
-        labels={labels ?? []}
-        onSelect={showFilter}
-        onManageLabels={() => setLabelsOpen(true)}
-        onBackup={() => void backUp()}
-        onRestore={() => restoreInput.current?.click()}
-        onExport={() => void exportMarkdown()}
-      />
+      >
+        <ThemeToggle />
+        <MoreMenu
+          onArchive={() => showFilter({ view: 'archive', labelId: null })}
+          onTrash={() => showFilter({ view: 'trash', labelId: null })}
+          onManageLabels={() => setLabelsOpen(true)}
+          onBackup={() => void backUp()}
+          onRestore={() => restoreInput.current?.click()}
+          onExport={() => void exportMarkdown()}
+        />
+      </TopBar>
+      <FilterChips filter={filter} labels={labels ?? []} onSelect={showFilter} />
       <main className={styles.main}>
         {mode === 'trash' && total > 0 && (
           <div className={styles.trashBar}>

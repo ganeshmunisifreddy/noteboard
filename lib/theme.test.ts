@@ -1,5 +1,6 @@
+import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { readTheme, resolveTheme, setTheme } from './theme';
+import { readTheme, resolveTheme, setTheme, useAppearance } from './theme';
 
 beforeEach(() => {
   localStorage.clear();
@@ -26,5 +27,14 @@ describe('theme', () => {
     setTheme('system');
     expect(localStorage.getItem('theme')).toBeNull();
     expect(document.documentElement.dataset.theme).toBe('light'); // the jsdom stub reports light
+  });
+
+  it('reports the colours in use, following the choice', () => {
+    const { result } = renderHook(() => useAppearance());
+    expect(result.current).toBe('light'); // the jsdom stub reports a light device
+    act(() => setTheme('dark'));
+    expect(result.current).toBe('dark');
+    act(() => setTheme('system'));
+    expect(result.current).toBe('light');
   });
 });

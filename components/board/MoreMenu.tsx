@@ -1,6 +1,6 @@
-import { Archive, Check, Download, EllipsisVertical, FileText, Tags, Trash2, Upload } from 'lucide-react';
+import { Archive, Download, EllipsisVertical, FileText, MonitorSmartphone, Tags, Trash2, Upload } from 'lucide-react';
 import { DropdownMenu } from 'radix-ui';
-import { setTheme, useTheme, type ThemePref } from '../../lib/theme';
+import { setTheme, useTheme } from '../../lib/theme';
 import IconButton from '../ui/IconButton';
 import styles from '../ui/Menu.module.css';
 
@@ -12,12 +12,6 @@ type Props = {
   onRestore: () => void;
   onExport: () => void;
 };
-
-const THEMES: { value: ThemePref; label: string }[] = [
-  { value: 'system', label: 'System' },
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-];
 
 // Non-modal so "Manage labels" can open its dialog without the menu
 // fighting it for focus.
@@ -58,18 +52,17 @@ const MoreMenu = ({ onArchive, onTrash, onManageLabels, onBackup, onRestore, onE
             <FileText size={16} aria-hidden />
             Export as Markdown
           </DropdownMenu.Item>
-          <DropdownMenu.Separator className={styles.separator} />
-          <DropdownMenu.Label className={styles.label}>Theme</DropdownMenu.Label>
-          <DropdownMenu.RadioGroup value={theme} onValueChange={(value) => setTheme(value as ThemePref)}>
-            {THEMES.map((option) => (
-              <DropdownMenu.RadioItem key={option.value} value={option.value} className={styles.item}>
-                {option.label}
-                <DropdownMenu.ItemIndicator className={styles.indicator}>
-                  <Check size={16} aria-hidden />
-                </DropdownMenu.ItemIndicator>
-              </DropdownMenu.RadioItem>
-            ))}
-          </DropdownMenu.RadioGroup>
+          {/* The header's sun/moon button picks a theme; this goes back to
+              following the device. */}
+          {theme !== 'system' && (
+            <>
+              <DropdownMenu.Separator className={styles.separator} />
+              <DropdownMenu.Item className={styles.item} onSelect={() => setTheme('system')}>
+                <MonitorSmartphone size={16} aria-hidden />
+                Use device theme
+              </DropdownMenu.Item>
+            </>
+          )}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
