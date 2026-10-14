@@ -18,6 +18,7 @@
     "dexie-react-hooks": "^4.4.0",
     "framer-motion": "^14.1.0",
     "lucide-react": "^1.55.0",
+    "marked": "^17.0.6",
     "next": "16.4.0",
     "next-pwa": "^5.6.0",
     "radix-ui": "^1.8.1",
