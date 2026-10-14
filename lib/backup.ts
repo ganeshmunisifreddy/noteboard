@@ -22,7 +22,8 @@ export type Backup = {
 // Position is filled in during the merge when the backup has none.
 export type ImportedNote = Omit<Note, 'position'> & { position: number | null };
 export type ImportedBackup = { notes: ImportedNote[]; labels: Label[] };
-export type MergeCounts = { added: number; updated: number; unchanged: number };
+// Note counts, plus how many labels were new.
+export type MergeCounts = { added: number; updated: number; unchanged: number; labels: number };
 
 export class BackupError extends Error {}
 
@@ -128,7 +129,7 @@ export const planMerge = (localNotes: Note[], localLabels: Label[], imported: Im
   const local = new Map(localNotes.map((n) => [n.id, n]));
   let lastPosition = localNotes.reduce((max, n) => Math.max(max, n.position), -1);
   const notes: Note[] = [];
-  const counts: MergeCounts = { added: 0, updated: 0, unchanged: 0 };
+  const counts: MergeCounts = { added: 0, updated: 0, unchanged: 0, labels: labels.length };
   for (const note of imported.notes) {
     const current = local.get(note.id);
     if (current && current.updatedAt >= note.updatedAt) {
@@ -185,8 +186,9 @@ export const toMarkdown = (notes: Note[], labels: Label[]): string => {
   return output ? `${output}\n` : '';
 };
 
-export const restoredMessage = ({ added, updated, unchanged }: MergeCounts) => {
+export const restoredMessage = ({ added, updated, unchanged, labels }: MergeCounts) => {
   const total = added + updated + unchanged;
+  if (total === 0 && labels > 0) return `That backup has no notes. Added ${labels} ${labels === 1 ? 'label' : 'labels'}.`;
   if (total === 0) return 'That backup has no notes.';
   return `Restored ${total} ${total === 1 ? 'note' : 'notes'}: ${added} added, ${updated} updated, ${unchanged} already up to date`;
 };

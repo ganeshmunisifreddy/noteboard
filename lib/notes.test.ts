@@ -18,6 +18,7 @@ import {
   toggleItem,
   togglePin,
   trashNote,
+  undoTrash,
   updateNote,
 } from './notes';
 
@@ -270,5 +271,31 @@ describe('positions', () => {
     // In Notes, drop x between n1 and n2: their gap is too small, so all renumber.
     await moveNote('x', 'n1', 'n2');
     expect((await board()).filter((id) => id === 'a1' || id === 'z1')).toEqual(shown);
+  });
+
+  it('gives notes pinned at the same moment different places', async () => {
+    await createNote({ id: 'a', kind: 'note', position: 0 });
+    await createNote({ id: 'b', kind: 'note', position: 1 });
+    await Promise.all([togglePin('a'), togglePin('b')]);
+    const [a, b] = await Promise.all([db.notes.get('a'), db.notes.get('b')]);
+    expect(a?.position).not.toBe(b?.position);
+  });
+});
+
+describe('trash and edits', () => {
+  // Trashing carries over in a backup restore only if it counts as an edit.
+  it('counts moving to and from Trash as an edit', async () => {
+    await createNote({ id: 'a', kind: 'note' });
+    await db.notes.update('a', { updatedAt: 1 });
+    await trashNote('a');
+    const trashed = (await db.notes.get('a'))?.updatedAt ?? 0;
+    expect(trashed).toBeGreaterThan(1);
+    await db.notes.update('a', { updatedAt: 1 });
+    await restoreNote('a');
+    expect((await db.notes.get('a'))?.updatedAt).toBeGreaterThan(1);
+    await trashNote('a');
+    await db.notes.update('a', { updatedAt: 1 });
+    await undoTrash('a');
+    expect((await db.notes.get('a'))?.updatedAt).toBeGreaterThan(1);
   });
 });

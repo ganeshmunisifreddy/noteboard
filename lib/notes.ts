@@ -38,7 +38,6 @@ const normalize = (changes: NoteChanges): NoteChanges => {
 export const createNote = async (input: NewNote): Promise<Note> => {
   const now = Date.now();
   const fields = normalize({ pinned: input.pinned ?? false, archived: input.archived ?? false });
-  const position = input.position ?? (await nextTopPosition());
   const note: Note = {
     id: input.id ?? uuid(),
     kind: input.kind,
@@ -52,25 +51,32 @@ export const createNote = async (input: NewNote): Promise<Note> => {
     trashedAt: null,
     createdAt: now,
     updatedAt: now,
-    position,
+    position: input.position ?? 0,
   };
-  await db.notes.add(note);
+  // Reading the top position and writing in one transaction keeps two quick
+  // writes from landing on the same place.
+  await db.transaction('rw', db.notes, async () => {
+    if (input.position === undefined) note.position = await nextTopPosition();
+    await db.notes.add(note);
+  });
   await afterWrite();
   return note;
 };
 
 export const updateNote = async (id: string, changes: NoteChanges) => {
   const next = normalize(changes);
-  const current = await db.notes.get(id);
-  const patch: NoteChanges & { updatedAt: number } = { ...next, updatedAt: Date.now() };
-  // Pinning, unpinning and unarchiving bring the note to the top of the
-  // section it lands in; ordinary edits leave it where the user put it.
-  const pinChanged = next.pinned !== undefined && next.pinned !== current?.pinned;
-  const unarchived = next.archived === false && current?.archived === true;
-  if (current && next.position === undefined && (pinChanged || unarchived)) {
-    patch.position = await nextTopPosition();
-  }
-  await db.notes.update(id, patch);
+  await db.transaction('rw', db.notes, async () => {
+    const current = await db.notes.get(id);
+    const patch: NoteChanges & { updatedAt: number } = { ...next, updatedAt: Date.now() };
+    // Pinning, unpinning and unarchiving bring the note to the top of the
+    // section it lands in; ordinary edits leave it where the user put it.
+    const pinChanged = next.pinned !== undefined && next.pinned !== current?.pinned;
+    const unarchived = next.archived === false && current?.archived === true;
+    if (current && next.position === undefined && (pinChanged || unarchived)) {
+      patch.position = await nextTopPosition();
+    }
+    await db.notes.update(id, patch);
+  });
   await afterWrite();
 };
 
@@ -86,19 +92,23 @@ export const toggleItem = async (noteId: string, itemId: string) => {
   if (note) await updateNote(noteId, { items: toggleItemIn(note.items, itemId) });
 };
 
+// Moving to and from Trash counts as an edit, so it wins in a backup merge.
 export const trashNote = async (id: string) => {
-  await db.notes.update(id, { trashedAt: Date.now() });
+  const now = Date.now();
+  await db.notes.update(id, { trashedAt: now, updatedAt: now });
   await afterWrite();
 };
 
 export const restoreNote = async (id: string) => {
-  await db.notes.update(id, { trashedAt: null, position: await nextTopPosition() });
+  await db.transaction('rw', db.notes, async () => {
+    await db.notes.update(id, { trashedAt: null, updatedAt: Date.now(), position: await nextTopPosition() });
+  });
   await afterWrite();
 };
 
 // Undo for "Move to trash": back where it was, unlike Restore from Trash.
 export const undoTrash = async (id: string) => {
-  await db.notes.update(id, { trashedAt: null });
+  await db.notes.update(id, { trashedAt: null, updatedAt: Date.now() });
   await afterWrite();
 };
 
@@ -135,7 +145,7 @@ export const moveNote = async (id: string, beforeId: string | null, afterId: str
     let after = await find(afterId);
     if (needsRenumber(before, after)) {
       const all = await db.notes.orderBy('position').toArray();
-      await Promise.all(all.map((note, index) => db.notes.update(note.id, { position: index })));
+      await db.notes.bulkPut(all.map((note, index) => ({ ...note, position: index })));
       before = await find(beforeId);
       after = await find(afterId);
     }

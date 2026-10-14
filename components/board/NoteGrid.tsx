@@ -7,6 +7,7 @@ import {
   closestCenter,
   getClientRect,
   useDraggable,
+  useDndContext,
   useDroppable,
   useSensor,
   useSensors,
@@ -34,6 +35,13 @@ type Size = { width: number; height: number };
 type Measure = (el: HTMLElement | null) => (() => void) | undefined;
 
 const GRID_KEY = '__grid';
+
+export const withoutSize = (sizes: Record<string, Size>, key: string): Record<string, Size> => {
+  if (!(key in sizes)) return sizes;
+  const next = { ...sizes };
+  delete next[key];
+  return next;
+};
 
 // One ResizeObserver measures the grid and every card. Updates are flushed
 // synchronously (observers run before paint) so cards never paint in a
@@ -68,7 +76,11 @@ const useSizes = (): [Record<string, Size>, Measure] => {
     (el) => {
       if (!el || !observer) return undefined;
       observer.observe(el);
-      return () => observer.unobserve(el);
+      return () => {
+        observer.unobserve(el);
+        const key = el.dataset.size;
+        if (key) setSizes((prev) => withoutSize(prev, key));
+      };
     },
     [observer],
   );
@@ -120,6 +132,14 @@ const Cell = ({ id, x, y, width, animate, reorderable, dragging, measure, childr
   );
 };
 
+// The card that follows the pointer is only a picture of the real one, so
+// its buttons must not be reachable.
+export const DragPreview = ({ width, children }: { width: number; children: ReactNode }) => (
+  <div className={styles.overlay} style={{ width: width || undefined }} aria-hidden inert>
+    {children}
+  </div>
+);
+
 type Props = {
   notes: Note[];
   labelNames: Map<string, string>;
@@ -145,7 +165,8 @@ type Box = { x: number; y: number; width: number; height: number };
 
 // Cards are placed with transforms, which dnd-kit's default measuring
 // ignores. Drop targets are read from the computed layout instead (relative
-// to the grid), so they are right even while cards animate between places.
+// to the grid), so they match where cards are going, not where they are
+// mid-animation.
 export const layoutMeasuring = (boxesKey: string): MeasuringConfiguration => {
   const boxes = new Map<string, Box>(JSON.parse(boxesKey));
   return {
@@ -170,6 +191,17 @@ export const layoutMeasuring = (boxesKey: string): MeasuringConfiguration => {
   };
 };
 
+// dnd-kit measures drop targets once when a drag starts. While dragging, the
+// shown order changes, so they are measured again to match it.
+export const RemeasureDroppables = ({ layoutKey }: { layoutKey: string }) => {
+  const { active, measureDroppableContainers } = useDndContext();
+  const dragging = active !== null;
+  useEffect(() => {
+    if (dragging) measureDroppableContainers([]);
+  }, [layoutKey, dragging, measureDroppableContainers]);
+  return null;
+};
+
 const useLayoutMeasuring = (boxesKey: string) => useMemo(() => layoutMeasuring(boxesKey), [boxesKey]);
 
 const KEY_TARGETS: Record<string, (index: number, last: number) => number> = {
@@ -186,8 +218,12 @@ const NoteGrid = ({ notes, labelNames, mode, onOpen, reorderable }: Props) => {
   const hintId = useId();
   const [sizes, measure] = useSizes();
   const [activeId, setActiveId] = useState<string | null>(null);
-  // Order shown while dragging or saving; ignored once `notes` changes.
-  const [preview, setPreview] = useState<{ base: Note[]; ids: string[] } | null>(null);
+  // Order shown while dragging or saving. It is kept while moves are being
+  // saved (`notes` can still hold an older order), then until `notes`
+  // changes after the last save. A null base means "since now".
+  const [preview, setPreview] = useState<{ base: Note[] | null; ids: string[] } | null>(null);
+  const [saving, setSaving] = useState(0);
+  if (preview && preview.base === null && saving === 0) setPreview({ ...preview, base: notes });
   const [announcement, setAnnouncement] = useState('');
   // Reordering moves the card's DOM node, which drops focus; the grip that
   // was used is focused again in the render that moves it, and only then.
@@ -203,7 +239,8 @@ const NoteGrid = ({ notes, labelNames, mode, onOpen, reorderable }: Props) => {
 
   const byId = useMemo(() => new Map(notes.map((n) => [n.id, n])), [notes]);
   const ids = notes.map((n) => n.id);
-  const shownIds = preview && preview.base === notes ? preview.ids : ids;
+  const sameNotes = !!preview && preview.ids.length === ids.length && preview.ids.every((id) => byId.has(id));
+  const shownIds = preview && sameNotes && (saving > 0 || preview.base === notes) ? preview.ids : ids;
   const ordered = shownIds.map((id) => byId.get(id)).filter((n): n is Note => !!n);
 
   const width = sizes[GRID_KEY]?.width ?? 0;
@@ -243,11 +280,15 @@ const NoteGrid = ({ notes, labelNames, mode, onOpen, reorderable }: Props) => {
   const save = async (nextIds: string[], movedId: string) => {
     setAnnouncement(`Moved ${title(movedId)} to position ${nextIds.indexOf(movedId) + 1} of ${nextIds.length}`);
     const { beforeId, afterId } = neighbors(nextIds, movedId);
+    setSaving((n) => n + 1);
     try {
       await moveNote(movedId, beforeId, afterId);
     } catch {
       setPreview(null);
       toast({ message: 'Couldn’t save the new order.' });
+    } finally {
+      setSaving((n) => n - 1);
+      setPreview((p) => p && { ...p, base: null });
     }
   };
 
@@ -377,11 +418,10 @@ const NoteGrid = ({ notes, labelNames, mode, onOpen, reorderable }: Props) => {
       </div>
       {/* No side effects: the default ones restore the card's inline opacity
           after the drop, undoing the fade-back animation. */}
+      <RemeasureDroppables layoutKey={boxesKey} />
       <DragOverlay dropAnimation={reducedMotion ? null : { duration: 200, sideEffects: null }}>
         {active ? (
-          <div className={styles.overlay} style={{ width: columnWidth || undefined }} aria-hidden>
-            {card(active, false)}
-          </div>
+          <DragPreview width={columnWidth}>{card(active, false)}</DragPreview>
         ) : null}
       </DragOverlay>
       {reorderable && (

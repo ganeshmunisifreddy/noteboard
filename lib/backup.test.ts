@@ -98,7 +98,7 @@ describe('planMerge', () => {
       ['a', 0],
       ['b', 5],
     ]);
-    expect(plan.counts).toEqual({ added: 2, updated: 0, unchanged: 0 });
+    expect(plan.counts).toEqual({ added: 2, updated: 0, unchanged: 0, labels: 0 });
   });
 
   it('replaces older local notes and keeps newer ones', () => {
@@ -106,7 +106,7 @@ describe('planMerge', () => {
     const imported = parseBackup(backupOf([{ id: 'a', title: 'backup', updatedAt: 7 }, { id: 'b', title: 'backup', updatedAt: 9 }]));
     const plan = planMerge(local, [], imported);
     expect(plan.notes.map((n) => [n.id, n.title])).toEqual([['a', 'backup']]);
-    expect(plan.counts).toEqual({ added: 0, updated: 1, unchanged: 1 });
+    expect(plan.counts).toEqual({ added: 0, updated: 1, unchanged: 1, labels: 0 });
   });
 
   it('maps labels by name and keeps ids unique', () => {
@@ -140,7 +140,7 @@ describe('restoreBackup', () => {
     await db.delete();
     await db.open();
 
-    expect(await restoreBackup(text)).toEqual({ added: 2, updated: 0, unchanged: 0 });
+    expect(await restoreBackup(text)).toEqual({ added: 2, updated: 0, unchanged: 0, labels: 1 });
     const after = await getAllData();
     const byId = <T extends { id: string }>(rows: T[]) => [...rows].sort((x, y) => x.id.localeCompare(y.id));
     expect(byId(after.notes)).toEqual(byId(before.notes));
@@ -152,7 +152,7 @@ describe('restoreBackup', () => {
     await createNote({ id: 'a', kind: 'note', title: 'A' });
     const { notes, labels } = await getAllData();
     const text = JSON.stringify(buildBackup(notes, labels));
-    expect(await restoreBackup(text)).toEqual({ added: 0, updated: 0, unchanged: 1 });
+    expect(await restoreBackup(text)).toEqual({ added: 0, updated: 0, unchanged: 1, labels: 0 });
   });
 
   it('changes nothing when the restore fails', async () => {
@@ -202,13 +202,22 @@ describe('toMarkdown', () => {
 
 describe('messages and file names', () => {
   it('summarises a restore', () => {
-    expect(restoredMessage({ added: 8, updated: 3, unchanged: 1 })).toBe(
+    expect(restoredMessage({ added: 8, updated: 3, unchanged: 1, labels: 2 })).toBe(
       'Restored 12 notes: 8 added, 3 updated, 1 already up to date',
     );
-    expect(restoredMessage({ added: 1, updated: 0, unchanged: 0 })).toBe(
+    expect(restoredMessage({ added: 1, updated: 0, unchanged: 0, labels: 0 })).toBe(
       'Restored 1 note: 1 added, 0 updated, 0 already up to date',
     );
-    expect(restoredMessage({ added: 0, updated: 0, unchanged: 0 })).toBe('That backup has no notes.');
+    expect(restoredMessage({ added: 0, updated: 0, unchanged: 0, labels: 0 })).toBe('That backup has no notes.');
+  });
+
+  it('mentions labels when a backup has labels but no notes', () => {
+    expect(restoredMessage({ added: 0, updated: 0, unchanged: 0, labels: 2 })).toBe(
+      'That backup has no notes. Added 2 labels.',
+    );
+    expect(restoredMessage({ added: 0, updated: 0, unchanged: 0, labels: 1 })).toBe(
+      'That backup has no notes. Added 1 label.',
+    );
   });
 
   it('explains restore errors', () => {

@@ -3,9 +3,24 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../../lib/db';
 import { createNote } from '../../lib/notes';
-import NoteGrid, { dragAnnouncements, layoutMeasuring } from './NoteGrid';
+import NoteGrid, { DragPreview, dragAnnouncements, layoutMeasuring, withoutSize } from './NoteGrid';
+
+// Lets a test hold saves open, to act while a move is still being saved.
+const saves = vi.hoisted(() => ({ hold: false, waiting: [] as (() => void)[] }));
+vi.mock('../../lib/notes', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../lib/notes')>();
+  return {
+    ...actual,
+    moveNote: async (...args: Parameters<typeof actual.moveNote>) => {
+      if (saves.hold) await new Promise<void>((resolve) => saves.waiting.push(resolve));
+      return actual.moveNote(...args);
+    },
+  };
+});
 
 beforeEach(async () => {
+  saves.hold = false;
+  saves.waiting = [];
   await db.delete();
   await db.open();
 });
@@ -18,6 +33,8 @@ const threeNotes = () =>
   ]);
 
 const savedOrder = async () => (await db.notes.orderBy('position').toArray()).map((n) => n.id);
+
+const shownOrder = () => screen.getAllByRole('button', { name: /^Move / }).map((b) => b.getAttribute('aria-label'));
 
 describe('NoteGrid', () => {
   it('moves a note with the arrow keys and saves the order', async () => {
@@ -69,6 +86,51 @@ describe('NoteGrid', () => {
     await waitFor(async () => expect(await savedOrder()).toEqual(['b', 'c', 'a']));
   });
 
+  it('keeps every key press when a save lands between presses', async () => {
+    const notes = await threeNotes();
+    const user = userEvent.setup();
+    const props = { labelNames: new Map<string, string>(), mode: 'board' as const, onOpen: vi.fn(), reorderable: true };
+    const { rerender } = render(<NoteGrid {...props} notes={notes} />);
+    saves.hold = true;
+    screen.getByRole('button', { name: 'Move A' }).focus();
+    await user.keyboard('{ArrowRight}{ArrowRight}');
+    expect(shownOrder()).toEqual(['Move B', 'Move C', 'Move A']);
+    // The first save finishes and the board receives its result while the
+    // second is still being saved.
+    saves.waiting.shift()?.();
+    await waitFor(async () => expect(await savedOrder()).toEqual(['b', 'a', 'c']));
+    const afterFirst = await db.notes.orderBy('position').toArray();
+    rerender(<NoteGrid {...props} notes={afterFirst} />);
+    expect(shownOrder()).toEqual(['Move B', 'Move C', 'Move A']);
+    await user.keyboard('{ArrowLeft}');
+    // Saves run in the order they were made, as Dexie queues them.
+    saves.hold = false;
+    for (const release of saves.waiting.splice(0)) {
+      release();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    await waitFor(async () => expect(await savedOrder()).toEqual(['b', 'a', 'c']));
+    rerender(<NoteGrid {...props} notes={await db.notes.orderBy('position').toArray()} />);
+    expect(shownOrder()).toEqual(['Move B', 'Move A', 'Move C']);
+  });
+
+  it('keeps showing the saved order until the board receives it', async () => {
+    const notes = await threeNotes();
+    const user = userEvent.setup();
+    const props = { labelNames: new Map<string, string>(), mode: 'board' as const, onOpen: vi.fn(), reorderable: true };
+    const { rerender } = render(<NoteGrid {...props} notes={notes} />);
+    saves.hold = true;
+    screen.getByRole('button', { name: 'Move A' }).focus();
+    await user.keyboard('{ArrowRight}{ArrowRight}');
+    saves.waiting.shift()?.();
+    await waitFor(async () => expect(await savedOrder()).toEqual(['b', 'a', 'c']));
+    rerender(<NoteGrid {...props} notes={await db.notes.orderBy('position').toArray()} />);
+    saves.waiting.shift()?.();
+    await waitFor(async () => expect(await savedOrder()).toEqual(['b', 'c', 'a']));
+    // The board still has the order after the first save only.
+    expect(shownOrder()).toEqual(['Move B', 'Move C', 'Move A']);
+  });
+
   it('moves a note to the end with End', async () => {
     const notes = await threeNotes();
     const user = userEvent.setup();
@@ -109,5 +171,27 @@ describe('layoutMeasuring', () => {
     vi.spyOn(grid, 'getBoundingClientRect').mockReturnValue({ top: 100, left: 20 } as DOMRect);
     const { droppable } = layoutMeasuring(JSON.stringify([['b', { x: 316, y: 50, width: 300, height: 80 }]]));
     expect(droppable?.measure?.(cell)).toEqual({ top: 150, left: 336, width: 300, height: 80, right: 636, bottom: 230 });
+  });
+});
+
+describe('DragPreview', () => {
+  it('keeps the copy of the dragged card out of focus and screen readers', () => {
+    const { container } = render(
+      <DragPreview width={200}>
+        <button type='button'>Pin</button>
+      </DragPreview>,
+    );
+    const wrapper = container.firstElementChild as HTMLElement;
+    expect(wrapper).toHaveAttribute('inert');
+    expect(wrapper).toHaveAttribute('aria-hidden', 'true');
+    expect(wrapper.style.width).toBe('200px');
+  });
+});
+
+describe('withoutSize', () => {
+  it('forgets the size of a card that is gone', () => {
+    const sizes = { a: { width: 1, height: 2 }, b: { width: 3, height: 4 } };
+    expect(withoutSize(sizes, 'a')).toEqual({ b: { width: 3, height: 4 } });
+    expect(withoutSize(sizes, 'x')).toBe(sizes);
   });
 });
