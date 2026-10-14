@@ -1,118 +1,113 @@
 import type { NextPage } from 'next';
 import Head from 'next/head';
-import { useEffect, useState } from 'react';
-import { v4 as uuid } from 'uuid';
-import { AnimatePresence, motion } from 'framer-motion';
-import NoteCard from '../components/Note';
-import Header from '../components/Header';
-import NoteModal from '../components/NoteModal';
+import { useRouter } from 'next/router';
+import { useEffect, useMemo, useState } from 'react';
+import FilterChips from '../components/board/FilterChips';
+import type { CardMode } from '../components/board/NoteCard';
+import NoteGrid from '../components/board/NoteGrid';
+import TopBar from '../components/board/TopBar';
 import NotFound from '../components/NotFound';
-import { saveNotes, useNotes, type Note } from '../lib/legacyNotes';
+import LabelsDialog from '../components/ui/LabelsDialog';
+import { useToast } from '../components/ui/Toast';
+import { emptyMessage, filterToQuery, parseFilter } from '../lib/filters';
+import { emptyTrash, useBoardNotes, useLabels } from '../lib/notes';
+import { markOnBoard, newNoteHref, noteHref, openEditor } from '../lib/routes';
+import { useStartup } from '../lib/startup';
+import type { BoardFilter, NoteKind } from '../lib/types';
 import styles from '../styles/Home.module.css';
-import noteStyles from '../styles/Note.module.css';
 
 const Home: NextPage = () => {
-  const notes = useNotes();
-  const [open, setOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const router = useRouter();
+  const toast = useToast();
+  const status = useStartup();
+  const filter = parseFilter(router.query);
+  const board = useBoardNotes(filter);
+  const labels = useLabels();
+  const [labelsOpen, setLabelsOpen] = useState(false);
+  const loaded = status !== 'pending' && board !== undefined;
 
-  // Hydrated: the real notes are rendered now, so stop force-hiding the
-  // empty state (set in _document to avoid a flash before hydration).
   useEffect(() => {
-    document.documentElement.removeAttribute('data-has-notes');
+    markOnBoard();
   }, []);
 
-  const closeModal = () => {
-    setOpen(false);
-    setEditingId(null);
+  // Notes are on screen now, so stop force-hiding the empty state
+  // (the attribute is set before first paint in _document).
+  useEffect(() => {
+    if (loaded) document.documentElement.removeAttribute('data-has-notes');
+  }, [loaded]);
+
+  const labelNames = useMemo(() => new Map((labels ?? []).map((l) => [l.id, l.name])), [labels]);
+
+  const showFilter = (next: Pick<BoardFilter, 'view' | 'labelId'>) =>
+    void router.push({ pathname: '/', query: filterToQuery({ ...filter, ...next }) }, undefined, { shallow: true });
+
+  const search = (query: string) =>
+    void router.replace({ pathname: '/', query: filterToQuery({ ...filter, query }) }, undefined, { shallow: true });
+
+  const openNote = (id: string) => openEditor(router, noteHref(id));
+  const newNote = (kind: NoteKind) => openEditor(router, newNoteHref(kind));
+
+  const clearTrash = async () => {
+    if (!window.confirm('Delete all notes in Trash forever? This can’t be undone.')) return;
+    await emptyTrash();
+    toast({ message: 'Trash emptied' });
   };
 
-  const openModal = () => {
-    setOpen(true);
-  };
-
-  const handleSave = (note: Omit<Note, 'id'> & { id?: string }) => {
-    const { id } = note;
-    if (id && notes.some((n) => n.id === id)) {
-      saveNotes(notes.map((n) => (n.id === id ? { ...n, ...note, id } : n)));
-    } else {
-      saveNotes([{ ...note, id: uuid() }, ...notes]);
-    }
-    closeModal();
-  };
-
-  const handleEdit = (id: string) => {
-    setOpen(true);
-    setEditingId(id);
-  };
-
-  const handleDelete = (id: string) => {
-    saveNotes(notes.filter((n) => n.id !== id));
-  };
-
-  const handlePin = (id: string) => {
-    const note = notes.find((n) => n.id === id);
-    if (!note) return;
-    saveNotes([
-      { ...note, pinned: !note.pinned },
-      ...notes.filter((n) => n.id !== id),
-    ]);
-  };
+  const mode: CardMode = filter.view === 'trash' ? 'trash' : filter.view === 'archive' ? 'archive' : 'board';
+  const pinned = loaded && board ? board.pinned : [];
+  const others = loaded && board ? board.others : [];
+  const total = pinned.length + others.length;
+  const headings = pinned.length > 0 && others.length > 0;
 
   return (
-    <div className={styles.rootContainer}>
+    <>
       <Head>
-        <title>Notes | Nine Technology</title>
-        <meta name='description' content='Notes app by Nine Technology' />
+        <title>Noteboard</title>
+        <meta name='description' content='Notes and lists by Nine Technology' />
       </Head>
-
-      <Header handleModal={openModal} />
-
+      <TopBar
+        initialQuery={filter.query}
+        searchKey={router.isReady ? 'ready' : 'loading'}
+        onQueryChange={search}
+        onNew={newNote}
+      />
+      <FilterChips
+        filter={filter}
+        labels={labels ?? []}
+        onSelect={showFilter}
+        onManageLabels={() => setLabelsOpen(true)}
+      />
       <main className={styles.main}>
-        {notes.length > 0 && (
-          <div className={styles.notes}>
-            <AnimatePresence initial={false}>
-              {notes.map((note) => (
-                <motion.div
-                  key={note.id}
-                  className={noteStyles.noteWrapper}
-                  initial={{ opacity: 0, y: 30, scale: 0.3 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{
-                    opacity: 0,
-                    scale: 0.5,
-                    transition: { duration: 0.3 },
-                  }}
-                  transition={{
-                    type: 'tween',
-                  }}
-                  layout
-                >
-                  <NoteCard
-                    note={note}
-                    handleEdit={handleEdit}
-                    handlePin={handlePin}
-                    handleDelete={handleDelete}
-                  />
-                </motion.div>
-              ))}
-            </AnimatePresence>
+        {mode === 'trash' && total > 0 && (
+          <div className={styles.trashBar}>
+            <p>Notes in Trash are deleted after 30 days.</p>
+            <button type='button' className={styles.textButton} onClick={() => void clearTrash()}>
+              Empty trash
+            </button>
           </div>
         )}
-        {notes.length === 0 && (
+        {pinned.length > 0 && (
+          <section className={styles.section} aria-label='Pinned notes'>
+            {headings && <h2 className={styles.sectionTitle}>Pinned</h2>}
+            <NoteGrid notes={pinned} labelNames={labelNames} mode={mode} onOpen={openNote} />
+          </section>
+        )}
+        {others.length > 0 && (
+          <section className={styles.section} aria-label={headings ? 'Other notes' : 'Notes'}>
+            {headings && <h2 className={styles.sectionTitle}>Others</h2>}
+            <NoteGrid notes={others} labelNames={labelNames} mode={mode} onOpen={openNote} />
+          </section>
+        )}
+        {/* Also rendered on the server and while loading; _document hides it
+            before first paint when notes exist. */}
+        {total === 0 && (
           <div className={styles.emptyState}>
-            <NotFound text='Notes you add appear here' />
+            <NotFound text={emptyMessage(filter)} />
           </div>
         )}
       </main>
-      {open && (
-        <NoteModal
-          note={notes.find((n) => n.id === editingId)}
-          onClose={closeModal}
-          handleSave={handleSave}
-        />
-      )}
-    </div>
+      <LabelsDialog open={labelsOpen} onOpenChange={setLabelsOpen} />
+    </>
   );
 };
 

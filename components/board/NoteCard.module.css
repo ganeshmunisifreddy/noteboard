@@ -1,0 +1,145 @@
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--note-bg);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.card:not([data-color='default']) {
+  border-color: transparent;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-raised);
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+  }
+  .card:hover {
+    transform: none;
+  }
+}
+
+.open {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  padding: 0;
+  border: none;
+  border-radius: inherit;
+  background: transparent;
+}
+
+.open:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Text lets clicks fall through to the open button; controls take them. */
+.title,
+.content,
+.items,
+.more,
+.labels {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.title {
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.content {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--note-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 10;
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--note-ink);
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.item input {
+  flex: none;
+  margin-top: 1px;
+}
+
+.more {
+  font-size: var(--text-xs);
+  color: var(--note-ink);
+}
+
+.labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  list-style: none;
+}
+
+.label {
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  font-size: var(--text-xs);
+  color: var(--text);
+}
+
+.actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  margin: 0 -10px;
+  color: var(--note-ink);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.card:hover .actions,
+.card:focus-within .actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .actions {
+    opacity: 1;
+  }
+}

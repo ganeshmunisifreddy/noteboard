@@ -1,0 +1,20 @@
+/* Masonry: up to 4 columns, at least 160px wide (2 columns on phones). */
+.grid {
+  column-width: 160px;
+  column-count: 4;
+  column-gap: 16px;
+}
+
+.cell {
+  margin-bottom: 16px;
+  break-inside: avoid;
+}
+
+@media (max-width: 600px) {
+  .grid {
+    column-gap: 10px;
+  }
+  .cell {
+    margin-bottom: 10px;
+  }
+}

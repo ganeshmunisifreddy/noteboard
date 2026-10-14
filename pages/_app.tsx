@@ -5,6 +5,7 @@ import { Lato } from 'next/font/google'
 import { MotionConfig } from 'framer-motion'
 import StorageBanner from '../components/ui/StorageBanner'
 import { ToastProvider } from '../components/ui/Toast'
+import { useGlobalShortcuts } from '../lib/shortcuts'
 import { useSystemThemeSync } from '../lib/theme'
 
 const lato = Lato({
@@ -14,6 +15,7 @@ const lato = Lato({
 })
 
 function MyApp({ Component, pageProps }: AppProps) {
+  useGlobalShortcuts()
   useSystemThemeSync()
   return (
     <>
