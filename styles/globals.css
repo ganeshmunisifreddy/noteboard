@@ -2,11 +2,8 @@ html,
 body {
   padding: 0;
   margin: 0;
-  color: #171a34;
-}
-
-body {
-  background: #f6f8fa;
+  color: var(--text);
+  background: var(--bg);
 }
 
 a {
@@ -24,6 +21,24 @@ button,
 input,
 textarea {
   font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .header {

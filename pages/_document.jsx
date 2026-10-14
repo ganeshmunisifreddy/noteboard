@@ -9,11 +9,12 @@ class MyDocument extends Document {
           <link rel="shortcut icon" href="/icon.png" />
           <link rel="apple-touch-icon" href="/icon.png" />
           <meta name="theme-color" content="#fff" />
-          {/* Runs before first paint: hide the server-rendered empty state
-              when saved notes exist, so it doesn't flash before hydration. */}
+          {/* Runs before first paint: apply the saved theme, and hide the
+              server-rendered empty state when notes exist so it doesn't
+              flash while they load. Keep in sync with lib/theme.ts. */}
           <script
             dangerouslySetInnerHTML={{
-              __html: `try{var n=JSON.parse(localStorage.getItem("notes"));if(Array.isArray(n)&&n.length)document.documentElement.setAttribute("data-has-notes","")}catch(e){}`,
+              __html: `try{var s=localStorage,d=document.documentElement,t=s.getItem("theme");d.dataset.theme=t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";var l=JSON.parse(s.getItem("notes")||"[]");if(s.getItem("hasNotes")||(Array.isArray(l)&&l.length))d.setAttribute("data-has-notes","")}catch(e){}`,
             }}
           />
         </Head>
