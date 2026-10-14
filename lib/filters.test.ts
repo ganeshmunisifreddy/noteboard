@@ -99,6 +99,12 @@ describe('matchesQuery', () => {
     const note = makeNote({ kind: 'note', items: [{ id: 'i', text: 'hidden', done: false }] });
     expect(matchesQuery(note, 'hidden', labels)).toBe(false);
   });
+
+  it('matches the words of formatted text and link addresses', () => {
+    expect(matchesQuery(makeNote({ content: '**milk** and *eggs*' }), 'milk and eggs', labels)).toBe(true);
+    expect(matchesQuery(makeNote({ content: '[hotel](https://booking.com)' }), 'booking.com', labels)).toBe(true);
+    expect(matchesQuery(makeNote({ content: '## Trip' }), '##', labels)).toBe(false);
+  });
 });
 
 describe('selectBoardNotes', () => {

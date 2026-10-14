@@ -1,3 +1,4 @@
+import { toPlainText } from './markdown';
 import type { BoardFilter, BoardView, Label, Note } from './types';
 
 const VIEWS: BoardView[] = ['all', 'notes', 'lists', 'archive', 'trash'];
@@ -38,7 +39,7 @@ export const matchesView = (note: Note, filter: BoardFilter): boolean => {
 export const matchesQuery = (note: Note, query: string, labelNames: Map<string, string>): boolean => {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
-  const body = note.kind === 'note' ? [note.content] : note.items.map((i) => i.text);
+  const body = note.kind === 'note' ? [toPlainText(note.content)] : note.items.map((i) => i.text);
   const labels = note.labelIds.map((id) => labelNames.get(id) ?? '');
   return [note.title, ...body, ...labels].some((text) => text.toLowerCase().includes(needle));
 };

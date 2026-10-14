@@ -1,4 +1,5 @@
 import { v4 as uuid } from 'uuid';
+import { isMarkdownEmpty, itemsToMarkdown, markdownLines } from './markdown';
 import type { ChecklistItem, Note } from './types';
 
 export const newItem = (text = ''): ChecklistItem => ({ id: uuid(), text, done: false });
@@ -12,21 +13,18 @@ export const toggleItemIn = (items: ChecklistItem[], itemId: string): ChecklistI
   return [...items.filter((i) => i.id !== itemId), { ...item, done: false }];
 };
 
+// Text notes are Markdown; list items are plain text.
 export const convertKind = (
   note: Pick<Note, 'kind' | 'content' | 'items'>,
 ): Pick<Note, 'kind' | 'content' | 'items'> => {
   if (note.kind === 'note') {
-    const items = note.content
-      .split('\n')
-      .filter((line) => line.trim() !== '')
-      .map((line) => newItem(line));
-    return { kind: 'list', content: '', items };
+    return { kind: 'list', content: '', items: markdownLines(note.content).map((line) => newItem(line)) };
   }
-  return { kind: 'note', content: note.items.map((i) => i.text).join('\n'), items: [] };
+  return { kind: 'note', content: itemsToMarkdown(note.items), items: [] };
 };
 
 export const isNoteEmpty = (note: Pick<Note, 'kind' | 'title' | 'content' | 'items'>): boolean => {
   if (note.title.trim() !== '') return false;
-  if (note.kind === 'note') return note.content.trim() === '';
+  if (note.kind === 'note') return isMarkdownEmpty(note.content);
   return note.items.every((i) => i.text.trim() === '');
 };
