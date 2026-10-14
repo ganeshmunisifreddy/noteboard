@@ -1,20 +1,42 @@
-/* Masonry: up to 4 columns, at least 160px wide (2 columns on phones). */
+/* Masonry: cards are absolutely placed, filled left to right into the
+   shortest column (see lib/masonry.ts). */
 .grid {
-  column-width: 160px;
-  column-count: 4;
-  column-gap: 16px;
+  position: relative;
 }
 
 .cell {
-  margin-bottom: 16px;
-  break-inside: avoid;
+  position: absolute;
+  top: 0;
+  left: 0;
+  touch-action: manipulation;
 }
 
-@media (max-width: 600px) {
-  .grid {
-    column-gap: 10px;
+.overlay {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-raised);
+  cursor: grabbing;
+  transform: rotate(-1.5deg) scale(1.02);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay {
+    transform: none;
   }
-  .cell {
-    margin-bottom: 10px;
-  }
+}
+
+.handle {
+  margin-right: auto;
+  cursor: grab;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }

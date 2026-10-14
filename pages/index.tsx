@@ -9,7 +9,7 @@ import TopBar from '../components/board/TopBar';
 import NotFound from '../components/NotFound';
 import LabelsDialog from '../components/ui/LabelsDialog';
 import { useToast } from '../components/ui/Toast';
-import { emptyMessage, filterToQuery, parseFilter } from '../lib/filters';
+import { emptyMessage, filterToQuery, isReorderable, parseFilter } from '../lib/filters';
 import { emptyTrash, useBoardNotes, useLabels } from '../lib/notes';
 import { markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../lib/routes';
 import { useStartup } from '../lib/startup';
@@ -93,6 +93,7 @@ const Home: NextPage = () => {
   const others = loaded && board ? board.others : [];
   const total = pinned.length + others.length;
   const headings = pinned.length > 0 && others.length > 0;
+  const reorderable = isReorderable(filter);
 
   return (
     <>
@@ -124,13 +125,13 @@ const Home: NextPage = () => {
         {pinned.length > 0 && (
           <section className={styles.section} aria-label='Pinned notes'>
             {headings && <h2 className={styles.sectionTitle}>Pinned</h2>}
-            <NoteGrid notes={pinned} labelNames={labelNames} mode={mode} onOpen={openNote} />
+            <NoteGrid notes={pinned} labelNames={labelNames} mode={mode} onOpen={openNote} reorderable={reorderable} />
           </section>
         )}
         {others.length > 0 && (
           <section className={styles.section} aria-label={headings ? 'Other notes' : 'Notes'}>
             {headings && <h2 className={styles.sectionTitle}>Others</h2>}
-            <NoteGrid notes={others} labelNames={labelNames} mode={mode} onOpen={openNote} />
+            <NoteGrid notes={others} labelNames={labelNames} mode={mode} onOpen={openNote} reorderable={reorderable} />
           </section>
         )}
         {/* Also rendered on the server and while loading; _document hides it
