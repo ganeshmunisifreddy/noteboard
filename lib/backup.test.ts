@@ -17,8 +17,10 @@ import {
 } from './backup';
 import { addImages, getAttachments } from './attachments';
 import { db } from './db';
+import { newDue } from './due';
 import type { ProcessedImage } from './images';
 import { createLabel, createNote, getAllData } from './notes';
+import { presetRepeat } from './repeat';
 import { bytesOf, makeNote } from './testUtils';
 
 beforeEach(async () => {
@@ -41,7 +43,7 @@ describe('buildBackup', () => {
     const backup = buildBackup([note], [{ id: 'l', name: 'Work' }], new Date('2026-10-14T12:00:00Z'));
     expect(backup).toEqual({
       format: 'noteboard-backup',
-      version: 2,
+      version: 3,
       exportedAt: '2026-10-14T12:00:00.000Z',
       notes: [note],
       labels: [{ id: 'l', name: 'Work' }],
@@ -58,7 +60,7 @@ describe('parseBackup', () => {
   });
 
   it('rejects backups from a newer version', () => {
-    expect(() => parseBackup(backupOf([], [], 3))).toThrow(new BackupError(NEWER_VERSION));
+    expect(() => parseBackup(backupOf([], [], 4))).toThrow(new BackupError(NEWER_VERSION));
   });
 
   it('skips broken entries and fills defaults', () => {
@@ -371,5 +373,65 @@ describe('toMarkdown with images', () => {
     const markdown = toMarkdown(notes, [], counts);
     expect(markdown).toContain('## Trip\n_3 images (not included in the Markdown export)_\n\nPack');
     expect(markdown).toContain('## One\n_1 image (not included in the Markdown export)_');
+  });
+});
+
+describe('dates in backups', () => {
+  const dated = (due: unknown) => backupOf([{ id: 'a', title: 'Bill', updatedAt: 1, due }], [], 3);
+
+  it('reads a valid date', () => {
+    const due = { ...newDue('2026-10-20', '18:00', presetRepeat('weekly', '2026-10-20')), doneAt: 5 };
+    expect(parseBackup(dated(due)).notes[0].due).toEqual(due);
+    const ending = newDue('2026-10-20', null, {
+      ...presetRepeat('daily', '2026-10-20'),
+      ends: { type: 'after', count: 3, done: 0 },
+    });
+    expect(parseBackup(dated(ending)).notes[0].due).toEqual(ending);
+  });
+
+  it('drops a broken date and keeps the note', () => {
+    for (const broken of [
+      { date: '2026-02-30', time: null },
+      { date: '2026-10-20', time: '25:00' },
+      { date: '2026-10-20', time: null, repeat: { every: 0, unit: 'day', weekdays: [], anchor: '2026-10-20', ends: { type: 'never' } } },
+      { date: '2026-10-20', time: null, repeat: { every: 1, unit: 'fortnight', weekdays: [], anchor: '2026-10-20', ends: { type: 'never' } } },
+      { date: '2026-10-20', time: null, repeat: { every: 1, unit: 'week', weekdays: [9], anchor: '2026-10-20', ends: { type: 'never' } } },
+      { date: '2026-10-20', time: null, repeat: { every: 1, unit: 'day', weekdays: [], anchor: '2026-10-20', ends: { type: 'after', count: 2, done: 5 } } },
+      'tomorrow',
+    ]) {
+      const { notes } = parseBackup(dated(broken));
+      expect(notes[0]).toMatchObject({ title: 'Bill', due: null });
+    }
+  });
+
+  it('restores older backups without dates', () => {
+    const { notes } = parseBackup(backupOf([{ id: 'a', title: 'Old' }], [], 2));
+    expect(notes[0].due).toBeNull();
+  });
+
+  it('quiets past-due notes so a restore doesn’t set off old alerts', () => {
+    const past = newDue('2020-01-01', '09:00', null);
+    const future = newDue('2999-01-01', '09:00', null);
+    const imported = parseBackup(
+      backupOf([
+        { id: 'past', updatedAt: 1, due: past },
+        { id: 'future', updatedAt: 1, due: future },
+      ], [], 3),
+    );
+    const now = Date.UTC(2026, 9, 15);
+    const plan = planMerge([], [], imported, now);
+    const byId = new Map(plan.notes.map((n) => [n.id, n]));
+    expect(byId.get('past')?.due?.alertedAt).toBe(now);
+    expect(byId.get('future')?.due?.alertedAt).toBeNull();
+  });
+
+  it('writes the date line in the Markdown export', () => {
+    const notes = [
+      makeNote({ id: 'a', title: 'Retro', due: newDue('2026-10-16', null, presetRepeat('weekly', '2026-10-16')) }),
+      makeNote({ id: 'b', title: 'Bill', due: { ...newDue('2026-10-16', null, null), doneAt: 1 } }),
+    ];
+    const markdown = toMarkdown(notes, []);
+    expect(markdown).toContain('## Retro\n⏰ Due Fri 16 Oct 2026 · repeats weekly');
+    expect(markdown).toContain('## Bill\n⏰ Done (was due Fri 16 Oct 2026)');
   });
 });
