@@ -93,6 +93,17 @@ describe('Home', () => {
     expect(await screen.findByText('From backup')).toBeInTheDocument();
   });
 
+  it('starts a new note straight away from New and the phone + button', async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+    await user.click(await screen.findByRole('button', { name: 'New' }));
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(router.push.mock.lastCall?.[0]).toMatchObject({ pathname: '/note', query: { new: 'note' } });
+    router.push.mockClear();
+    await user.click(screen.getByRole('button', { name: 'New note' }));
+    expect(router.push.mock.lastCall?.[0]).toMatchObject({ pathname: '/note', query: { new: 'note' } });
+  });
+
   it('loads the note editor in the background', async () => {
     render(<Home />);
     await waitFor(() => expect(editorLoad.preload).toHaveBeenCalled(), { timeout: 3000 });

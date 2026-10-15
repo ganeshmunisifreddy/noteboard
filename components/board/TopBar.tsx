@@ -1,9 +1,8 @@
-import { ListTodo, Menu as MenuIcon, Plus, Search, StickyNote } from 'lucide-react';
+import { Menu as MenuIcon, Plus, Search } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { SEARCH_INPUT_ID } from '../../lib/shortcuts';
 import type { NoteKind } from '../../lib/types';
 import IconButton from '../ui/IconButton';
-import Menu, { type MenuItem } from '../ui/Menu';
 import styles from './TopBar.module.css';
 
 type Props = {
@@ -17,11 +16,6 @@ type Props = {
 };
 
 const TopBar = ({ initialQuery, searchKey, onQueryChange, onNew, onMenu, children }: Props) => {
-  const newItems: MenuItem[] = [
-    { label: 'Note', icon: <StickyNote size={16} aria-hidden />, onSelect: () => onNew('note') },
-    { label: 'List', icon: <ListTodo size={16} aria-hidden />, onSelect: () => onNew('list') },
-  ];
-
   return (
     <header className={styles.bar}>
       {/* As wide as the sidebar, so the search box lines up with the notes. */}
@@ -44,25 +38,16 @@ const TopBar = ({ initialQuery, searchKey, onQueryChange, onNew, onMenu, childre
         />
       </label>
       <div className={styles.actions}>
-        <Menu
-          items={newItems}
-          trigger={
-            <button type='button' className={styles.newButton}>
-              <Plus size={16} aria-hidden />
-              New
-            </button>
-          }
-        />
+        {/* A note; tick boxes are in its formatting bar, and ⋮ turns it into a list. */}
+        <button type='button' className={styles.newButton} onClick={() => onNew('note')}>
+          <Plus size={16} aria-hidden />
+          New
+        </button>
         {children}
       </div>
-      <Menu
-        items={newItems}
-        trigger={
-          <button type='button' className={styles.fab} aria-label='New note or list'>
-            <Plus size={24} aria-hidden />
-          </button>
-        }
-      />
+      <button type='button' className={styles.fab} aria-label='New note' onClick={() => onNew('note')}>
+        <Plus size={24} aria-hidden />
+      </button>
     </header>
   );
 };
