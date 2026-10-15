@@ -39,8 +39,10 @@ export const claimDueReminders = (now: number): Promise<DueNote[]> =>
 
 // Runs the reminder clock while this tab holds the reminders lock (one tab
 // at a time; without Web Locks every tab runs it, and claiming still alerts
-// each reminder once). `onAlert` gets each batch that came due.
-export const useReminderClock = (onAlert: (notes: DueNote[]) => void) => {
+// each reminder once). The clock tells the other tabs, so the tab the user
+// is looking at shows the reminder too. `onAlert` gets each batch that came
+// due; `fromClock` is true in the tab that claimed it.
+export const useReminderClock = (onAlert: (notes: DueNote[], fromClock: boolean) => void) => {
   const alert = useEffectEvent(onAlert);
 
   useEffect(() => {
@@ -59,9 +61,19 @@ export const useReminderClock = (onAlert: (notes: DueNote[]) => void) => {
         do {
           again = false;
           clearTimeout(timer);
-          const due = await claimDueReminders(Date.now()).catch((): DueNote[] => []);
+          let due: DueNote[];
+          try {
+            due = await claimDueReminders(Date.now());
+          } catch {
+            // Storage full or blocked: try again later rather than at once.
+            if (!stopped) timer = setTimeout(() => void check(), MAX_WAIT_MS);
+            return;
+          }
           if (stopped) return;
-          if (due.length > 0) alert(due);
+          if (due.length > 0) {
+            alert(due, true);
+            channel?.postMessage({ ids: due.map((note) => note.id) });
+          }
           const next = nextAlertAt(await db.notes.toArray().catch((): Note[] => []));
           if (stopped) return;
           const wait = next === null ? MAX_WAIT_MS : Math.min(Math.max(next - Date.now(), 0), MAX_WAIT_MS);
@@ -71,6 +83,21 @@ export const useReminderClock = (onAlert: (notes: DueNote[]) => void) => {
         running = false;
       }
     };
+
+    const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(REMINDER_LOCK) : null;
+    if (channel) {
+      channel.onmessage = (event: MessageEvent<{ ids?: unknown }>) => {
+        const ids = event.data?.ids;
+        if (!Array.isArray(ids) || !ids.every((id) => typeof id === 'string')) return;
+        void db.notes
+          .bulkGet(ids)
+          .then((notes) => {
+            const due = notes.filter((note): note is DueNote => !!note && note.due !== null);
+            if (!stopped && due.length > 0) alert(due, false);
+          })
+          .catch(() => {});
+      };
+    }
 
     const wake = () => {
       if (document.visibilityState === 'visible') void check();
@@ -101,6 +128,7 @@ export const useReminderClock = (onAlert: (notes: DueNote[]) => void) => {
 
     return () => {
       stopped = true;
+      channel?.close();
       controller.abort();
       release?.();
       subscription?.unsubscribe();

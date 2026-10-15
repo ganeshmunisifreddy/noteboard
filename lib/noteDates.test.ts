@@ -93,11 +93,29 @@ describe('dates on notes', () => {
 
   it('copies the date, but not whether it was done, alerted or snoozed', async () => {
     const note = await createNote({ kind: 'note' });
-    await setDue(note.id, '2026-10-20', '18:00', null);
+    await setDue(note.id, '2999-10-20', '18:00', null);
     await db.notes.update(note.id, {
-      due: { ...newDue('2026-10-20', '18:00', null), doneAt: 1, alertedAt: 2, snoozedUntil: 3 },
+      due: { ...newDue('2999-10-20', '18:00', null), doneAt: 1, alertedAt: 2, snoozedUntil: 3 },
     });
     const copy = await duplicateNote(note.id);
-    expect(copy?.due).toEqual(newDue('2026-10-20', '18:00', null));
+    expect(copy?.due).toEqual(newDue('2999-10-20', '18:00', null));
+  });
+
+  it('counts a date set in the past as already alerted', async () => {
+    const note = await createNote({ kind: 'note' });
+    const noon = localMoment('2026-10-15', '12:00');
+    clock(noon);
+    // No time: alerts at 09:00, which has passed.
+    await setDue(note.id, '2026-10-15', null, null);
+    expect((await db.notes.get(note.id))?.due?.alertedAt).toBe(noon);
+    await setDue(note.id, '2026-10-15', '18:00', null);
+    expect((await db.notes.get(note.id))?.due?.alertedAt).toBeNull();
+  });
+
+  it('doesn’t alert for a copy of an overdue note', async () => {
+    const note = await createNote({ kind: 'note' });
+    await setDue(note.id, '2020-01-01', null, null);
+    const copy = await duplicateNote(note.id);
+    expect(copy?.due?.alertedAt).not.toBeNull();
   });
 });

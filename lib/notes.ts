@@ -194,8 +194,8 @@ export const duplicateNote = async (id: string): Promise<Note | undefined> => {
       createdAt: now,
       updatedAt: now,
       position: await nextTopPosition(),
-            // The date comes along; whether it was done, alerted or snoozed doesn't.
-            due: note.due && { ...note.due, doneAt: null, alertedAt: null, snoozedUntil: null },
+      // The date comes along; whether it was done, alerted or snoozed doesn’t.
+      due: note.due && seenIfPast({ ...note.due, doneAt: null, alertedAt: null, snoozedUntil: null }, now),
     };
     await db.notes.add(created);
     await copyAttachments(id, created.id);
@@ -207,6 +207,10 @@ export const duplicateNote = async (id: string): Promise<Note | undefined> => {
 
 // Dates change here, not through the editor's draft (the draft doesn't hold
 // `due`, so a draft save never overwrites them). Each change is an edit.
+// A date whose alert time has already passed counts as alerted: the user is
+// looking at it right now, so it shouldn't set off a reminder.
+const seenIfPast = (due: Due, now: number): Due => (alertTime(due) <= now ? { ...due, alertedAt: now } : due);
+
 const changeDue = async (id: string, change: (note: Note) => Partial<Note> | null) => {
   await db.transaction('rw', db.notes, async () => {
     const note = await db.notes.get(id);
@@ -216,7 +220,7 @@ const changeDue = async (id: string, change: (note: Note) => Partial<Note> | nul
 };
 
 export const setDue = (id: string, date: string, time: string | null, repeat: Repeat | null) =>
-  changeDue(id, () => ({ due: newDue(date, time, repeat) }));
+  changeDue(id, () => ({ due: seenIfPast(newDue(date, time, repeat), Date.now()) }));
 
 export const removeDue = (id: string) => changeDue(id, () => ({ due: null }));
 
@@ -239,8 +243,7 @@ export const markDone = async (id: string, now = Date.now()): Promise<Note | und
 export const reopenDue = (id: string, now = Date.now()) =>
   changeDue(id, (note) => {
     if (!note.due || note.due.doneAt === null) return null;
-    const reopened = { ...note.due, doneAt: null };
-    return { due: { ...reopened, alertedAt: alertTime(reopened) <= now ? now : null } };
+    return { due: seenIfPast({ ...note.due, doneAt: null, alertedAt: null }, now) };
   });
 
 export const snooze = (id: string, until: number) =>

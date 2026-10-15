@@ -247,11 +247,24 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
     });
   };
 
-  // Items changed elsewhere (Mark done from a reminder) reach the draft,
-  // unless the user has edits not saved yet.
+  // Items changed elsewhere (Mark done from a reminder) reach the draft. With
+  // edits waiting to be saved, those stay and only the ticks that changed
+  // in the database are taken, so the save doesn't put the old ticks back.
+  const seenItemsRef = useRef(stored?.items);
   const onStoredItems = useEffectEvent((items: ChecklistItem[]) => {
-    if (dirtyRef.current || sameItems(items, draftRef.current.items)) return;
-    takeItems(items);
+    const before = seenItemsRef.current ?? items;
+    seenItemsRef.current = items;
+    if (sameItems(items, draftRef.current.items)) return;
+    if (!dirtyRef.current) {
+      takeItems(items);
+      return;
+    }
+    const was = new Map(before.map((item) => [item.id, item.done]));
+    const ticks = new Map(
+      items.filter((item) => was.has(item.id) && was.get(item.id) !== item.done).map((item) => [item.id, item.done]),
+    );
+    if (ticks.size === 0) return;
+    takeItems(draftRef.current.items.map((item) => ({ ...item, done: ticks.get(item.id) ?? item.done })));
   });
   const storedItems = stored?.items;
   useEffect(() => {
@@ -456,7 +469,12 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
             due={due}
             readOnly={trashed}
             onEdit={() => setDateOpen(true)}
-            onRemove={() => void removeDate()}
+            onRemove={() =>
+              void removeDate().then(() => {
+                // The chip is gone; keep focus nearby on the date button.
+                document.querySelector<HTMLElement>('[data-date-button]')?.focus();
+              })
+            }
             onMarkDone={() => void markDueDone()}
             onReopen={() => void reopenDue(noteId)}
           />

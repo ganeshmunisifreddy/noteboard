@@ -246,7 +246,7 @@ type Props = {
 const DatePopover = ({ due, open, onOpenChange, onSave, onRemove }: Props) => (
   <Popover.Root open={open} onOpenChange={onOpenChange}>
     <Popover.Trigger asChild>
-      <IconButton label={due ? 'Change date' : 'Add date'}>
+      <IconButton label={due ? 'Change date' : 'Add date'} data-date-button=''>
         <AlarmClock size={18} aria-hidden />
       </IconButton>
     </Popover.Trigger>

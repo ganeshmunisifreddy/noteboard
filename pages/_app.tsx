@@ -29,8 +29,9 @@ function MyApp({ Component, pageProps }: AppProps) {
       <MotionConfig reducedMotion='user'>
         <ToastProvider>
           <StorageBanner />
-          <Component {...pageProps} />
+          {/* Before the page: it sits at the top, so it comes first in tab order. */}
           <ReminderAlerts />
+          <Component {...pageProps} />
         </ToastProvider>
       </MotionConfig>
     </>

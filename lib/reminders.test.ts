@@ -165,6 +165,36 @@ describe('useReminderClock', () => {
     await waitFor(() => expect(onAlert).toHaveBeenCalledTimes(1));
   });
 
+  it('shows a reminder in every tab, from the one clock', async () => {
+    let granted = false;
+    const request = vi.fn((_name: string, _options: unknown, callback: () => Promise<void>) => {
+      if (granted) return new Promise(() => {});
+      granted = true;
+      return callback();
+    });
+    vi.stubGlobal('navigator', { ...navigator, locks: { request } });
+    const holder = vi.fn();
+    const other = vi.fn();
+    renderHook(() => useReminderClock(holder));
+    renderHook(() => useReminderClock(other));
+    await db.notes.add(makeNote({ id: 'due', due: dueAt(Date.now() - 1000) }));
+    await waitFor(() => expect(other).toHaveBeenCalledTimes(1));
+    expect(holder).toHaveBeenCalledTimes(1);
+    expect(holder.mock.calls[0][1]).toBe(true);
+    expect(other.mock.calls[0][0].map((n: DueNote) => n.id)).toEqual(['due']);
+    expect(other.mock.calls[0][1]).toBe(false);
+  });
+
+  it('waits before trying again when claiming fails', async () => {
+    await db.notes.add(makeNote({ id: 'due', due: dueAt(Date.now() - 1000) }));
+    const transaction = vi.spyOn(db, 'transaction').mockRejectedValue(new Error('QuotaExceededError'));
+    const onAlert = vi.fn();
+    renderHook(() => useReminderClock(onAlert));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(transaction.mock.calls.length).toBeLessThanOrEqual(2);
+    expect(onAlert).not.toHaveBeenCalled();
+  });
+
   it('only runs in the tab that holds the lock', async () => {
     const request = vi.fn(() => new Promise(() => {}));
     vi.stubGlobal('navigator', { ...navigator, locks: { request } });

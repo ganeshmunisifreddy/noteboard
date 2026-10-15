@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { AlarmClock, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { addDays, localDate, localMoment } from '../../lib/calendar';
 import { db } from '../../lib/db';
 import { formatDue, formatTime } from '../../lib/due';
@@ -47,7 +47,7 @@ const ReminderRow = ({ note, now, onOpen, onSnooze, onDone, onDismiss }: RowProp
   const title = titleOf(note);
   const tomorrow = () => localMoment(addDays(localDate(Date.now()), 1), '09:00');
   return (
-    <li className={styles.row}>
+    <li className={styles.row} data-reminder={note.id}>
       <AlarmClock size={18} aria-hidden className={styles.icon} />
       <div className={styles.text}>
         <p className={styles.title}>{title}</p>
@@ -90,9 +90,10 @@ const ReminderAlerts = () => {
   const [rows, setRows] = useState<string[]>([]);
   const [announcement, setAnnouncement] = useState('');
 
-  useReminderClock((due) => {
+  useReminderClock((due, fromClock) => {
     const at = Date.now();
-    void showSystemNotification(due, at, (url) => void router.push(url));
+    // One system notification, from the tab that claimed the reminders.
+    if (fromClock) void showSystemNotification(due, at, (url) => void router.push(url));
     const ids = due.map((note) => note.id);
     setRows((current) => [...ids, ...current.filter((id) => !ids.includes(id))]);
     setAnnouncement(
@@ -124,6 +125,28 @@ const ReminderAlerts = () => {
   const active = rows.map((id) => byId.get(id)).filter(isAlerting);
   const shown = active.slice(0, MAX_ROWS);
   const more = active.length - shown.length;
+
+  // When a row goes (snoozed, done, dismissed), focus moves to its neighbour
+  // rather than being lost.
+  const focusMove = useRef<{ from: string; to: string } | null>(null);
+  const shownKey = shown.map((note) => note.id).join('\n');
+  useEffect(() => {
+    const move = focusMove.current;
+    if (!move) return;
+    const ids = shownKey.split('\n');
+    if (ids.includes(move.from)) return;
+    focusMove.current = null;
+    if (ids.includes(move.to)) {
+      document.querySelector<HTMLElement>(`[data-reminder="${CSS.escape(move.to)}"] button`)?.focus();
+    }
+  }, [shownKey]);
+
+  const leaving = (id: string) => {
+    const ids = shown.map((note) => note.id);
+    const index = ids.indexOf(id);
+    const to = ids[index + 1] ?? ids[index - 1];
+    focusMove.current = to ? { from: id, to } : null;
+  };
 
   const dismiss = (id: string) => setRows((current) => current.filter((row) => row !== id));
 
@@ -158,9 +181,18 @@ const ReminderAlerts = () => {
                 note={note}
                 now={now}
                 onOpen={() => open(note.id)}
-                onSnooze={(until) => void snooze(note.id, until)}
-                onDone={() => void done(note.id)}
-                onDismiss={() => dismiss(note.id)}
+                onSnooze={(until) => {
+                  leaving(note.id);
+                  void snooze(note.id, until);
+                }}
+                onDone={() => {
+                  leaving(note.id);
+                  void done(note.id);
+                }}
+                onDismiss={() => {
+                  leaving(note.id);
+                  dismiss(note.id);
+                }}
               />
             ))}
           </ul>

@@ -91,6 +91,18 @@ describe('ReminderAlerts', () => {
     expect((await db.notes.get('n1'))?.due).toMatchObject({ doneAt: null, alertedAt: expect.any(Number) });
   });
 
+  it('moves focus to the next reminder when one goes', async () => {
+    const user = userEvent.setup();
+    await db.notes.bulkAdd(['a', 'b'].map((id) => makeNote({ id, title: `Task ${id}`, due: due() })));
+    renderPanel();
+    const region = await panel();
+    await waitFor(() => expect(within(region).getAllByRole('listitem')).toHaveLength(2));
+    await user.click(within(region).getByRole('button', { name: 'Dismiss reminder for Task a' }));
+    await waitFor(() => expect(within(region).getAllByRole('listitem')).toHaveLength(1));
+    const [left] = within(region).getAllByRole('listitem');
+    expect(within(left).getByRole('button', { name: 'Open' })).toHaveFocus();
+  });
+
   it('shows three rows and a link to the rest', async () => {
     await db.notes.bulkAdd(['a', 'b', 'c', 'd'].map((id) => makeNote({ id, title: `Task ${id}`, due: due() })));
     renderPanel();

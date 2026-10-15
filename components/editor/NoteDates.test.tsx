@@ -123,6 +123,8 @@ describe('dates in the editor', () => {
     open({ id: 'n1' });
     await user.click(await screen.findByRole('button', { name: 'Remove date' }));
     await waitFor(async () => expect((await db.notes.get('n1'))?.due).toBeNull());
+    // The chip is gone; focus goes to the Add date button.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add date' })).toHaveFocus());
     await user.click(await screen.findByRole('button', { name: 'Undo' }));
     await waitFor(async () => expect((await db.notes.get('n1'))?.due?.date).toBe(TOMORROW));
   });
@@ -159,6 +161,25 @@ describe('dates in the editor', () => {
     // Mark done from the reminder panel while the list is open.
     await markDone('l1');
     await waitFor(() => expect(screen.getByRole('checkbox', { name: /Sweep/ })).not.toBeChecked());
+  });
+
+  it('keeps Mark done from elsewhere while an edit is waiting to save', async () => {
+    const user = userEvent.setup();
+    await createNote({
+      id: 'l1',
+      kind: 'list',
+      title: 'Chores',
+      items: [{ id: 'i1', text: 'Sweep', done: true }],
+    });
+    await setDue('l1', TODAY, null, presetRepeat('daily', TODAY));
+    open({ id: 'l1' });
+    await screen.findByRole('button', { name: 'Mark done' });
+    await user.type(screen.getByRole('textbox', { name: 'Title' }), '!');
+    // Mark done from the reminder panel before the title is saved.
+    await markDone('l1');
+    await waitFor(async () => expect((await db.notes.get('l1'))?.title).toBe('Chores!'));
+    expect((await db.notes.get('l1'))?.items[0].done).toBe(false);
+    expect(screen.getByRole('checkbox', { name: /Sweep/ })).not.toBeChecked();
   });
 
   it('shows done with an Undo', async () => {
