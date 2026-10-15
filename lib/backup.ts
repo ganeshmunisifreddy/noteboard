@@ -1,16 +1,31 @@
 import { v4 as uuid } from 'uuid';
 import { deleteAttachmentsOf, getAllImages } from './attachments';
 import { fromBase64, toBase64 } from './base64';
+import { isDateString, isTimeString } from './calendar';
+import { alertTime, formatDueLong, isDone, lowerFirst } from './due';
+import { REPEAT_UNITS, repeatText } from './repeat';
 import { DISPLAYABLE_TYPES } from './images';
 import { db } from './db';
 import { downloadFile } from './download';
 import { selectBoardNotes } from './filters';
 import { getAllData, refreshHasNotesMarker } from './notes';
 import { isQuotaError } from './storage';
-import { NOTE_COLORS, type Attachment, type ChecklistItem, type ImageFile, type Label, type Note, type NoteColor } from './types';
+import {
+  NOTE_COLORS,
+  type Attachment,
+  type ChecklistItem,
+  type Due,
+  type ImageFile,
+  type Label,
+  type Note,
+  type NoteColor,
+  type Repeat,
+  type RepeatEnd,
+  type RepeatUnit,
+} from './types';
 
 export const BACKUP_FORMAT = 'noteboard-backup';
-export const BACKUP_VERSION = 2;
+export const BACKUP_VERSION = 3;
 export const NOT_A_BACKUP = 'That file isn’t a Noteboard backup.';
 export const NEWER_VERSION = 'This backup is from a newer version of Noteboard.';
 
@@ -48,6 +63,51 @@ const toItem = (value: unknown): ChecklistItem | null =>
     ? { id: typeof value.id === 'string' && value.id ? value.id : uuid(), text: text(value.text), done: value.done === true }
     : null;
 
+const whole = (value: unknown, min: number, max: number): number | null =>
+  Number.isInteger(value) && (value as number) >= min && (value as number) <= max ? (value as number) : null;
+
+const toRepeatEnd = (value: unknown): RepeatEnd | null => {
+  if (!isRecord(value)) return null;
+  if (value.type === 'never') return { type: 'never' };
+  if (value.type === 'on') return isDateString(value.date) ? { type: 'on', date: value.date } : null;
+  if (value.type !== 'after') return null;
+  const count = whole(value.count, 1, 999);
+  const done = count === null ? null : whole(value.done, 0, count);
+  return count !== null && done !== null ? { type: 'after', count, done } : null;
+};
+
+const toRepeat = (value: unknown): Repeat | null => {
+  if (!isRecord(value)) return null;
+  const every = whole(value.every, 1, 99);
+  const unit = REPEAT_UNITS.find((u) => u === value.unit);
+  const weekdays = value.weekdays;
+  const ends = toRepeatEnd(value.ends);
+  if (every === null || !unit || !isDateString(value.anchor) || !ends) return null;
+  if (!Array.isArray(weekdays) || !weekdays.every((day) => whole(day, 0, 6) !== null)) return null;
+  return { every, unit: unit as RepeatUnit, weekdays: unit === 'week' ? [...new Set(weekdays as number[])] : [], anchor: value.anchor, ends };
+};
+
+// A date that doesn't check out is dropped; the note is kept.
+const toDue = (value: unknown): Due | null => {
+  if (!isRecord(value) || !isDateString(value.date)) return null;
+  if (value.time != null && !isTimeString(value.time)) return null;
+  const repeat = value.repeat == null ? null : toRepeat(value.repeat);
+  if (value.repeat != null && repeat === null) return null;
+  return {
+    date: value.date,
+    time: isTimeString(value.time) ? value.time : null,
+    repeat,
+    doneAt: finite(value.doneAt),
+    alertedAt: finite(value.alertedAt),
+    snoozedUntil: finite(value.snoozedUntil),
+  };
+};
+
+// A restored date whose time has passed counts as alerted, so restoring an
+// old backup doesn't set off a burst of alerts.
+const quietDue = (due: Due | null, now: number): Due | null =>
+  due && due.alertedAt === null && due.doneAt === null && alertTime(due) <= now ? { ...due, alertedAt: now } : due;
+
 const toNote = (entry: Record<string, unknown>): ImportedNote => {
   const updatedAt = finite(entry.updatedAt) ?? 0;
   const archived = entry.archived === true;
@@ -66,6 +126,7 @@ const toNote = (entry: Record<string, unknown>): ImportedNote => {
     createdAt: finite(entry.createdAt) ?? updatedAt,
     updatedAt,
     position: finite(entry.position),
+    due: toDue(entry.due),
   };
 };
 
@@ -173,7 +234,7 @@ export const parseBackup = (contents: string): ImportedBackup => {
 const labelKey = (name: string) => name.trim().toLowerCase();
 
 // Works out what a restore writes. Nothing local is ever deleted.
-export const planMerge = (localNotes: Note[], localLabels: Label[], imported: ImportedBackup) => {
+export const planMerge = (localNotes: Note[], localLabels: Label[], imported: ImportedBackup, now = Date.now()) => {
   const byName = new Map(localLabels.map((l) => [labelKey(l.name), l]));
   const takenIds = new Set(localLabels.map((l) => l.id));
   const labelIdMap = new Map<string, string>();
@@ -205,7 +266,7 @@ export const planMerge = (localNotes: Note[], localLabels: Label[], imported: Im
       ...new Set(note.labelIds.map((id) => labelIdMap.get(id)).filter((id): id is string => !!id)),
     ];
     const position = note.position ?? (lastPosition += 1);
-    notes.push({ ...note, labelIds, position });
+    notes.push({ ...note, labelIds, position, due: quietDue(note.due, now) });
     if (current) counts.updated += 1;
     else counts.added += 1;
   }
@@ -246,6 +307,11 @@ export const restoreBackup = async (contents: string): Promise<MergeCounts> => {
   return counts;
 };
 
+const dueLine = (due: Due) =>
+  isDone(due)
+    ? `⏰ Done (was due ${formatDueLong(due)})`
+    : `⏰ Due ${formatDueLong(due)}${due.repeat ? ` · repeats ${lowerFirst(repeatText(due.repeat))}` : ''}`;
+
 const SEPARATOR = '\n\n---\n\n';
 
 export const toMarkdown = (notes: Note[], labels: Label[], imageCounts: Map<string, number> = new Map()): string => {
@@ -254,6 +320,7 @@ export const toMarkdown = (notes: Note[], labels: Label[], imageCounts: Map<stri
     const head = [`## ${note.title.trim() || 'Untitled'}`];
     const noteLabels = note.labelIds.map((id) => names.get(id)).filter((n): n is string => !!n);
     if (noteLabels.length > 0) head.push(`Labels: ${noteLabels.join(', ')}`);
+    if (note.due) head.push(dueLine(note.due));
     const images = imageCounts.get(note.id) ?? 0;
     if (images > 0) head.push(`_${images} ${images === 1 ? 'image' : 'images'} (not included in the Markdown export)_`);
     const body =

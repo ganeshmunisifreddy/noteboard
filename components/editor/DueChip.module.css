@@ -1,0 +1,53 @@
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 12px;
+}
+
+.chip,
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  margin: 0;
+  padding: 4px 12px;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+button.chip:hover,
+.action:hover {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.chip[data-state='overdue'] {
+  border-color: var(--danger);
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.chip[data-state='done'] {
+  color: var(--text-muted);
+}
+
+.action {
+  font-weight: 700;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

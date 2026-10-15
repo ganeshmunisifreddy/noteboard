@@ -36,3 +36,21 @@ db.version(3).stores({
   attachments: 'id, noteId',
   imageFiles: 'id',
 });
+
+// v4: dates. Every note gets `due: null`; nothing new is indexed (dates are
+// filtered in memory, like the board).
+db.version(4)
+  .stores({
+    notes: 'id, updatedAt, trashedAt, position, *labelIds',
+    labels: 'id, &name',
+    attachments: 'id, noteId',
+    imageFiles: 'id',
+  })
+  .upgrade((tx) =>
+    tx
+      .table('notes')
+      .toCollection()
+      .modify((note: { due?: unknown }) => {
+        if (note.due === undefined) note.due = null;
+      }),
+  );

@@ -49,7 +49,8 @@
 .content,
 .items,
 .more,
-.labels {
+.labels,
+.due {
   position: relative;
   z-index: 1;
   pointer-events: none;
@@ -110,6 +111,24 @@
   gap: 6px;
   padding: 0;
   list-style: none;
+}
+
+.due {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 4px;
+  margin: 0;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  font-size: var(--text-xs);
+  color: var(--note-ink);
+}
+
+.due[data-state='overdue'] {
+  color: var(--danger);
+  font-weight: 700;
 }
 
 .label {

@@ -4,10 +4,11 @@ import { v4 as uuid } from 'uuid';
 import { copyAttachments, deleteAttachmentsOf } from './attachments';
 import { toggleItemIn } from './checklist';
 import { db } from './db';
+import { alertTime, keepProgress, markDoneChanges, newDue } from './due';
 import { selectBoardNotes, type BoardNotes } from './filters';
 import { needsRenumber, positionBetween } from './order';
 import { requestPersistentStorage, setHasNotesMarker } from './storage';
-import type { BoardFilter, Label, Note, NoteChanges, NoteKind } from './types';
+import type { BoardFilter, ChecklistItem, Due, Label, Note, NoteChanges, NoteKind, Repeat } from './types';
 
 export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -53,6 +54,7 @@ export const createNote = async (input: NewNote): Promise<Note> => {
     createdAt: now,
     updatedAt: now,
     position: input.position ?? 0,
+    due: input.due ?? null,
   };
   // Reading the top position and writing in one transaction keeps two quick
   // writes from landing on the same place.
@@ -192,6 +194,8 @@ export const duplicateNote = async (id: string): Promise<Note | undefined> => {
       createdAt: now,
       updatedAt: now,
       position: await nextTopPosition(),
+      // The date comes along; whether it was done, alerted or snoozed doesn’t.
+      due: note.due && seenIfPast({ ...note.due, doneAt: null, alertedAt: null, snoozedUntil: null }, now),
     };
     await db.notes.add(created);
     await copyAttachments(id, created.id);
@@ -200,6 +204,52 @@ export const duplicateNote = async (id: string): Promise<Note | undefined> => {
   if (copy) await afterWrite();
   return copy;
 };
+
+// Dates change here, not through the editor's draft (the draft doesn't hold
+// `due`, so a draft save never overwrites them). Each change is an edit.
+// A date whose alert time has already passed counts as alerted: the user is
+// looking at it right now, so it shouldn't set off a reminder.
+const seenIfPast = (due: Due, now: number): Due => (alertTime(due) <= now ? { ...due, alertedAt: now } : due);
+
+const changeDue = async (id: string, change: (note: Note) => Partial<Note> | null) => {
+  await db.transaction('rw', db.notes, async () => {
+    const note = await db.notes.get(id);
+    const patch = note ? change(note) : null;
+    if (patch) await db.notes.update(id, { ...patch, updatedAt: Date.now() });
+  });
+};
+
+export const setDue = (id: string, date: string, time: string | null, repeat: Repeat | null) =>
+  changeDue(id, (note) => ({ due: seenIfPast(keepProgress(newDue(date, time, repeat), note.due), Date.now()) }));
+
+export const removeDue = (id: string) => changeDue(id, () => ({ due: null }));
+
+// Undo for removing a date or Mark done: the date (and a list's items) as they were.
+export const putBackDue = (id: string, due: Due | null, items?: ChecklistItem[]) =>
+  changeDue(id, () => (items ? { due, items } : { due }));
+
+// Resolves to the note as it was, for Undo; undefined when there was nothing to mark.
+export const markDone = async (id: string, now = Date.now()): Promise<Note | undefined> => {
+  let before: Note | undefined;
+  await changeDue(id, (note) => {
+    if (!note.due || note.due.doneAt !== null) return null;
+    before = note;
+    return markDoneChanges({ ...note, due: note.due }, now);
+  });
+  return before;
+};
+
+// "Undo" on a done date. A time already past counts as alerted, so it doesn't alert again.
+export const reopenDue = (id: string, now = Date.now()) =>
+  changeDue(id, (note) => {
+    if (!note.due || note.due.doneAt === null) return null;
+    return { due: seenIfPast({ ...note.due, doneAt: null, alertedAt: null }, now) };
+  });
+
+export const snooze = (id: string, until: number) =>
+  changeDue(id, (note) =>
+    note.due && note.due.doneAt === null ? { due: { ...note.due, snoozedUntil: until, alertedAt: null } } : null,
+  );
 
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 

@@ -3,6 +3,7 @@ import '../styles/globals.css'
 import type { AppProps } from 'next/app'
 import { Lato } from 'next/font/google'
 import { MotionConfig } from 'framer-motion'
+import ReminderAlerts from '../components/ui/ReminderAlerts'
 import StorageBanner from '../components/ui/StorageBanner'
 import { ToastProvider } from '../components/ui/Toast'
 import { useGlobalShortcuts } from '../lib/shortcuts'
@@ -28,6 +29,8 @@ function MyApp({ Component, pageProps }: AppProps) {
       <MotionConfig reducedMotion='user'>
         <ToastProvider>
           <StorageBanner />
+          {/* Before the page: it sits at the top, so it comes first in tab order. */}
+          <ReminderAlerts />
           <Component {...pageProps} />
         </ToastProvider>
       </MotionConfig>

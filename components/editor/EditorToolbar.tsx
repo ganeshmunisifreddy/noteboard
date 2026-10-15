@@ -12,6 +12,7 @@ import {
   Tag,
   Trash2,
 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import ColorPicker from '../ui/ColorPicker';
 import IconButton from '../ui/IconButton';
 import LabelPicker from '../ui/LabelPicker';
@@ -33,6 +34,7 @@ type Props = {
   onRestore: () => void;
   onDeleteForever: () => void;
   onAddImages: (files: File[]) => void;
+  dateButton?: ReactNode;
 };
 
 const EditorToolbar = ({
@@ -48,6 +50,7 @@ const EditorToolbar = ({
   onRestore,
   onDeleteForever,
   onAddImages,
+  dateButton,
 }: Props) => (
   <header className={styles.bar}>
     <IconButton label='Back to notes' onClick={onBack}>
@@ -67,6 +70,7 @@ const EditorToolbar = ({
       ) : (
         <>
           <AddImageButton onAdd={onAddImages} />
+          {dateButton}
           <IconButton label={draft.pinned ? 'Unpin note' : 'Pin note'} aria-pressed={draft.pinned} onClick={onTogglePin}>
             <Pin size={18} fill={draft.pinned ? 'currentColor' : 'none'} aria-hidden />
           </IconButton>

@@ -37,4 +37,21 @@ describe('schema v2 upgrade', () => {
     expect(await db.attachments.count()).toBe(0);
     expect(await db.imageFiles.count()).toBe(0);
   });
+
+    it('gives every note an empty date in v4', async () => {
+      db.close();
+      await Dexie.delete('noteboard');
+      const v3 = new Dexie('noteboard');
+      v3.version(3).stores({
+        notes: 'id, updatedAt, trashedAt, position, *labelIds',
+        labels: 'id, &name',
+        attachments: 'id, noteId',
+        imageFiles: 'id',
+      });
+      await v3.table('notes').add({ id: 'kept', title: 'Old', updatedAt: 1, position: 0 });
+      v3.close();
+
+      await db.open();
+      expect(await db.notes.get('kept')).toMatchObject({ title: 'Old', due: null });
+    });
 });

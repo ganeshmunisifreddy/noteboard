@@ -2,7 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../../lib/db';
-import { createNote } from '../../lib/notes';
+import { localDate } from '../../lib/calendar';
+import { createNote, setDue } from '../../lib/notes';
 import { makeAttachment } from '../../lib/testUtils';
 import { ToastProvider } from '../ui/Toast';
 import NoteCard from './NoteCard';
@@ -121,5 +122,32 @@ describe('NoteCard', () => {
     render(<NoteCard note={note} images={[makeAttachment({ noteId: 'c5' })]} labelNames={[]} mode='board' onOpen={vi.fn()} />);
     expect(screen.queryByText('Empty note')).toBeNull();
     expect(screen.getByRole('button', { name: 'Open note: Untitled' })).toHaveAccessibleDescription('1 image');
+  });
+
+  it('shows an overdue date and describes it', async () => {
+    const note = await createNote({ id: 'd1', kind: 'note', title: 'Bill' });
+    await setDue(note.id, '2026-01-01', null, null);
+    const stored = await db.notes.get(note.id);
+    render(
+      <ToastProvider>
+        <NoteCard note={stored!} labelNames={[]} mode='board' onOpen={vi.fn()} />
+      </ToastProvider>,
+    );
+    expect(screen.getByText(/Overdue · Thu 1 Jan/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open note: Bill' })).toHaveAccessibleDescription(/Due thu 1 Jan|Due Thu 1 Jan/);
+    expect(screen.getByRole('button', { name: 'Open note: Bill' })).toHaveAccessibleDescription(/overdue/);
+  });
+
+  it('shows today’s date without the overdue mark', async () => {
+    const note = await createNote({ id: 'd2', kind: 'note', title: 'Call' });
+    await setDue(note.id, localDate(Date.now()), '23:59', null);
+    const stored = await db.notes.get(note.id);
+    render(
+      <ToastProvider>
+        <NoteCard note={stored!} labelNames={[]} mode='board' onOpen={vi.fn()} />
+      </ToastProvider>,
+    );
+    expect(screen.getByText(/^Today, 11:59/)).toBeInTheDocument();
+    expect(screen.queryByText(/Overdue/)).not.toBeInTheDocument();
   });
 });

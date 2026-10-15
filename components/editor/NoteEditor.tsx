@@ -7,8 +7,13 @@ import {
   deleteForever,
   duplicateNote,
   getNote,
+  markDone,
+  putBackDue,
+  removeDue,
+  reopenDue,
   restoreNote,
   restoreSnapshot,
+  setDue,
   trashNote,
   undoTrash,
   updateNote,
@@ -24,13 +29,16 @@ import {
   restoreAttachment,
   useNoteAttachments,
 } from '../../lib/attachments';
+import { formatDue } from '../../lib/due';
 import { leaveEditor, noteHref, openEditor } from '../../lib/routes';
 import { isQuotaError } from '../../lib/storage';
 import { formatEdited, useNow } from '../../lib/time';
-import type { Attachment, Note, NoteKind } from '../../lib/types';
+import type { Attachment, ChecklistItem, Note, NoteKind, Repeat } from '../../lib/types';
 import MarkdownPreview from '../board/MarkdownPreview';
 import { useToast } from '../ui/Toast';
 import ChecklistEditor from './ChecklistEditor';
+import DatePopover from './DatePopover';
+import DueChip from './DueChip';
 import EditorToolbar from './EditorToolbar';
 import Gallery from './Gallery';
 import ImageViewer from './ImageViewer';
@@ -70,6 +78,8 @@ const toDraft = ({ kind, title, content, items, color, labelIds, pinned, archive
   archived,
 });
 
+const sameItems = (a: ChecklistItem[], b: ChecklistItem[]) => JSON.stringify(a) === JSON.stringify(b);
+
 const EditedAt = ({ timestamp }: { timestamp: number }) => {
   const now = useNow();
   return <p className={styles.meta}>{formatEdited(timestamp, now)}</p>;
@@ -102,6 +112,10 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
   // Image adds still running; leaving waits for them before judging the note empty.
   const addingRef = useRef<Promise<unknown>>(Promise.resolve());
   const focusAfterRemove = useRef<{ id: string; index: number } | null>(null);
+  const [dateOpen, setDateOpen] = useState(false);
+  // Opened from the date chip: closing returns focus there, not to the ⏰ button.
+  const openedFromChip = useRef(false);
+  const due = stored?.due ?? null;
 
   useEffect(() => {
     const target = focusAfterRemove.current;
@@ -196,6 +210,68 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
       toast({ message: 'Image removed', actionLabel: 'Undo', onAction: () => void restoreAttachment(removed) });
     }
   };
+
+  // Mark done can untick a list; the draft takes the new items (without
+  // counting as an edit) so the next save keeps them.
+  const takeItems = (items: ChecklistItem[]) => {
+    draftRef.current = { ...draftRef.current, items };
+    setDraft(draftRef.current);
+  };
+
+  const saveDue = async (date: string, time: string | null, repeat: Repeat | null) => {
+    editedRef.current = true;
+    try {
+      await ensureCreated();
+      await setDue(noteId, date, time, repeat);
+    } catch (error) {
+      toast({ message: isQuotaError(error) ? 'Couldn’t save: storage is full.' : 'Couldn’t save your changes.' });
+    }
+  };
+
+  const removeDate = async () => {
+    if (!due) return;
+    const before = due;
+    await removeDue(noteId);
+    toast({ message: 'Date removed', actionLabel: 'Undo', onAction: () => void putBackDue(noteId, before) });
+  };
+
+  const markDueDone = async () => {
+    await flush();
+    const before = await markDone(noteId);
+    if (!before) return;
+    const after = await getNote(noteId);
+    if (after) takeItems(after.items);
+    const movedTo = after?.due && after.due.doneAt === null ? formatDue(after.due, Date.now()) : null;
+    toast({
+      message: movedTo ? `Moved to ${movedTo}` : 'Marked done',
+      actionLabel: 'Undo',
+      onAction: () => void putBackDue(noteId, before.due, before.items).then(() => takeItems(before.items)),
+    });
+  };
+
+  // Items changed elsewhere (Mark done from a reminder) reach the draft. With
+  // edits waiting to be saved, those stay and only the ticks that changed
+  // in the database are taken, so the save doesn't put the old ticks back.
+  const seenItemsRef = useRef(stored?.items);
+  const onStoredItems = useEffectEvent((items: ChecklistItem[]) => {
+    const before = seenItemsRef.current ?? items;
+    seenItemsRef.current = items;
+    if (sameItems(items, draftRef.current.items)) return;
+    if (!dirtyRef.current) {
+      takeItems(items);
+      return;
+    }
+    const was = new Map(before.map((item) => [item.id, item.done]));
+    const ticks = new Map(
+      items.filter((item) => was.has(item.id) && was.get(item.id) !== item.done).map((item) => [item.id, item.done]),
+    );
+    if (ticks.size === 0) return;
+    takeItems(draftRef.current.items.map((item) => ({ ...item, done: ticks.get(item.id) ?? item.done })));
+  });
+  const storedItems = stored?.items;
+  useEffect(() => {
+    if (storedItems) onStoredItems(storedItems);
+  }, [storedItems]);
 
   const update = (changes: Partial<Draft>) => {
     const next = { ...draftRef.current, ...changes };
@@ -367,6 +443,22 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
           onRestore={() => void restore()}
           onDeleteForever={() => void removeForever()}
           onAddImages={(files) => void addFiles(files)}
+          dateButton={
+            <DatePopover
+              due={due}
+              open={dateOpen}
+              onOpenChange={setDateOpen}
+              onSave={(date, time, repeat) => void saveDue(date, time, repeat)}
+              onRemove={() => void removeDate()}
+              onCloseAutoFocus={(event) => {
+                const chip = openedFromChip.current ? document.querySelector<HTMLElement>('[data-due-chip]') : null;
+                openedFromChip.current = false;
+                if (!chip) return;
+                event.preventDefault();
+                chip.focus();
+              }}
+            />
+          }
         />
         <div ref={setBarSlot} />
       </div>
@@ -381,6 +473,24 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
           readOnly={trashed}
           onChange={(e) => update({ title: e.target.value })}
         />
+        {due && (
+          <DueChip
+            due={due}
+            readOnly={trashed}
+            onEdit={() => {
+              openedFromChip.current = true;
+              setDateOpen(true);
+            }}
+            onRemove={() =>
+              void removeDate().then(() => {
+                // The chip is gone; keep focus nearby on the date button.
+                document.querySelector<HTMLElement>('[data-date-button]')?.focus();
+              })
+            }
+            onMarkDone={() => void markDueDone()}
+            onReopen={() => void reopenDue(noteId)}
+          />
+        )}
         {draft.kind === 'note' ? (
           rich.status === 'ready' ? (
             <rich.Editor
