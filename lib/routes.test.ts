@@ -71,4 +71,10 @@ describe('after a refresh in the editor', () => {
     expect(boardHref('b1')).toEqual({ pathname: '/board', query: { id: 'b1' } });
     expect(BOARDS_HREF).toEqual({ pathname: '/', query: { view: 'boards' } });
   });
+
+  it('builds a new card link with its place', () => {
+    const href = newNoteHref('list', { columnId: 'c1', at: 'bottom' });
+    expect(href.query).toMatchObject({ new: 'list', column: 'c1', at: 'bottom' });
+    expect(typeof (href.query as Record<string, string>).id).toBe('string');
+  });
 });
