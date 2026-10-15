@@ -75,17 +75,23 @@ const renumber = <T extends { id: string; position: number; updatedAt: number }>
   });
 };
 
-// Moves a board to `index` among the boards in its group (starred or not).
+// The order after moving a board to `index` among the boards in its group
+// (starred or not); the other group's boards keep their slots.
+export const orderInGroup = (boards: Pick<Board, 'id' | 'starred'>[], id: string, index: number): string[] => {
+  const board = boards.find((b) => b.id === id);
+  if (!board) return boards.map((b) => b.id);
+  const group = boards.filter((b) => b.starred === board.starred).map((b) => b.id);
+  const moved = moveToIndex(group, id, Math.max(0, Math.min(index, group.length - 1)));
+  let next = 0;
+  return boards.map((b) => (b.starred === board.starred ? moved[next++] : b.id));
+};
+
+// Moves a board to `index` among the boards in its group.
 export const moveBoardTo = async (id: string, index: number) => {
   await db.transaction('rw', db.boards, async () => {
     const boards = (await db.boards.toArray()).sort(byPosition);
-    const board = boards.find((b) => b.id === id);
-    if (!board) return;
-    const group = boards.filter((b) => b.starred === board.starred).map((b) => b.id);
-    const moved = moveToIndex(group, id, Math.max(0, Math.min(index, group.length - 1)));
-    let next = 0;
-    const order = boards.map((b) => (b.starred === board.starred ? moved[next++] : b.id));
-    await db.boards.bulkPut(renumber(boards, order));
+    if (!boards.some((b) => b.id === id)) return;
+    await db.boards.bulkPut(renumber(boards, orderInGroup(boards, id, index)));
   });
 };
 

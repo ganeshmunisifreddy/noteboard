@@ -59,6 +59,7 @@ describe('BoardTiles', () => {
     expect(within(starred).getByRole('link', { name: /Work/ })).toBeInTheDocument();
     expect(within(screen.getByRole('list', { name: 'All boards' })).getByRole('link', { name: /Home/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Star Work' })).toHaveAttribute('aria-pressed', 'true');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Star Work' })).toHaveFocus());
   });
 
   it('moves a board earlier from its menu', async () => {
@@ -72,6 +73,7 @@ describe('BoardTiles', () => {
     await waitFor(async () =>
       expect((await db.boards.orderBy('position').toArray()).map((b) => b.name)).toEqual(['B', 'A']),
     );
+    expect(screen.getByText('Moved B first')).toHaveAttribute('role', 'status');
   });
 
   it('creates one board even when Create is pressed twice', async () => {

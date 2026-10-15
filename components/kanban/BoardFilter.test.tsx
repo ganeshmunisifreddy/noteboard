@@ -127,4 +127,60 @@ describe('filtering a board', () => {
       ).toEqual(['Brief', 'Fonts', 'Logo', 'Copy']),
     );
   });
+
+  it('keeps a card shown, with focus, when its menu edit stops it matching', async () => {
+    const user = userEvent.setup();
+    const { board } = await setup();
+    open(board.id);
+    await screen.findByText('Fonts');
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    await user.click(screen.getByRole('button', { name: 'Design' }));
+    await user.click(screen.getByRole('button', { name: 'Card actions for Fonts' }));
+    (await screen.findByRole('menuitem', { name: 'Labels' })).focus();
+    await user.keyboard('{ArrowRight}');
+    (await screen.findByRole('menuitemcheckbox', { name: 'Design' })).focus();
+    await user.keyboard('{Enter}');
+    await waitFor(async () => expect((await db.notes.get('Fonts'))?.labelIds).toEqual([]));
+    await user.keyboard('{Escape}{Escape}');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Card actions for Fonts' })).toHaveFocus());
+    expect(visibleTitles()).toEqual(['Fonts']);
+  });
+
+  it('announces how many cards match, and when none do', async () => {
+    const user = userEvent.setup();
+    const { board } = await setup();
+    open(board.id);
+    await screen.findByText('Fonts');
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    const box = screen.getByRole('searchbox', { name: 'Filter cards by text' });
+    await user.type(box, 'o');
+    const status = screen.getByTestId('filter-status');
+    expect(status).toHaveAttribute('role', 'status');
+    expect(status).toHaveTextContent('3 cards match');
+    await user.type(box, 'zzz');
+    expect(status).toHaveTextContent('No cards match the filter');
+  });
+
+  it('keeps the filter when its row is closed with the Filter button', async () => {
+    const user = userEvent.setup();
+    const { board } = await setup();
+    open(board.id);
+    await screen.findByText('Fonts');
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    await user.click(screen.getByRole('button', { name: 'No date' }));
+    await user.click(screen.getByRole('button', { name: 'Filter, 2 cards match' }));
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+    expect(visibleTitles()).toEqual(['Fonts', 'Wireframes']);
+    expect(screen.getByRole('button', { name: 'Filter, 2 cards match' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('says a column has no matching cards when the filter hides them all', async () => {
+    const user = userEvent.setup();
+    const { board } = await setup();
+    open(board.id);
+    await screen.findByText('Fonts');
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    await user.click(screen.getByRole('button', { name: 'Overdue' }));
+    expect(screen.getByText('No matching cards')).toBeInTheDocument();
+  });
 });

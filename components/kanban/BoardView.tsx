@@ -14,6 +14,7 @@ import {
   type BoardData,
 } from '../../lib/boards';
 import { useLabels } from '../../lib/notes';
+import { useNow } from '../../lib/time';
 import { BOARDS_HREF, markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../../lib/routes';
 import type { NoteKind } from '../../lib/types';
 import IconButton from '../ui/IconButton';
@@ -55,7 +56,8 @@ const BoardView = ({ data }: { data: BoardData }) => {
   const labelNames = useMemo(() => new Map((labels ?? []).map((l) => [l.id, l.name])), [labels]);
   const [filter, setFilter] = useState<CardFilter>(EMPTY_FILTER);
   const [filterOpen, setFilterOpen] = useState(false);
-  const [now, setNow] = useState(() => Date.now());
+  // Overdue and Next 7 days move with the clock, as the cards' date chips do.
+  const now = useNow();
   // Cards added while filtering stay shown until the filter changes.
   const [kept, setKept] = useState<Set<string>>(() => new Set());
   const filterButton = useRef<HTMLButtonElement>(null);
@@ -64,11 +66,12 @@ const BoardView = ({ data }: { data: BoardData }) => {
   const changeFilter = (next: CardFilter) => {
     setFilter(next);
     setKept(new Set());
-    setNow(Date.now());
   };
 
-  const closeFilter = () => {
-    changeFilter(EMPTY_FILTER);
+  // Escape in the filter row clears and closes it; the Filter button only closes
+  // it, so a set filter stays (shown by the button's dot).
+  const closeFilter = (clear: boolean) => {
+    if (clear) changeFilter(EMPTY_FILTER);
     setFilterOpen(false);
     requestAnimationFrame(() => filterButton.current?.focus());
   };
@@ -121,7 +124,7 @@ const BoardView = ({ data }: { data: BoardData }) => {
           aria-label={
             filtering ? `Filter, ${matchCount} ${matchCount === 1 ? 'card matches' : 'cards match'}` : 'Filter'
           }
-          onClick={() => (filterOpen ? closeFilter() : setFilterOpen(true))}
+          onClick={() => (filterOpen ? closeFilter(false) : setFilterOpen(true))}
         >
           <ListFilter size={16} aria-hidden />
           Filter
@@ -154,16 +157,28 @@ const BoardView = ({ data }: { data: BoardData }) => {
         />
       </header>
       {filterOpen && (
-        <FilterBar id='board-filter' filter={filter} labels={labels ?? []} onChange={changeFilter} onClose={closeFilter} />
+        <FilterBar
+          id='board-filter'
+          filter={filter}
+          labels={labels ?? []}
+          onChange={changeFilter}
+          onClose={() => closeFilter(true)}
+        />
       )}
-      {filtering && matchCount === 0 && (
-        <p className={styles.noMatch}>
-          No cards match the filter
-          <button type='button' className={styles.clear} onClick={() => changeFilter(EMPTY_FILTER)}>
-            Clear
-          </button>
-        </p>
-      )}
+      {/* Always mounted, so screen readers hear each change of the filter's results. */}
+      <div role='status' data-testid='filter-status'>
+        {filtering &&
+          (matchCount === 0 ? (
+            <p className={styles.noMatch}>
+              No cards match the filter
+              <button type='button' className={styles.clear} onClick={() => changeFilter(EMPTY_FILTER)}>
+                Clear
+              </button>
+            </p>
+          ) : (
+            <span className={styles.srOnly}>{matchCount === 1 ? '1 card matches' : `${matchCount} cards match`}</span>
+          ))}
+      </div>
       <main className={styles.main}>
         <BoardColumns
           key={addingColumn}
@@ -172,7 +187,7 @@ const BoardView = ({ data }: { data: BoardData }) => {
           images={images}
           boards={boards ?? []}
           visibleIds={visibleIds}
-          onCardAdded={(id) => {
+          onKeepShown={(id) => {
             if (filtering) setKept((ids) => new Set(ids).add(id));
           }}
           onOpen={(id) => openEditor(router, noteHref(id))}

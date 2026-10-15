@@ -138,4 +138,27 @@ describe('card menu', () => {
     await user.pointer({ keys: '[MouseRight]', target: card });
     expect(await screen.findByRole('menu')).toBeInTheDocument();
   });
+
+  it('doesn’t open the card menu on a right-click inside the date picker', async () => {
+    const user = userEvent.setup();
+    const { board } = await setup();
+    open(board.id);
+    await user.click(await screen.findByRole('button', { name: 'Card actions for Alpha' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Date…' }));
+    const input = (await screen.findByRole('dialog', { name: 'Date' })).querySelector('input') as HTMLElement;
+    fireEvent.pointerDown(input, { pointerType: 'mouse' });
+    const event = fireEvent.contextMenu(input);
+    expect(event).toBe(true); // not prevented: the browser's own menu shows
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('leaves single-card announcements to the toast', async () => {
+    const user = userEvent.setup();
+    const { board } = await setup();
+    open(board.id);
+    await user.click(await screen.findByRole('button', { name: 'Card actions for Alpha' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Archive' }));
+    expect(await screen.findByText('Note archived')).toBeInTheDocument();
+    expect(screen.queryByText('Archived Alpha')).not.toBeInTheDocument();
+  });
 });

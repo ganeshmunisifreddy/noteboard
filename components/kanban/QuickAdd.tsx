@@ -10,7 +10,7 @@ type Props = {
   onClose: (refocus: boolean) => void; // refocus: back to the column's Add card button
 };
 
-// Type a title, press Enter, keep typing. Escape or ✕ closes; clicking away closes too.
+// Type a title, press Enter, keep typing. Escape or ✕ closes; clicking away in the page closes too.
 const QuickAdd = ({ columnName, onAdd, onOpenEditor, onClose }: Props) => {
   const [title, setTitle] = useState('');
   const input = useRef<HTMLInputElement>(null);
@@ -26,7 +26,8 @@ const QuickAdd = ({ columnName, onAdd, onOpenEditor, onClose }: Props) => {
     <div
       className={styles.quickAdd}
       onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onClose(false);
+        // Switching to another window keeps what was typed.
+        if (document.hasFocus() && !e.currentTarget.contains(e.relatedTarget as Node | null)) onClose(false);
       }}
     >
       <input

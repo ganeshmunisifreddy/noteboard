@@ -276,6 +276,24 @@ describe('bulk card actions', () => {
     expect((await db.notes.get('r'))?.due?.date).toBe(today);
   });
 
+  it('Undo of an archive leaves a later trash and checklist edit alone', async () => {
+    const { board, columns } = await setup();
+    await put('a', columns[0].id, board.id, 0);
+    const states = await archiveCards(['a']);
+    await db.notes.update('a', { trashedAt: 5, items: [{ id: 'i', text: 'New', done: false }] });
+    await putBackCards(states);
+    expect(await db.notes.get('a')).toMatchObject({ archived: false, trashedAt: 5, items: [{ text: 'New' }] });
+  });
+
+  it('Undo of a move leaves a later checklist edit alone when no date changed', async () => {
+    const { board, columns } = await setup();
+    await put('a', columns[0].id, board.id, 0);
+    const states = await moveCards(['a'], columns[1].id);
+    await db.notes.update('a', { items: [{ id: 'i', text: 'New', done: false }] });
+    await putBackCards(states);
+    expect(await db.notes.get('a')).toMatchObject({ columnId: columns[0].id, items: [{ text: 'New' }] });
+  });
+
   it('moves cards to another board', async () => {
     const { board, columns } = await setup();
     const other = await createBoard('Other', 'basic');

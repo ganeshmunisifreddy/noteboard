@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBoard } from '../../lib/boards';
@@ -114,6 +114,19 @@ describe('board page', () => {
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('textbox', { name: 'Card title for To do' })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Add card to To do' })).toHaveFocus());
+  });
+
+  it('keeps quick add open, with the list button, when the window loses focus', async () => {
+    const user = userEvent.setup();
+    const { board } = await setup();
+    open(board.id);
+    await user.click(await screen.findByRole('button', { name: 'Add card to To do' }));
+    expect(screen.getByRole('button', { name: 'Add a list to To do' })).toBeInTheDocument();
+    const box = screen.getByRole('textbox', { name: 'Card title for To do' });
+    await user.type(box, 'Half typed');
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    fireEvent.blur(box);
+    expect(screen.getByRole('textbox', { name: 'Card title for To do' })).toHaveValue('Half typed');
   });
 
   it('opens a typed quick-add card in the editor', async () => {

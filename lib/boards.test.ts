@@ -6,6 +6,7 @@ import {
   deleteBoard,
   deleteColumn,
   moveBoardTo,
+  orderInGroup,
   moveColumn,
   moveColumnTo,
   placeNames,
@@ -251,6 +252,17 @@ describe('ordering and stars', () => {
     // Starred group is A, C: move A after C.
     await moveBoardTo(a.id, 1);
     expect(await order()).toEqual(['C', 'D', 'A', 'B']);
+  });
+
+  it('orders a group in place, keeping the other group’s slots', () => {
+    const boards = [
+      { id: 'S1', starred: true },
+      { id: 'U1', starred: false },
+      { id: 'S2', starred: true },
+      { id: 'U2', starred: false },
+    ];
+    expect(orderInGroup(boards, 'U2', 0)).toEqual(['S1', 'U2', 'S2', 'U1']);
+    expect(orderInGroup(boards, 'S1', 1)).toEqual(['S2', 'U1', 'S1', 'U2']);
   });
 
   it('clamps the index and ignores missing boards', async () => {

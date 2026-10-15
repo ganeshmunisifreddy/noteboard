@@ -42,7 +42,7 @@ import {
 } from '../../lib/cards';
 import { putBackDue, removeDue, setDue, trashNote, undoTrash, updateNote, useLabels } from '../../lib/notes';
 import { moveId, neighbors } from '../../lib/order';
-import type { Board, Column, Note, NoteKind } from '../../lib/types';
+import type { Board, Column, Note, NoteKind, Repeat } from '../../lib/types';
 import type { MenuItem } from '../ui/Menu';
 import { useToast } from '../ui/Toast';
 import styles from './Board.module.css';
@@ -60,7 +60,7 @@ type Props = {
   onOpen: (id: string) => void;
   onAddCard: (columnId: string, kind: NoteKind) => void;
   startAddingColumn?: boolean; // the board menu's "Add column"
-  onCardAdded?: (id: string) => void;
+  onKeepShown?: (id: string) => void; // a card added or edited here stays shown while filtering
 };
 
 const scrollKey = (boardId: string) => `boardScrollX:${boardId}`;
@@ -81,7 +81,7 @@ const BoardColumns = ({
   onOpen,
   onAddCard,
   startAddingColumn = false,
-  onCardAdded,
+  onKeepShown,
 }: Props) => {
   const toast = useToast();
   const [adding, setAdding] = useState(startAddingColumn);
@@ -274,39 +274,58 @@ const BoardColumns = ({
     document.querySelector<HTMLElement>(left ? left.next : `[data-card-move="${CSS.escape(noteId)}"]`)?.focus();
   };
 
+  // Toasts announce themselves (Radix), so these don't use the board's live region too.
   const archive = async (noteId: string, columnId: string) => {
     leave(noteId, columnId);
     const states = await archiveCards([noteId]);
-    setAnnouncement(`Archived ${titleOf(noteId)}`);
     toast({ message: 'Note archived', actionLabel: 'Undo', onAction: () => void putBackCards(states) });
   };
 
   const remove = async (noteId: string, columnId: string) => {
     leave(noteId, columnId);
     await trashNote(noteId);
-    setAnnouncement(`Moved ${titleOf(noteId)} to trash`);
     toast({ message: 'Moved to trash', actionLabel: 'Undo', onAction: () => void undoTrash(noteId) });
   };
 
   const moveToBoard = async (noteId: string, columnId: string, fromColumn: string) => {
-    const target = otherBoards.find((b) => b.columns.some((c) => c.id === columnId));
-    const where = `${target?.board.name} · ${target?.columns.find((c) => c.id === columnId)?.name}`;
     leave(noteId, fromColumn);
-    const result = await placeAtEnd(noteId, columnId);
-    if (!result) return;
-    setAnnouncement(`Moved ${titleOf(noteId)} to ${where}`);
+    const result = await placeAtEnd(noteId, columnId).catch(() => undefined);
+    if (!result) {
+      // Nothing moved (the column was deleted meanwhile): focus stays on the card.
+      leaving.current = null;
+      requestAnimationFrame(() =>
+        document.querySelector<HTMLElement>(`[data-card-move="${CSS.escape(noteId)}"]`)?.focus(),
+      );
+      return;
+    }
+    // Where it landed: a repeat leaving the Done column goes to the first column.
+    const target = otherBoards.find((b) => b.columns.some((c) => c.id === result.columnId));
+    const where = `${target?.board.name} · ${target?.columns.find((c) => c.id === result.columnId)?.name}`;
     toast({ message: `Moved to ${where}`, actionLabel: 'Undo', onAction: () => void putBackPlace(result.before) });
+  };
+
+  // An edit from the card's menu keeps the card shown while filtering, so it
+  // (and focus on its menu button) doesn't vanish under the person editing it.
+  const edit = (noteId: string, changes: Parameters<typeof updateNote>[1]) => {
+    onKeepShown?.(noteId);
+    void updateNote(noteId, changes);
+  };
+
+  const saveDate = (noteId: string, date: string, time: string | null, repeat: Repeat | null) => {
+    onKeepShown?.(noteId);
+    void setDue(noteId, date, time, repeat);
   };
 
   const removeDate = async (noteId: string) => {
     const before = notesById.get(noteId)?.due ?? null;
     if (!before) return;
+    onKeepShown?.(noteId);
     await removeDue(noteId);
     toast({ message: 'Date removed', actionLabel: 'Undo', onAction: () => void putBackDue(noteId, before) });
   };
 
   const toggleLabel = (note: Note, labelId: string) =>
-    void updateNote(note.id, {
+    edit(note.id, {
       labelIds: note.labelIds.includes(labelId)
         ? note.labelIds.filter((id) => id !== labelId)
         : [...note.labelIds, labelId],
@@ -366,7 +385,7 @@ const BoardColumns = ({
     try {
       const note = await quickAddCard(columnId, board.id, title);
       if (note) {
-        onCardAdded?.(note.id);
+        onKeepShown?.(note.id);
         setAnnouncement(`Added ${note.title} to ${columnName.get(note.columnId ?? '') ?? 'the board'}`);
       }
     } catch {
@@ -474,9 +493,9 @@ const BoardColumns = ({
                   onMove={(move) => moveWithin(note.id, column.id, move)}
                   onMoveTo={(columnId) => moveToColumn(note.id, columnId)}
                   onMoveToBoard={(columnId) => void moveToBoard(note.id, columnId, column.id)}
-                  onColor={(color) => void updateNote(note.id, { color })}
+                  onColor={(color) => edit(note.id, { color })}
                   onToggleLabel={(labelId) => toggleLabel(note, labelId)}
-                  onSaveDate={(date, time, repeat) => void setDue(note.id, date, time, repeat)}
+                  onSaveDate={(date, time, repeat) => saveDate(note.id, date, time, repeat)}
                   onRemoveDate={() => void removeDate(note.id)}
                   onArchive={() => void archive(note.id, column.id)}
                   onDelete={() => void remove(note.id, column.id)}

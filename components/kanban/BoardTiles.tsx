@@ -12,14 +12,14 @@ import {
 } from '@dnd-kit/core';
 import { EllipsisVertical, Plus, Star } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useRef, useState, type ReactNode } from 'react';
-import { moveBoardTo, starBoard, useBoardSummaries, type BoardSummary } from '../../lib/boards';
-import { moveId } from '../../lib/order';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { moveBoardTo, orderInGroup, starBoard, useBoardSummaries, type BoardSummary } from '../../lib/boards';
 import { boardHref } from '../../lib/routes';
 import IconButton from '../ui/IconButton';
 import Menu, { type MenuItem } from '../ui/Menu';
 import styles from './BoardTiles.module.css';
 import NewBoardDialog from './NewBoardDialog';
+import { ownListeners } from './ownPress';
 
 const plural = (count: number, word: string) => `${count} ${count === 1 ? word : `${word}s`}`;
 
@@ -36,7 +36,7 @@ const DraggableTile = ({ id, children }: { id: string; children: ReactNode }) =>
     [setDragRef, setDropRef],
   );
   return (
-    <li ref={ref} className={isDragging ? `${styles.item} ${styles.dragging}` : styles.item} {...listeners}>
+    <li ref={ref} className={isDragging ? `${styles.item} ${styles.dragging}` : styles.item} {...ownListeners(listeners)}>
       {children}
     </li>
   );
@@ -48,6 +48,16 @@ const BoardTiles = ({ onOpen }: { onOpen: (id: string) => void }) => {
   const [preview, setPreview] = useState<string[] | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const dragged = useRef(false);
+  // Starring moves a tile to the other group (a new element): focus its star again.
+  const refocusStar = useRef<{ id: string; starred: boolean } | null>(null);
+  useEffect(() => {
+    const target = refocusStar.current;
+    const star = target && document.querySelector<HTMLElement>(`[data-star="${CSS.escape(target.id)}"]`);
+    if (star && star.getAttribute('aria-pressed') === String(target.starred)) {
+      refocusStar.current = null;
+      star.focus();
+    }
+  });
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
@@ -63,8 +73,11 @@ const BoardTiles = ({ onOpen }: { onOpen: (id: string) => void }) => {
   const rest = ordered.filter((s) => !s.board.starred);
   const groupOf = (id: string) => (byId.get(id)?.board.starred ? starred : rest).map((s) => s.board.id);
 
+  const nameOf = (id: string) => byId.get(id)?.board.name ?? 'board';
+
   const move = (id: string, index: number) => {
-    setAnnouncement(`Moved ${byId.get(id)?.board.name} to position ${index + 1} of ${groupOf(id).length}`);
+    const others = groupOf(id).filter((other) => other !== id);
+    setAnnouncement(index === 0 ? `Moved ${nameOf(id)} first` : `Moved ${nameOf(id)} after ${nameOf(others[index - 1])}`);
     moveBoardTo(id, index).catch(() => setPreview(null));
   };
 
@@ -74,8 +87,13 @@ const BoardTiles = ({ onOpen }: { onOpen: (id: string) => void }) => {
     if (!overId.startsWith('tile:')) return;
     const target = overId.slice(5);
     const id = String(active.id);
-    if (byId.get(target)?.board.starred !== byId.get(id)?.board.starred) return;
-    setPreview((p) => moveId(p ?? stored, id, target));
+    if (target === id || byId.get(target)?.board.starred !== byId.get(id)?.board.starred) return;
+    // Built the way moveBoardTo saves it, so the preview clears once it's stored.
+    setPreview((p) => {
+      const boards = (p ?? stored).map((b) => ({ id: b, starred: !!byId.get(b)?.board.starred }));
+      const group = boards.filter((b) => b.starred === byId.get(id)?.board.starred).map((b) => b.id);
+      return orderInGroup(boards, id, group.indexOf(target));
+    });
   };
 
   const onDragEnd = ({ active }: DragEndEvent) => {
@@ -122,9 +140,11 @@ const BoardTiles = ({ onOpen }: { onOpen: (id: string) => void }) => {
           <IconButton
             label={`Star ${board.name}`}
             aria-pressed={board.starred}
+            data-star={board.id}
             className={board.starred ? styles.starred : undefined}
             onClick={() => {
               setAnnouncement(board.starred ? `Unstarred ${board.name}` : `Starred ${board.name}`);
+              refocusStar.current = { id: board.id, starred: !board.starred };
               void starBoard(board.id, !board.starred);
             }}
           >
@@ -156,6 +176,15 @@ const BoardTiles = ({ onOpen }: { onOpen: (id: string) => void }) => {
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
         onDragCancel={() => setPreview(null)}
+        accessibility={{
+          announcements: {
+            onDragStart: ({ active }) => `Picked up ${nameOf(String(active.id))}`,
+            onDragOver: () => undefined,
+            onDragMove: () => undefined,
+            onDragEnd: ({ active }) => `Dropped ${nameOf(String(active.id))}`,
+            onDragCancel: ({ active }) => `Stopped moving ${nameOf(String(active.id))}`,
+          },
+        }}
       >
         {starred.length > 0 && (
           <>

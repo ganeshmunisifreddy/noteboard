@@ -8,6 +8,7 @@ import type { MenuItem } from '../ui/Menu';
 import styles from './Board.module.css';
 import ColumnHeader from './ColumnHeader';
 import KanbanCard from './KanbanCard';
+import { ownListeners, ownPress } from './ownPress';
 import QuickAdd from './QuickAdd';
 
 // A card that can be dragged and dropped on (dnd-kit). The whole card is the
@@ -29,14 +30,13 @@ const DraggableCard = ({ id, onMenu, children }: { id: string; onMenu: () => voi
     <li
       ref={ref}
       className={isDragging ? styles.dragging : undefined}
-      {...listeners}
+      {...ownListeners(listeners)}
       onPointerDown={(e) => {
         pointer.current = e.pointerType;
-        listeners?.onPointerDown?.(e);
       }}
       onContextMenu={(e) => {
         // A touch long-press stays a drag; only a mouse right-click opens the menu.
-        if (pointer.current !== 'mouse') return;
+        if (pointer.current !== 'mouse' || !ownPress(e)) return;
         e.preventDefault();
         onMenu();
       }}
@@ -115,7 +115,7 @@ const BoardColumn = ({
       className={isDragging ? `${styles.column} ${styles.dragging}` : styles.column}
       aria-labelledby={headingId}
     >
-      <div ref={setHandleRef} className={styles.columnGrab} {...listeners}>
+      <div ref={setHandleRef} className={styles.columnGrab} {...ownListeners(listeners)}>
         <ColumnHeader
           column={column}
           headingId={headingId}
@@ -148,17 +148,17 @@ const BoardColumn = ({
             );
           })}
         </ol>
-        {ids.length === 0 && <p className={styles.noCards}>No cards</p>}
+        {ids.length === 0 && <p className={styles.noCards}>{total > 0 ? 'No matching cards' : 'No cards'}</p>}
       </ColumnDrop>
-      {adding ? (
-        <QuickAdd
-          columnName={column.name}
-          onAdd={(title) => onQuickAdd(column.id, title)}
-          onOpenEditor={(title) => onQuickOpen(column.id, title)}
-          onClose={stopAdding}
-        />
-      ) : (
-        <div className={styles.addRow}>
+      <div className={styles.addRow}>
+        {adding ? (
+          <QuickAdd
+            columnName={column.name}
+            onAdd={(title) => onQuickAdd(column.id, title)}
+            onOpenEditor={(title) => onQuickOpen(column.id, title)}
+            onClose={stopAdding}
+          />
+        ) : (
           <button
             ref={addButton}
             type='button'
@@ -170,11 +170,11 @@ const BoardColumn = ({
             <Plus size={16} aria-hidden />
             Add card
           </button>
-          <IconButton label={`Add a list to ${column.name}`} onClick={() => onAddCard(column.id, 'list')}>
-            <ListChecks size={16} aria-hidden />
-          </IconButton>
-        </div>
-      )}
+        )}
+        <IconButton label={`Add a list to ${column.name}`} onClick={() => onAddCard(column.id, 'list')}>
+          <ListChecks size={16} aria-hidden />
+        </IconButton>
+      </div>
     </section>
   );
 };

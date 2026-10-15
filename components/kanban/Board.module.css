@@ -289,8 +289,14 @@
 
 .quickAdd {
   display: grid;
+  flex: 1;
+  min-width: 0;
   gap: 6px;
   padding: 4px;
+}
+
+.addRow:has(.quickAdd) {
+  align-items: flex-start;
 }
 
 .quickInput {

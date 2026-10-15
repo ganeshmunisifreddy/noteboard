@@ -163,29 +163,17 @@ export const quickAddCard = async (columnId: string, boardId: string, title: str
   return createNote({ kind: 'note', title: clean, ...place });
 };
 
-// What bulk actions change, so Undo can put it back without losing other edits.
-export type CardState = Pick<
-  Note,
-  'id' | 'archived' | 'boardId' | 'columnId' | 'boardPosition' | 'due' | 'items' | 'trashedAt'
+// What a bulk action changed on a card, so Undo puts back just that and keeps other edits.
+export type CardState = { id: string } & Partial<
+  Pick<Note, 'archived' | 'boardId' | 'columnId' | 'boardPosition' | 'due' | 'items'>
 >;
-
-const stateOf = ({ id, archived, boardId, columnId, boardPosition, due, items, trashedAt }: Note): CardState => ({
-  id,
-  archived,
-  boardId,
-  columnId,
-  boardPosition,
-  due,
-  items,
-  trashedAt,
-});
 
 export const archiveCards = async (ids: string[]): Promise<CardState[]> => {
   const states = await db.transaction('rw', db.notes, async () => {
     const notes = (await db.notes.bulkGet(ids)).filter((n): n is Note => !!n && !n.archived);
     const now = Date.now();
     await Promise.all(notes.map((n) => db.notes.update(n.id, { archived: true, pinned: false, updatedAt: now })));
-    return notes.map(stateOf);
+    return notes.map(({ id }) => ({ id, archived: false }));
   });
   await refreshHasNotesMarker();
   return states;
@@ -198,7 +186,10 @@ export const moveCards = async (ids: string[], columnId: string, now = Date.now(
     const states: CardState[] = [];
     for (const id of ids) {
       const result = await placeAtEnd(id, columnId, now);
-      if (result) states.push(stateOf(result.before));
+      if (!result) continue;
+      const { boardId, columnId: from, boardPosition, due, items } = result.before;
+      // A date (and a repeat's checklist) changes only when entering or leaving a Done column.
+      states.push({ id, boardId, columnId: from, boardPosition, ...(result.dateChanged ? { due, items } : {}) });
     }
     return states;
   });
