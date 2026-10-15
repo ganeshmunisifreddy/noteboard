@@ -5,6 +5,7 @@
 // so one cached copy of each serves every query string (?view=…, ?id=…)
 // offline, including notes never opened before.
 import { networkFirst } from './networkFirst';
+import { openFromNotification } from './notificationClick';
 
 const SHELL_CACHE = 'app-shell';
 const SHELL_PATHS = ['/', '/note'];
@@ -39,4 +40,10 @@ self.addEventListener('fetch', (event) => {
       NETWORK_TIMEOUT_MS,
     ).catch(() => Response.error()),
   );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url ?? '/';
+  event.waitUntil(openFromNotification(self.clients, self.location.origin, url));
 });
