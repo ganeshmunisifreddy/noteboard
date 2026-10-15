@@ -1,7 +1,7 @@
 import { toPlainText } from './markdown';
 import type { BoardFilter, BoardView, Label, Note } from './types';
 
-const VIEWS: BoardView[] = ['all', 'notes', 'lists', 'upcoming', 'archive', 'trash'];
+const VIEWS: BoardView[] = ['all', 'notes', 'lists', 'upcoming', 'boards', 'archive', 'trash'];
 
 type Query = Record<string, string | string[] | undefined>;
 
@@ -10,7 +10,7 @@ const single = (value: string | string[] | undefined) => (typeof value === 'stri
 export const parseFilter = (query: Query): BoardFilter => {
   const view = single(query.view);
   const parsedView = VIEWS.includes(view as BoardView) ? (view as BoardView) : 'all';
-  const hasLabels = parsedView !== 'archive' && parsedView !== 'trash' && parsedView !== 'upcoming';
+  const hasLabels = !['archive', 'trash', 'upcoming', 'boards'].includes(parsedView);
   return {
     view: parsedView,
     labelId: hasLabels ? single(query.label) || null : null,
@@ -27,6 +27,7 @@ export const filterToQuery = (filter: BoardFilter): Record<string, string> => {
 };
 
 export const matchesView = (note: Note, filter: BoardFilter): boolean => {
+  if (filter.view === 'boards') return false; // the Boards view shows boards, not notes
   if (filter.view === 'trash') return note.trashedAt !== null;
   if (note.trashedAt !== null) return false;
   if (filter.view === 'archive') return note.archived;
@@ -47,9 +48,26 @@ export const matchesQuery = (note: Note, query: string, labelNames: Map<string, 
 
 export type BoardNotes = { pinned: Note[]; others: Note[] };
 
-export const selectBoardNotes = (notes: Note[], labels: Label[], filter: BoardFilter): BoardNotes => {
+// On a board only when its column exists; a note whose column is gone counts as the main board.
+export const isOnBoard = (note: Note, columnIds: Set<string>) => note.columnId !== null && columnIds.has(note.columnId);
+
+const MAIN_VIEWS: BoardView[] = ['all', 'notes', 'lists'];
+
+export const selectBoardNotes = (
+  notes: Note[],
+  labels: Label[],
+  filter: BoardFilter,
+  columnIds: Set<string> = new Set(),
+): BoardNotes => {
   const labelNames = new Map(labels.map((l) => [l.id, l.name]));
-  const visible = notes.filter((n) => matchesView(n, filter) && matchesQuery(n, filter.query, labelNames));
+  // Board notes stay on their boards, but a search finds them.
+  const hideBoardNotes = MAIN_VIEWS.includes(filter.view) && filter.query.trim() === '';
+  const visible = notes.filter(
+    (n) =>
+      matchesView(n, filter) &&
+      matchesQuery(n, filter.query, labelNames) &&
+      !(hideBoardNotes && isOnBoard(n, columnIds)),
+  );
   if (filter.view === 'trash') {
     return { pinned: [], others: visible.sort((a, b) => (b.trashedAt ?? 0) - (a.trashedAt ?? 0)) };
   }

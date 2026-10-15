@@ -14,6 +14,7 @@ import LabelsDialog from '../components/ui/LabelsDialog';
 import ThemeToggle from '../components/ui/ThemeToggle';
 import { useToast } from '../components/ui/Toast';
 import { useBoardImages } from '../lib/attachments';
+import { usePlaceNames } from '../lib/boards';
 import { downloadBackup, downloadMarkdown, restoreBackup, restoreErrorMessage, restoredMessage } from '../lib/backup';
 import { upcomingSections } from '../lib/due';
 import { emptyMessage, filterToQuery, isReorderable, parseFilter } from '../lib/filters';
@@ -32,6 +33,7 @@ const Home: NextPage = () => {
   const filter = parseFilter(router.query);
   const board = useBoardNotes(filter);
   const labels = useLabels();
+  const placeNames = usePlaceNames();
   const [labelsOpen, setLabelsOpen] = useState(false);
   // Bumped after Back/Forward so the search box picks up the URL's query
   // (typing only replaces the URL, so it never triggers this).
@@ -178,19 +180,35 @@ const Home: NextPage = () => {
           </div>
         )}
         {sections ? (
-          <UpcomingView sections={sections} labelNames={labelNames} onOpen={openNote} images={images} />
+          <UpcomingView sections={sections} labelNames={labelNames} onOpen={openNote} images={images} placeNames={placeNames} />
         ) : (
           <>
             {pinned.length > 0 && (
               <section className={styles.section} aria-label='Pinned notes'>
                 {headings && <h2 className={styles.sectionTitle}>Pinned</h2>}
-                <NoteGrid notes={pinned} labelNames={labelNames} mode={mode} onOpen={openNote} reorderable={reorderable} images={images} />
+                <NoteGrid
+                  notes={pinned}
+                  labelNames={labelNames}
+                  mode={mode}
+                  onOpen={openNote}
+                  reorderable={reorderable}
+                  images={images}
+                  placeNames={placeNames}
+                />
               </section>
             )}
             {others.length > 0 && (
               <section className={styles.section} aria-label={headings ? 'Other notes' : 'Notes'}>
                 {headings && <h2 className={styles.sectionTitle}>Others</h2>}
-                <NoteGrid notes={others} labelNames={labelNames} mode={mode} onOpen={openNote} reorderable={reorderable} images={images} />
+                <NoteGrid
+                  notes={others}
+                  labelNames={labelNames}
+                  mode={mode}
+                  onOpen={openNote}
+                  reorderable={reorderable}
+                  images={images}
+                  placeNames={placeNames}
+                />
               </section>
             )}
           </>

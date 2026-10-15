@@ -150,4 +150,15 @@ describe('NoteCard', () => {
     expect(screen.getByText(/^Today, 11:59/)).toBeInTheDocument();
     expect(screen.queryByText(/Overdue/)).not.toBeInTheDocument();
   });
+
+  it('shows where a board note lives', async () => {
+    const note = await createNote({ id: 'p1', kind: 'note', title: 'Logo' });
+    render(
+      <ToastProvider>
+        <NoteCard note={note} labelNames={[]} mode='board' onOpen={vi.fn()} place='Website · Doing' />
+      </ToastProvider>,
+    );
+    expect(screen.getByText('Website · Doing')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open note: Logo' })).toHaveAccessibleDescription(/Website · Doing/);
+  });
 });

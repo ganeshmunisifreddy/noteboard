@@ -316,11 +316,18 @@ export const useLabels = (): Label[] | undefined =>
 
 export const useBoardNotes = (filter: BoardFilter): BoardNotes | undefined => {
   const notes = useLiveQuery(() => db.notes.toArray().catch((): Note[] => []), []);
+  const columnIds = useLiveQuery(
+    () => db.columns.toCollection().primaryKeys().catch((): string[] => []),
+    [],
+  );
   const labels = useLabels();
   const { view, labelId, query } = filter;
   return useMemo(
-    () => (notes && labels ? selectBoardNotes(notes, labels, { view, labelId, query }) : undefined),
-    [notes, labels, view, labelId, query],
+    () =>
+      notes && labels && columnIds
+        ? selectBoardNotes(notes, labels, { view, labelId, query }, new Set(columnIds))
+        : undefined,
+    [notes, labels, columnIds, view, labelId, query],
   );
 };
 
