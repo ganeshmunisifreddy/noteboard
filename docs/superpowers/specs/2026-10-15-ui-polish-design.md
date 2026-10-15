@@ -12,7 +12,7 @@ What changes is look, layout and flow. Data, URLs, backups and features stay as 
 ### Success criteria
 
 - Every section (Notes, Upcoming, Boards, each label, Archive, Trash) is visible and one click away on desktop, and one tap away (from ☰) on a phone. You always know where you are.
-- The editor shows at most 6 controls in its top bar (5 on a phone counting ⋮). The formatting bar lines up with the text, and on a phone it sits above the keyboard.
+- The editor shows at most 6 actions beside ← in its top bar (4 on a phone, counting ⋮). The formatting bar lines up with the text, and on a phone it sits above the keyboard.
 - No card has empty space below its content. Nothing is truncated or overflows at 360 px wide.
 - Light and dark themes both read well, and every text colour meets WCAG 2.2 AA.
 - Text notes can hold tick-box lines that tick on cards and in the editor.
