@@ -9,7 +9,7 @@ import styles from './ImageViewer.module.css';
 
 const FullImage = ({ image, label }: { image: Attachment; label: string }) => {
   const file = useImageFile(image.id);
-  const url = useObjectUrl(file?.bytes, image.type);
+  const url = useObjectUrl(`${image.id}:full`, file?.bytes, image.type);
   if (file === null) return <p className={styles.missing}>Image unavailable</p>;
   // Local blob URLs: next/image can't optimise them.
   // eslint-disable-next-line @next/next/no-img-element

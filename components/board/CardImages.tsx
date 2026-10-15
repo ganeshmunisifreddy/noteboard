@@ -3,7 +3,7 @@ import type { Attachment } from '../../lib/types';
 import styles from './CardImages.module.css';
 
 const Thumb = ({ image }: { image: Attachment }) => {
-  const url = useObjectUrl(image.thumb, image.thumbType);
+  const url = useObjectUrl(`${image.id}:thumb`, image.thumb, image.thumbType);
   // Local blob URLs: next/image can't optimise them.
   // eslint-disable-next-line @next/next/no-img-element
   return url ? <img src={url} alt='' className={styles.image} draggable={false} /> : <span className={styles.image} />;

@@ -18,17 +18,22 @@ const router = vi.hoisted(() => ({
 
 vi.mock('next/router', () => ({ useRouter: () => router }));
 vi.mock('next/head', () => ({ default: () => null }));
+// Lets a test hold image processing open, like a slow phone photo.
+const processing = vi.hoisted(() => ({ gate: null as Promise<void> | null }));
 // jsdom can't decode images; the processing itself is tested in lib/images.test.ts.
 vi.mock('../../lib/images', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/images')>()),
-  processImage: async (file: File) => ({
+  processImage: async (file: File) => {
+    if (processing.gate) await processing.gate;
+    return {
     bytes: bytesOf(`full-${file.name}`),
     type: 'image/jpeg',
     width: 10,
     height: 10,
     thumb: bytesOf(`thumb-${file.name}`),
     thumbType: 'image/jpeg',
-  }),
+    };
+  },
 }));
 vi.mock('./RichEditor', async () => {
   const { default: NoteBody } = await import('./NoteBody');
@@ -40,6 +45,7 @@ vi.mock('./RichEditor', async () => {
 });
 
 beforeEach(async () => {
+  processing.gate = null;
   await db.delete();
   await db.open();
   vi.clearAllMocks();
@@ -142,5 +148,64 @@ describe('images in the note editor', () => {
     open({ id: 'n5' });
     await screen.findByRole('button', { name: 'Restore' });
     expect(screen.queryByRole('button', { name: 'Add image' })).toBeNull();
+  });
+
+  it('keeps a new note whose image is still being added when leaving', async () => {
+    let release = () => {};
+    processing.gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    const { unmount } = open({ new: 'note', id: 'busy' });
+    await screen.findByRole('button', { name: 'Add image' });
+    choose([photo()]);
+    await waitFor(async () => expect(await db.notes.get('busy')).toBeDefined());
+    unmount();
+    release();
+    await waitFor(async () => expect(await db.attachments.count()).toBe(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect((await db.notes.get('busy'))?.trashedAt).toBeNull();
+  });
+
+  it('still saves typing after the note could not be created for an image', async () => {
+    vi.spyOn(db.notes, 'add').mockRejectedValueOnce(Object.assign(new Error('full'), { name: 'QuotaExceededError' }));
+    const user = userEvent.setup();
+    const { unmount } = open({ new: 'note', id: 'retry' });
+    await screen.findByRole('button', { name: 'Add image' });
+    choose([photo()]);
+    expect(await screen.findByText('Couldn’t save: storage is full.')).toBeInTheDocument();
+    await user.type(screen.getByRole('textbox', { name: 'Title' }), 'Groceries');
+    unmount();
+    await waitFor(async () => expect((await db.notes.get('retry'))?.title).toBe('Groceries'));
+  });
+
+  it('moves focus to the next image after removing one', async () => {
+    await createNote({ id: 'n7', kind: 'note' });
+    open({ id: 'n7' });
+    await screen.findByRole('button', { name: 'Add image' });
+    choose([photo('a.jpg'), photo('b.jpg')]);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Open image 2 of 2' }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove image' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Open image 1 of 1' })).toHaveFocus());
+  });
+
+  it('moves focus to Add image after removing the only image', async () => {
+    await createNote({ id: 'n8', kind: 'note' });
+    open({ id: 'n8' });
+    await screen.findByRole('button', { name: 'Add image' });
+    choose([photo()]);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Open image 1 of 1' }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove image' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add image' })).toHaveFocus());
+  });
+
+  it('says when a chosen file is not an image', async () => {
+    await createNote({ id: 'n9', kind: 'note' });
+    open({ id: 'n9' });
+    await screen.findByRole('button', { name: 'Add image' });
+    choose([new File(['%PDF'], 'scan.pdf', { type: 'application/pdf' })]);
+    expect(await screen.findByText('Couldn’t add scan.pdf: this browser can’t read it.')).toBeInTheDocument();
+    expect(await db.attachments.count()).toBe(0);
   });
 });

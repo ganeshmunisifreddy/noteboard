@@ -3,6 +3,10 @@ export const THUMB_SIZE = 480;
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const KEEP_AS_IS_BYTES = 1.5 * 1024 * 1024;
 
+// Formats every browser can show. Others (BMP, TIFF, HEIC…) are re-encoded,
+// and backups never bring in anything else (an SVG could carry a script).
+export const DISPLAYABLE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
+
 export class ImageError extends Error {
   kind: 'unreadable' | 'too-large';
   constructor(kind: 'unreadable' | 'too-large') {
@@ -113,7 +117,11 @@ export const processImage = async (file: File, tools: ImageTools = browserTools)
     const thumbSize = fitWithin(image.width, image.height, THUMB_SIZE);
     const thumb = await tools.encode(image, thumbSize.width, thumbSize.height, type, QUALITY[type]);
     const thumbPart = { thumb: await thumb.arrayBuffer(), thumbType: thumb.type || type };
-    if (Math.max(image.width, image.height) <= FULL_SIZE && file.size <= KEEP_AS_IS_BYTES) {
+    if (
+      DISPLAYABLE_TYPES.has(file.type) &&
+      Math.max(image.width, image.height) <= FULL_SIZE &&
+      file.size <= KEEP_AS_IS_BYTES
+    ) {
       return { bytes: await file.arrayBuffer(), type: file.type, width: image.width, height: image.height, ...thumbPart };
     }
     const size = fitWithin(image.width, image.height, FULL_SIZE);

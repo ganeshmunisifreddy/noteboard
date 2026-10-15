@@ -16,6 +16,7 @@ import {
 } from '../../lib/notes';
 import {
   addImages,
+  countAttachments,
   describeAttachment,
   failureMessages,
   removeAttachment,
@@ -41,6 +42,8 @@ import { preloadRichEditor, useRichEditor } from './useRichEditor';
 if (typeof window !== 'undefined') preloadRichEditor().catch(() => {});
 
 export type Draft = Pick<Note, 'kind' | 'title' | 'content' | 'items' | 'color' | 'labelIds' | 'pinned' | 'archived'>;
+
+const NO_IMAGES: Attachment[] = [];
 
 const SAVE_DELAY_MS = 300;
 
@@ -91,10 +94,21 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   const mountedRef = useRef(true);
   const trashed = stored?.trashedAt != null;
-  const images = useNoteAttachments(noteId) ?? [];
+  const images = useNoteAttachments(noteId) ?? NO_IMAGES;
   const [pendingImages, setPendingImages] = useState(0);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [dropping, setDropping] = useState(false);
+  // Image adds still running; leaving waits for them before judging the note empty.
+  const addingRef = useRef<Promise<unknown>>(Promise.resolve());
+  const focusAfterRemove = useRef<{ id: string; index: number } | null>(null);
+
+  useEffect(() => {
+    const target = focusAfterRemove.current;
+    if (!target || images.some((i) => i.id === target.id)) return;
+    focusAfterRemove.current = null;
+    const selector = target.index < 0 ? 'button[aria-label="Add image"]' : `[data-gallery-index="${target.index}"]`;
+    document.querySelector<HTMLElement>(selector)?.focus();
+  }, [images]);
 
   const save = async () => {
     if (!dirtyRef.current) return;
@@ -127,19 +141,29 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
   // image (in the save queue, so it can't be created twice).
   const ensureCreated = () => {
     clearTimeout(timerRef.current);
-    queueRef.current = queueRef.current.then(save).then(async () => {
+    const run = queueRef.current.then(save).then(async () => {
       if (createdRef.current) return;
       await createNote({ id: noteId, ...draftRef.current });
       createdRef.current = true;
       dirtyRef.current = false;
       if (mountedRef.current) void router.replace(noteHref(noteId), undefined, { shallow: true });
     });
-    return queueRef.current;
+    // A failed create must not block the saves queued after it.
+    queueRef.current = run.catch(() => {});
+    return run;
   };
 
-  const addFiles = async (files: File[]) => {
+  // `fromDrop`: other files dropped with images are ignored quietly; chosen
+  // or pasted ones get a message.
+  const addFiles = async (files: File[], fromDrop = false) => {
+    if (trashed) return;
     const chosen = files.filter((file) => file.type.startsWith('image/'));
-    if (trashed || chosen.length === 0) return;
+    if (!fromDrop) {
+      for (const file of files.filter((f) => !chosen.includes(f))) {
+        toast({ message: `Couldn’t add ${file.name}: this browser can’t read it.` });
+      }
+    }
+    if (chosen.length === 0) return;
     editedRef.current = true;
     try {
       await ensureCreated();
@@ -148,12 +172,18 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
       return;
     }
     setPendingImages((n) => n + chosen.length);
-    const failures = await addImages(noteId, chosen);
+    const adding = addImages(noteId, chosen);
+    addingRef.current = addingRef.current.then(() => adding).catch(() => {});
+    const failures = await adding;
     setPendingImages((n) => n - chosen.length);
     for (const message of failureMessages(failures)) toast({ message });
   };
 
   const removeImage = async (image: Attachment) => {
+    // Once the gallery has updated, focus the next image (or Add image), as
+    // the removed image's button goes away.
+    const index = images.findIndex((i) => i.id === image.id);
+    focusAfterRemove.current = { id: image.id, index: images.length > 1 ? Math.min(index, images.length - 2) : -1 };
     setViewerIndex(null);
     const removed = await removeAttachment(image.id);
     if (removed) {
@@ -173,18 +203,16 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
 
   const onLeave = useEffectEvent(() => {
     void flush().then(async () => {
+      // Images still being processed count as content.
+      await addingRef.current;
       // A note the user emptied goes to Trash rather than lingering blank.
-      if (
-        !createdRef.current ||
-        !editedRef.current ||
-        trashed ||
-        images.length > 0 ||
-        !isNoteEmpty(draftRef.current)
-      )
-        return;
+      if (!createdRef.current || !editedRef.current || trashed || !isNoteEmpty(draftRef.current)) return;
+      if ((await countAttachments(noteId)) > 0) return;
       await trashNote(noteId);
       toast({ message: 'Empty note moved to trash', actionLabel: 'Undo', onAction: () => void undoTrash(noteId) });
-    });
+    })
+      // Tidying up an empty note is best effort; the page is already gone.
+      .catch(() => {});
   });
 
   const onHide = useEffectEvent(() => {
@@ -302,7 +330,7 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
         if (!e.dataTransfer.types.includes('Files')) return;
         e.preventDefault();
         setDropping(false);
-        void addFiles([...e.dataTransfer.files]);
+        void addFiles([...e.dataTransfer.files], true);
       }}
     >
       {dropping && (

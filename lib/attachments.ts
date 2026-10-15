@@ -14,6 +14,8 @@ const byPosition = (a: Attachment, b: Attachment) => a.position - b.position;
 // Images are part of the note: changing them is an edit.
 const touch = (noteId: string) => db.notes.update(noteId, { updatedAt: Date.now() });
 
+export const countAttachments = (noteId: string) => db.attachments.where('noteId').equals(noteId).count();
+
 export const getAttachments = async (noteId: string) =>
   (await db.attachments.where('noteId').equals(noteId).toArray()).sort(byPosition);
 

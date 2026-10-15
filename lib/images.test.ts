@@ -74,4 +74,11 @@ describe('processImage', () => {
     await expect(processImage(file(26 * 1024 * 1024), fakeTools().tools)).rejects.toEqual(new ImageError('too-large'));
     await expect(processImage(file(100), fakeTools({ failDecode: true }).tools)).rejects.toEqual(new ImageError('unreadable'));
   });
+
+  it('re-encodes small images in formats browsers may not show', async () => {
+    const { tools, encoded } = fakeTools({ width: 800, height: 600 });
+    const result = await processImage(file(200_000, 'image/bmp', 'scan.bmp'), tools);
+    expect(encoded).toHaveLength(2);
+    expect(result.type).toBe('image/jpeg');
+  });
 });

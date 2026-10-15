@@ -306,6 +306,26 @@ describe('backups with images', () => {
     await restoreBackup(text);
     expect((await db.attachments.toArray()).map((a) => a.id)).toEqual(['good']);
   });
+
+  it('skips images of types that are not safe to show', async () => {
+    const image = (id: string, type: string, thumbType: string) => ({
+      id, noteId: 'n', position: 0, type, width: 1, height: 1, alt: '', createdAt: 0, thumbType, data: 'aGk=', thumb: 'aGk=',
+    });
+    const text = JSON.stringify({
+      format: 'noteboard-backup',
+      version: 2,
+      exportedAt: 'x',
+      notes: [{ id: 'n', title: 'N', updatedAt: 5 }],
+      labels: [],
+      attachments: [
+        image('ok', 'image/png', 'image/webp'),
+        image('svg', 'image/svg+xml', 'image/jpeg'),
+        image('svg-thumb', 'image/jpeg', 'image/svg+xml'),
+      ],
+    });
+    await restoreBackup(text);
+    expect((await db.attachments.toArray()).map((a) => a.id)).toEqual(['ok']);
+  });
 });
 
 describe('toMarkdown with images', () => {

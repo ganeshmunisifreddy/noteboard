@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { deleteAttachmentsOf, getAllImages } from './attachments';
 import { fromBase64, toBase64 } from './base64';
+import { DISPLAYABLE_TYPES } from './images';
 import { db } from './db';
 import { downloadFile } from './download';
 import { selectBoardNotes } from './filters';
@@ -80,8 +81,8 @@ const toImage = (entry: Record<string, unknown>): ImportedImage | null => {
   const type = text(entry.type);
   const bytes = fromBase64(text(entry.data));
   const thumb = fromBase64(text(entry.thumb));
-  if (!id || !noteId || !type.startsWith('image/') || !bytes || !thumb) return null;
-  const thumbType = text(entry.thumbType);
+  const thumbType = text(entry.thumbType) || type;
+  if (!id || !noteId || !DISPLAYABLE_TYPES.has(type) || !DISPLAYABLE_TYPES.has(thumbType) || !bytes || !thumb) return null;
   return {
     attachment: {
       id,
@@ -94,7 +95,7 @@ const toImage = (entry: Record<string, unknown>): ImportedImage | null => {
       alt: text(entry.alt).trim(),
       createdAt: finite(entry.createdAt) ?? 0,
       thumb,
-      thumbType: thumbType.startsWith('image/') ? thumbType : type,
+      thumbType,
     },
     file: { id, bytes },
   };

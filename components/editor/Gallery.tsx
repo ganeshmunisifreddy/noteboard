@@ -8,8 +8,8 @@ type ItemProps = { image: Attachment; index: number; total: number; single: bool
 const GalleryItem = ({ image, index, total, single, onOpen }: ItemProps) => {
   // A single image is shown large, so it uses the full image once loaded.
   const file = useImageFile(single ? image.id : null);
-  const full = useObjectUrl(file?.bytes, image.type);
-  const thumb = useObjectUrl(image.thumb, image.thumbType);
+  const full = useObjectUrl(`${image.id}:full`, file?.bytes, image.type);
+  const thumb = useObjectUrl(`${image.id}:thumb`, image.thumb, image.thumbType);
   const url = full ?? thumb;
   return (
     <button
