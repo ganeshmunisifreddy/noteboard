@@ -141,7 +141,8 @@ describe('Home', () => {
 
     router.query = { q: 'logo' };
     render(<Home />);
-    expect(await screen.findByText('Logo idea')).toBeInTheDocument();
+    // The title's match is marked, so the heading's text is split.
+    expect(await screen.findByRole('heading', { name: 'Logo idea' })).toBeInTheDocument();
     expect(screen.getByText('Website · To do')).toBeInTheDocument();
   });
 

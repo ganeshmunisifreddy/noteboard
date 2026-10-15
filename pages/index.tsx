@@ -199,6 +199,7 @@ const Home: NextPage = () => {
                   reorderable={reorderable}
                   images={images}
                   placeNames={placeNames}
+                  highlight={filter.query}
                 />
               </section>
             )}
@@ -213,6 +214,7 @@ const Home: NextPage = () => {
                   reorderable={reorderable}
                   images={images}
                   placeNames={placeNames}
+                  highlight={filter.query}
                 />
               </section>
             )}

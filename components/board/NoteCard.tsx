@@ -19,6 +19,7 @@ import Menu from '../ui/Menu';
 import { useToast } from '../ui/Toast';
 import CardDue from './CardDue';
 import CardImages from './CardImages';
+import Highlight from './Highlight';
 import MarkdownPreview from './MarkdownPreview';
 import styles from './NoteCard.module.css';
 
@@ -33,11 +34,22 @@ type Props = {
   images?: Attachment[];
   imageCount?: number; // all of the note's images; `images` may be only the first few
   place?: string; // "Board · Column" for a board note shown outside its board
+  highlight?: string; // the search, marked in the title and text
 };
 
 const PREVIEW_ITEMS = 8;
 
-const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle, images = [], imageCount = images.length, place }: Props) => {
+const NoteCard = ({
+  note,
+  labelNames,
+  mode,
+  onOpen,
+  dragHandle,
+  images = [],
+  imageCount = images.length,
+  place,
+  highlight,
+}: Props) => {
   const toast = useToast();
   const id = useId();
   const openItems = note.items.filter((i) => !i.done);
@@ -91,13 +103,18 @@ const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle, images = [], ima
           </span>
         </>
       )}
-      {note.title && <h3 className={styles.title}>{note.title}</h3>}
+      {note.title && (
+        <h3 className={styles.title}>
+          <Highlight text={note.title} query={highlight} />
+        </h3>
+      )}
       {showContent && (
         <MarkdownPreview
           id={`${id}-content`}
           className={styles.content}
           markdown={note.content}
           clamp
+          highlight={highlight}
           onToggleTask={
             mode === 'trash'
               ? undefined
@@ -116,7 +133,9 @@ const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle, images = [], ima
                 aria-label={`Mark “${item.text || 'item'}” done`}
                 onChange={() => void toggleItem(note.id, item.id)}
               />
-              <span>{item.text}</span>
+              <span>
+                <Highlight text={item.text} query={highlight} />
+              </span>
             </li>
           ))}
         </ul>

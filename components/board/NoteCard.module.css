@@ -182,3 +182,9 @@
   font-weight: 700;
   color: var(--note-ink);
 }
+
+.mark {
+  border-radius: 2px;
+  background: var(--accent-soft);
+  color: inherit;
+}

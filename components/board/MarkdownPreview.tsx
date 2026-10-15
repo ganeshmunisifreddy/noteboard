@@ -1,16 +1,17 @@
 import type { Token, Tokens } from 'marked';
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { decodeEntities, parseMarkdown } from '../../lib/markdown';
+import Highlight from './Highlight';
 import styles from './MarkdownPreview.module.css';
 
 const textOf = (token: Token) => decodeEntities('text' in token && typeof token.text === 'string' ? token.text : token.raw);
 
 type RenderOptions = { onToggleTask?: (index: number) => void; highlight?: string };
 
-const renderer = ({ onToggleTask }: RenderOptions) => {
+const renderer = ({ onToggleTask, highlight }: RenderOptions) => {
   let task = 0; // tick boxes are numbered in document order, as lib/tasks counts them
 
-  const text = (value: string): ReactNode => value;
+  const text = (value: string): ReactNode => <Highlight text={value} query={highlight} />;
 
   const inline = (tokens: Token[] | undefined): ReactNode =>
     (tokens ?? []).map((token, index) => <Fragment key={index}>{inlineToken(token)}</Fragment>);

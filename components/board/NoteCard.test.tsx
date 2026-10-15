@@ -180,3 +180,16 @@ describe('tick boxes on cards', () => {
     );
   });
 });
+
+describe('search matches on cards', () => {
+  it('marks search matches in the title and text', async () => {
+    const note = await createNote({ kind: 'note', title: 'Milk run', content: 'Buy **milk** today' });
+    render(
+      <ToastProvider>
+        <NoteCard note={note} labelNames={[]} mode='board' onOpen={vi.fn()} highlight='milk' />
+      </ToastProvider>,
+    );
+    const marks = document.querySelectorAll('mark');
+    expect([...marks].map((m) => m.textContent)).toEqual(['Milk', 'milk']);
+  });
+});
