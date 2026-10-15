@@ -214,6 +214,8 @@ describe('board page', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Delete column' }));
     await waitFor(async () => expect(await db.columns.get(columns[1].id)).toBeUndefined());
     expect((await db.notes.get('n1'))?.columnId).toBe(columns[0].id);
+    // The closing menu blocks pointer events on the page until it's gone.
+    await waitFor(() => expect(document.body.style.pointerEvents).not.toBe('none'));
     await user.click(await screen.findByRole('button', { name: 'Undo' }));
     await waitFor(async () => expect((await db.notes.get('n1'))?.columnId).toBe(columns[1].id));
   });
