@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { deleteAttachmentsOf, getAllImages } from './attachments';
 import { fromBase64, toBase64 } from './base64';
+import { BOARD_NAME_MAX, COLUMN_NAME_MAX, cleanName } from './boards';
 import { isDateString, isTimeString } from './calendar';
 import { alertTime, formatDueLong, isDone, lowerFirst } from './due';
 import { REPEAT_UNITS, repeatText } from './repeat';
@@ -9,11 +10,14 @@ import { db } from './db';
 import { downloadFile } from './download';
 import { selectBoardNotes } from './filters';
 import { getAllData, refreshHasNotesMarker } from './notes';
+import { byBoardPosition, byPosition } from './places';
 import { isQuotaError } from './storage';
 import {
   NOTE_COLORS,
   type Attachment,
+  type Board,
   type ChecklistItem,
+  type Column,
   type Due,
   type ImageFile,
   type Label,
@@ -25,7 +29,7 @@ import {
 } from './types';
 
 export const BACKUP_FORMAT = 'noteboard-backup';
-export const BACKUP_VERSION = 3;
+export const BACKUP_VERSION = 4;
 export const NOT_A_BACKUP = 'That file isn’t a Noteboard backup.';
 export const NEWER_VERSION = 'This backup is from a newer version of Noteboard.';
 
@@ -39,14 +43,22 @@ export type Backup = {
   notes: Note[];
   labels: Label[];
   attachments: BackupAttachment[];
+  boards: Board[];
+  columns: Column[];
 };
 
 // Position is filled in during the merge when the backup has none.
 export type ImportedNote = Omit<Note, 'position'> & { position: number | null };
 export type ImportedImage = { attachment: Attachment; file: ImageFile };
-export type ImportedBackup = { notes: ImportedNote[]; labels: Label[]; attachments: ImportedImage[] };
+export type ImportedBackup = {
+  notes: ImportedNote[];
+  labels: Label[];
+  attachments: ImportedImage[];
+  boards: Board[];
+  columns: Column[];
+};
 
-export type MergeCounts = { added: number; updated: number; unchanged: number; labels: number };
+export type MergeCounts = { added: number; updated: number; unchanged: number; labels: number; boards?: number };
 
 export class BackupError extends Error {}
 
@@ -108,6 +120,36 @@ const toDue = (value: unknown): Due | null => {
 const quietDue = (due: Due | null, now: number): Due | null =>
   due && due.alertedAt === null && due.doneAt === null && alertTime(due) <= now ? { ...due, alertedAt: now } : due;
 
+const id = (value: unknown) => (typeof value === 'string' && value ? value : null);
+
+const toBoard = (entry: Record<string, unknown>): Board | null => {
+  const boardId = id(entry.id);
+  const name = cleanName(text(entry.name), BOARD_NAME_MAX);
+  if (!boardId || !name) return null;
+  return {
+    id: boardId,
+    name,
+    position: finite(entry.position) ?? 0,
+    createdAt: finite(entry.createdAt) ?? 0,
+    updatedAt: finite(entry.updatedAt) ?? 0,
+  };
+};
+
+const toColumn = (entry: Record<string, unknown>): Column | null => {
+  const columnId = id(entry.id);
+  const boardId = id(entry.boardId);
+  const name = cleanName(text(entry.name), COLUMN_NAME_MAX);
+  if (!columnId || !boardId || !name) return null;
+  return {
+    id: columnId,
+    boardId,
+    name,
+    position: finite(entry.position) ?? 0,
+    done: entry.done === true,
+    updatedAt: finite(entry.updatedAt) ?? 0,
+  };
+};
+
 const toNote = (entry: Record<string, unknown>): ImportedNote => {
   const updatedAt = finite(entry.updatedAt) ?? 0;
   const archived = entry.archived === true;
@@ -127,7 +169,10 @@ const toNote = (entry: Record<string, unknown>): ImportedNote => {
     updatedAt,
     position: finite(entry.position),
     due: toDue(entry.due),
-    boardId: null, columnId: null, boardPosition: 0, // read from v4 backups in Task 4
+    // Checked against the boards and columns during the merge.
+    boardId: id(entry.boardId),
+    columnId: id(entry.columnId),
+    boardPosition: finite(entry.boardPosition) ?? 0,
   };
 };
 
@@ -174,6 +219,8 @@ export const buildBackup = (
   labels: Label[],
   now = new Date(),
   attachments: BackupAttachment[] = [],
+  boards: Board[] = [],
+  columns: Column[] = [],
 ): Backup => ({
   format: BACKUP_FORMAT,
   version: BACKUP_VERSION,
@@ -181,6 +228,8 @@ export const buildBackup = (
   notes,
   labels,
   attachments,
+  boards,
+  columns,
 });
 
 // Everything in the database, images included.
@@ -192,7 +241,8 @@ export const collectBackup = async (now = new Date()): Promise<Backup> => {
     const data = bytes.get(attachment.id);
     return data ? [toBackupAttachment(attachment, data)] : [];
   });
-  return buildBackup(notes, labels, now, packed);
+  const [boards, columns] = await Promise.all([db.boards.toArray(), db.columns.toArray()]);
+  return buildBackup(notes, labels, now, packed, boards, columns);
 };
 
 export const parseBackup = (contents: string): ImportedBackup => {
@@ -229,13 +279,32 @@ export const parseBackup = (contents: string): ImportedBackup => {
           .map(toImage)
           .filter((image): image is ImportedImage => image !== null)
       : [];
-  return { notes: [...notes.values()], labels, attachments };
+  const boards =
+    data.version >= 4 && Array.isArray(data.boards)
+      ? data.boards.filter(isRecord).map(toBoard).filter((b): b is Board => b !== null)
+      : [];
+  const boardIds = new Set(boards.map((b) => b.id));
+  const columns =
+    data.version >= 4 && Array.isArray(data.columns)
+      ? data.columns
+          .filter(isRecord)
+          .map(toColumn)
+          .filter((c): c is Column => c !== null && boardIds.has(c.boardId))
+      : [];
+  return { notes: [...notes.values()], labels, attachments, boards, columns };
 };
 
 const labelKey = (name: string) => name.trim().toLowerCase();
 
 // Works out what a restore writes. Nothing local is ever deleted.
-export const planMerge = (localNotes: Note[], localLabels: Label[], imported: ImportedBackup, now = Date.now()) => {
+export const planMerge = (
+  localNotes: Note[],
+  localLabels: Label[],
+  imported: ImportedBackup,
+  now = Date.now(),
+  localBoards: Board[] = [],
+  localColumns: Column[] = [],
+) => {
   const byName = new Map(localLabels.map((l) => [labelKey(l.name), l]));
   const takenIds = new Set(localLabels.map((l) => l.id));
   const labelIdMap = new Map<string, string>();
@@ -253,6 +322,24 @@ export const planMerge = (localNotes: Note[], localLabels: Label[], imported: Im
     labelIdMap.set(label.id, added.id);
   }
 
+  // Boards and columns merge by id; the newer copy wins; nothing local is deleted.
+  const newer = <T extends { id: string; updatedAt: number }>(local: T[], incoming: T[]) => {
+    const mine = new Map(local.map((x) => [x.id, x]));
+    return incoming.filter((x) => {
+      const current = mine.get(x.id);
+      return !current || x.updatedAt > current.updatedAt;
+    });
+  };
+  const boards = newer(localBoards, imported.boards);
+  const columns = newer(localColumns, imported.columns);
+  const allColumns = new Map([...localColumns, ...columns].map((c) => [c.id, c]));
+  const allBoards = new Set([...localBoards, ...boards].map((b) => b.id));
+  const placeOf = (note: ImportedNote) => {
+    const column = note.columnId ? allColumns.get(note.columnId) : undefined;
+    return column && column.boardId === note.boardId && allBoards.has(column.boardId)
+      ? { boardId: note.boardId, columnId: note.columnId, boardPosition: note.boardPosition }
+      : { boardId: null, columnId: null, boardPosition: 0 };
+  };
   const local = new Map(localNotes.map((n) => [n.id, n]));
   let lastPosition = localNotes.reduce((max, n) => Math.max(max, n.position), -1);
   const notes: Note[] = [];
@@ -267,7 +354,7 @@ export const planMerge = (localNotes: Note[], localLabels: Label[], imported: Im
       ...new Set(note.labelIds.map((id) => labelIdMap.get(id)).filter((id): id is string => !!id)),
     ];
     const position = note.position ?? (lastPosition += 1);
-    notes.push({ ...note, labelIds, position, due: quietDue(note.due, now) });
+    notes.push({ ...note, labelIds, position, due: quietDue(note.due, now), ...placeOf(note) });
     if (current) counts.updated += 1;
     else counts.added += 1;
   }
@@ -275,16 +362,26 @@ export const planMerge = (localNotes: Note[], localLabels: Label[], imported: Im
   const replaceImagesOf = notes.map((note) => note.id);
   const changed = new Set(replaceImagesOf);
   const attachments = imported.attachments.filter((image) => changed.has(image.attachment.noteId));
-  return { labels, notes, counts, attachments, replaceImagesOf };
+  const addedBoards = boards.filter((b) => !localBoards.some((l) => l.id === b.id)).length;
+  if (addedBoards > 0) counts.boards = addedBoards;
+  return { labels, notes, counts, attachments, replaceImagesOf, boards, columns };
 };
 
 // All or nothing: a failure leaves the database unchanged.
 export const restoreBackup = async (contents: string): Promise<MergeCounts> => {
   const imported = parseBackup(contents);
-  const counts = await db.transaction('rw', [db.notes, db.labels, db.attachments, db.imageFiles], async () => {
-    const [notes, labels] = await Promise.all([db.notes.toArray(), db.labels.toArray()]);
-    const plan = planMerge(notes, labels, imported);
+  const tables = [db.notes, db.labels, db.attachments, db.imageFiles, db.boards, db.columns];
+  const counts = await db.transaction('rw', tables, async () => {
+    const [notes, labels, localBoards, localColumns] = await Promise.all([
+      db.notes.toArray(),
+      db.labels.toArray(),
+      db.boards.toArray(),
+      db.columns.toArray(),
+    ]);
+    const plan = planMerge(notes, labels, imported, Date.now(), localBoards, localColumns);
     await db.labels.bulkAdd(plan.labels);
+    await db.boards.bulkPut(plan.boards);
+    await db.columns.bulkPut(plan.columns);
     await db.notes.bulkPut(plan.notes);
     await deleteAttachmentsOf(plan.replaceImagesOf);
     // An image id already used by another note's image gets a new id, so the
@@ -315,10 +412,16 @@ const dueLine = (due: Due) =>
 
 const SEPARATOR = '\n\n---\n\n';
 
-export const toMarkdown = (notes: Note[], labels: Label[], imageCounts: Map<string, number> = new Map()): string => {
+export const toMarkdown = (
+  notes: Note[],
+  labels: Label[],
+  imageCounts: Map<string, number> = new Map(),
+  boards: Board[] = [],
+  columns: Column[] = [],
+): string => {
   const names = new Map(labels.map((l) => [l.id, l.name]));
-  const block = (note: Note) => {
-    const head = [`## ${note.title.trim() || 'Untitled'}`];
+  const block = (note: Note, level = '##') => {
+    const head = [`${level} ${note.title.trim() || 'Untitled'}`];
     const noteLabels = note.labelIds.map((id) => names.get(id)).filter((n): n is string => !!n);
     if (noteLabels.length > 0) head.push(`Labels: ${noteLabels.join(', ')}`);
     if (note.due) head.push(dueLine(note.due));
@@ -333,19 +436,30 @@ export const toMarkdown = (notes: Note[], labels: Label[], imageCounts: Map<stri
     return body.trim() ? `${head.join('\n')}\n\n${body}` : head.join('\n');
   };
 
-  const board = selectBoardNotes(notes, labels, { view: 'all', labelId: null, query: '' });
+  const board = selectBoardNotes(notes, labels, { view: 'all', labelId: null, query: '' }, new Set(columns.map((c) => c.id)));
   const archived = selectBoardNotes(notes, labels, { view: 'archive', labelId: null, query: '' }).others;
-  const sections = [[...board.pinned, ...board.others].map(block).join(SEPARATOR)];
-  if (archived.length > 0) sections.push(`# Archived\n\n${archived.map(block).join(SEPARATOR)}`);
+  const sections = [[...board.pinned, ...board.others].map((note) => block(note)).join(SEPARATOR)];
+  const active = (n: Note) => !n.archived && n.trashedAt === null;
+  for (const board of [...boards].sort(byPosition)) {
+    const parts = [`# Board: ${board.name}`];
+    for (const column of columns.filter((c) => c.boardId === board.id).sort(byPosition)) {
+      const cards = notes.filter((n) => n.columnId === column.id && active(n)).sort(byBoardPosition);
+      parts.push(`## ${column.name}`, cards.length > 0 ? cards.map((n) => block(n, '###')).join('\n\n') : '_No cards_');
+    }
+    sections.push(parts.join('\n\n'));
+  }
+  if (archived.length > 0) sections.push(`# Archived\n\n${archived.map((note) => block(note)).join(SEPARATOR)}`);
   const output = sections.filter(Boolean).join(SEPARATOR);
   return output ? `${output}\n` : '';
 };
 
-export const restoredMessage = ({ added, updated, unchanged, labels }: MergeCounts) => {
+export const restoredMessage = ({ added, updated, unchanged, labels, boards = 0 }: MergeCounts) => {
   const total = added + updated + unchanged;
-  if (total === 0 && labels > 0) return `That backup has no notes. Added ${labels} ${labels === 1 ? 'label' : 'labels'}.`;
-  if (total === 0) return 'That backup has no notes.';
-  return `Restored ${total} ${total === 1 ? 'note' : 'notes'}: ${added} added, ${updated} updated, ${unchanged} already up to date`;
+  const extra = boards > 0 ? ` Added ${boards} ${boards === 1 ? 'board' : 'boards'}.` : '';
+  if (total === 0 && labels > 0) return `That backup has no notes. Added ${labels} ${labels === 1 ? 'label' : 'labels'}.${extra}`;
+  if (total === 0) return `That backup has no notes.${extra}`;
+  const summary = `Restored ${total} ${total === 1 ? 'note' : 'notes'}: ${added} added, ${updated} updated, ${unchanged} already up to date`;
+  return extra ? `${summary}.${extra}` : summary;
 };
 
 export const restoreErrorMessage = (error: unknown) => {
@@ -380,5 +494,6 @@ export const downloadMarkdown = async (now = new Date()) => {
   const { attachments } = await getAllImages();
   const counts = new Map<string, number>();
   for (const attachment of attachments) counts.set(attachment.noteId, (counts.get(attachment.noteId) ?? 0) + 1);
-  downloadFile(markdownFileName(now), toMarkdown(notes, labels, counts), 'text/markdown');
+  const [boards, columns] = await Promise.all([db.boards.toArray(), db.columns.toArray()]);
+  downloadFile(markdownFileName(now), toMarkdown(notes, labels, counts, boards, columns), 'text/markdown');
 };

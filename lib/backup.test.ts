@@ -22,6 +22,7 @@ import type { ProcessedImage } from './images';
 import { createLabel, createNote, getAllData } from './notes';
 import { presetRepeat } from './repeat';
 import { bytesOf, makeNote } from './testUtils';
+import type { Board, Column } from './types';
 
 beforeEach(async () => {
   await db.delete();
@@ -43,11 +44,13 @@ describe('buildBackup', () => {
     const backup = buildBackup([note], [{ id: 'l', name: 'Work' }], new Date('2026-10-14T12:00:00Z'));
     expect(backup).toEqual({
       format: 'noteboard-backup',
-      version: 3,
+      version: 4,
       exportedAt: '2026-10-14T12:00:00.000Z',
       notes: [note],
       labels: [{ id: 'l', name: 'Work' }],
       attachments: [],
+      boards: [],
+      columns: [],
     });
   });
 });
@@ -60,7 +63,7 @@ describe('parseBackup', () => {
   });
 
   it('rejects backups from a newer version', () => {
-    expect(() => parseBackup(backupOf([], [], 4))).toThrow(new BackupError(NEWER_VERSION));
+    expect(() => parseBackup(backupOf([], [], 5))).toThrow(new BackupError(NEWER_VERSION));
   });
 
   it('skips broken entries and fills defaults', () => {
@@ -438,5 +441,97 @@ describe('dates in backups', () => {
     const markdown = toMarkdown(notes, []);
     expect(markdown).toContain('## Retro\n⏰ Due Fri 16 Oct 2026 · repeats weekly');
     expect(markdown).toContain('## Bill\n⏰ Done (was due Fri 16 Oct 2026)');
+  });
+});
+
+describe('boards in backups', () => {
+  const board: Board = { id: 'b1', name: 'Website', position: 0, createdAt: 1, updatedAt: 1 };
+  const columns: Column[] = [
+    { id: 'c1', boardId: 'b1', name: 'To do', position: 0, done: false, updatedAt: 1 },
+    { id: 'c2', boardId: 'b1', name: 'Done', position: 1, done: true, updatedAt: 1 },
+  ];
+  const v4 = (notes: unknown[], boards: unknown[] = [board], cols: unknown[] = columns) =>
+    file({ format: 'noteboard-backup', version: 4, exportedAt: 'x', notes, labels: [], attachments: [], boards, columns: cols });
+
+  it('round-trips boards, columns and places', async () => {
+    const card = makeNote({ id: 'n1', boardId: 'b1', columnId: 'c2', boardPosition: 3, updatedAt: 5 });
+    const contents = JSON.stringify(buildBackup([card], [], new Date(), [], [board], columns));
+    const counts = await restoreBackup(contents);
+    expect(counts.boards).toBe(1);
+    expect(await db.boards.get('b1')).toEqual(board);
+    expect(await db.columns.toArray()).toEqual(columns);
+    expect(await db.notes.get('n1')).toMatchObject({ boardId: 'b1', columnId: 'c2', boardPosition: 3 });
+  });
+
+  it('restores older backups with every note on the main board', () => {
+    const { notes, boards } = parseBackup(
+      file({ format: 'noteboard-backup', version: 3, notes: [{ id: 'a', boardId: 'b1', columnId: 'c1' }], labels: [] }),
+    );
+    expect(boards).toEqual([]);
+    expect(notes[0]).toMatchObject({ boardId: 'b1', columnId: 'c1' });
+    const plan = planMerge([], [], parseBackup(file({ format: 'noteboard-backup', version: 3, notes: [{ id: 'a' }], labels: [] })));
+    expect(plan.notes[0]).toMatchObject({ boardId: null, columnId: null, boardPosition: 0 });
+  });
+
+  it('puts notes with a broken place on the main board', () => {
+    const other: Board = { ...board, id: 'b2', name: 'Other' };
+    const imported = parseBackup(
+      v4(
+        [
+          { id: 'wrong-board', updatedAt: 1, boardId: 'b2', columnId: 'c1', boardPosition: 1 },
+          { id: 'no-column', updatedAt: 1, boardId: 'b1', columnId: 'gone', boardPosition: 1 },
+          { id: 'fine', updatedAt: 1, boardId: 'b1', columnId: 'c1', boardPosition: 1 },
+        ],
+        [board, other],
+      ),
+    );
+    const byId = new Map(planMerge([], [], imported).notes.map((n) => [n.id, n]));
+    expect(byId.get('wrong-board')).toMatchObject({ boardId: null, columnId: null, boardPosition: 0 });
+    expect(byId.get('no-column')).toMatchObject({ boardId: null, columnId: null });
+    expect(byId.get('fine')).toMatchObject({ boardId: 'b1', columnId: 'c1', boardPosition: 1 });
+  });
+
+  it('keeps a same-name board as a second board and the newer copy of each', () => {
+    const local: Board = { ...board, id: 'mine', name: 'Website', updatedAt: 1 };
+    const localColumn: Column = { ...columns[0], id: 'mc', boardId: 'mine', updatedAt: 9 };
+    const imported = parseBackup(
+      v4([], [board, { ...local, name: 'Renamed', updatedAt: 5 }], [...columns, { ...localColumn, name: 'Old', updatedAt: 2 }]),
+    );
+    const plan = planMerge([], [], imported, Date.now(), [local], [localColumn]);
+    expect(plan.boards.map((b) => [b.id, b.name])).toEqual([
+      ['b1', 'Website'],
+      ['mine', 'Renamed'],
+    ]);
+    expect(plan.columns.map((c) => c.id)).toEqual(['c1', 'c2']);
+    expect(plan.counts.boards).toBe(1);
+  });
+
+  it('skips invalid boards and columns', () => {
+    const { boards, columns: cols } = parseBackup(
+      v4([], [board, { id: '', name: 'x' }, { id: 'b3', name: '  ' }, 7], [
+        ...columns,
+        { id: 'c9', boardId: 'nowhere', name: 'Lost', position: 0 },
+        { id: 'c8', boardId: 'b1', name: '' },
+      ]),
+    );
+    expect(boards.map((b) => b.id)).toEqual(['b1']);
+    expect(cols.map((c) => c.id)).toEqual(['c1', 'c2']);
+  });
+
+  it('says how many boards were added', () => {
+    expect(restoredMessage({ added: 1, updated: 0, unchanged: 0, labels: 0, boards: 2 })).toBe(
+      'Restored 1 note: 1 added, 0 updated, 0 already up to date. Added 2 boards.',
+    );
+  });
+
+  it('writes board sections in the Markdown export', () => {
+    const notes = [
+      makeNote({ id: 'm', title: 'Main' }),
+      makeNote({ id: 'x', title: 'Logo', boardId: 'b1', columnId: 'c1', boardPosition: 1 }),
+      makeNote({ id: 'y', title: 'Fonts', boardId: 'b1', columnId: 'c1', boardPosition: 0 }),
+    ];
+    expect(toMarkdown(notes, [], new Map(), [board], columns)).toBe(
+      '## Main\n\n---\n\n# Board: Website\n\n## To do\n\n### Fonts\n\n### Logo\n\n## Done\n\n_No cards_\n',
+    );
   });
 });
