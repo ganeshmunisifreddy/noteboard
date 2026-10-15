@@ -19,6 +19,9 @@ export const makeNote = (overrides: Partial<Note> = {}): Note => {
     updatedAt: 0,
     position: 0,
     due: null,
+    boardId: null,
+    columnId: null,
+    boardPosition: 0,
     ...overrides,
   };
 };

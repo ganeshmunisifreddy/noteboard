@@ -25,7 +25,7 @@ const afterWrite = async () => {
 };
 
 // A position above every note, so it lands at the top of its section.
-const nextTopPosition = async () => {
+export const nextTopPosition = async () => {
   const first = await db.notes.orderBy('position').first();
   return first ? first.position - 1 : 0;
 };
@@ -55,6 +55,9 @@ export const createNote = async (input: NewNote): Promise<Note> => {
     updatedAt: now,
     position: input.position ?? 0,
     due: input.due ?? null,
+    boardId: input.boardId ?? null,
+    columnId: input.columnId ?? null,
+    boardPosition: input.boardPosition ?? 0,
   };
   // Reading the top position and writing in one transaction keeps two quick
   // writes from landing on the same place.
@@ -196,6 +199,7 @@ export const duplicateNote = async (id: string): Promise<Note | undefined> => {
       position: await nextTopPosition(),
       // The date comes along; whether it was done, alerted or snoozed doesn’t.
       due: note.due && seenIfPast({ ...note.due, doneAt: null, alertedAt: null, snoozedUntil: null }, now),
+      boardId: null, columnId: null, boardPosition: 0, // Task 2 places the copy below the original
     };
     await db.notes.add(created);
     await copyAttachments(id, created.id);

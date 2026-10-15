@@ -87,6 +87,9 @@ describe('parseBackup', () => {
         updatedAt: 0,
         position: null,
         due: null,
+        boardId: null,
+        columnId: null,
+        boardPosition: 0,
       },
     ]);
   });

@@ -127,6 +127,7 @@ const toNote = (entry: Record<string, unknown>): ImportedNote => {
     updatedAt,
     position: finite(entry.position),
     due: toDue(entry.due),
+    boardId: null, columnId: null, boardPosition: 0, // read from v4 backups in Task 4
   };
 };
 

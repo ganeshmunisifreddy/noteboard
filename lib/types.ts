@@ -30,6 +30,9 @@ export type Note = {
   updatedAt: number;
   position: number; // board order; lower comes first
   due: Due | null; // see Due; null when the note has no date
+  boardId: string | null; // on a kanban board; null = the main board
+  columnId: string | null; // set exactly when boardId is
+  boardPosition: number; // order in its column; lower first; 0 off a board
 };
 
 export type Label = { id: string; name: string };
@@ -79,11 +82,24 @@ export type Due = {
   snoozedUntil: number | null;
 };
 
+// A kanban board. Its columns and cards are separate records, so each can
+// change (and later sync) on its own.
+export type Board = { id: string; name: string; position: number; createdAt: number; updatedAt: number };
+
+export type Column = {
+  id: string;
+  boardId: string;
+  name: string;
+  position: number; // order on the board; lower first
+  done: boolean; // the board's Done column (at most one)
+  updatedAt: number;
+};
+
 // Fields the board and editor change directly.
 export type NoteChanges = Partial<
   Pick<Note, 'kind' | 'title' | 'content' | 'items' | 'color' | 'labelIds' | 'pinned' | 'archived' | 'position'>
 >;
 
-export type BoardView = 'all' | 'notes' | 'lists' | 'upcoming' | 'archive' | 'trash';
+export type BoardView = 'all' | 'notes' | 'lists' | 'upcoming' | 'boards' | 'archive' | 'trash';
 
 export type BoardFilter = { view: BoardView; labelId: string | null; query: string };
