@@ -2,7 +2,6 @@ import type { NextPage } from 'next';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import FilterChips from '../components/board/FilterChips';
 import MoreMenu from '../components/board/MoreMenu';
 import type { CardMode } from '../components/board/NoteCard';
 import NoteGrid from '../components/board/NoteGrid';
@@ -11,6 +10,7 @@ import UpcomingView from '../components/board/UpcomingView';
 import { preloadRichEditor } from '../components/editor/useRichEditor';
 import BoardTiles from '../components/kanban/BoardTiles';
 import NotFound from '../components/NotFound';
+import AppShell from '../components/shell/AppShell';
 import LabelsDialog from '../components/ui/LabelsDialog';
 import ThemeToggle from '../components/ui/ThemeToggle';
 import { useToast } from '../components/ui/Toast';
@@ -156,78 +156,81 @@ const Home: NextPage = () => {
         <title>Noteboard</title>
         <meta name='description' content='Notes and lists by Nine Technology' />
       </Head>
-      <TopBar
-        initialQuery={filter.query}
-        searchKey={router.isReady ? `ready-${historyKey}` : 'loading'}
-        onQueryChange={search}
-        onNew={newNote}
+      <AppShell
+        onEditLabels={() => setLabelsOpen(true)}
+        renderTop={(onMenu) => (
+          <TopBar
+            initialQuery={filter.query}
+            searchKey={router.isReady ? `ready-${historyKey}` : 'loading'}
+            onQueryChange={search}
+            onNew={newNote}
+            onMenu={onMenu}
+          >
+            <ThemeToggle />
+            <MoreMenu
+              onBackup={() => void backUp()}
+              onRestore={() => restoreInput.current?.click()}
+              onExport={() => void exportMarkdown()}
+            />
+          </TopBar>
+        )}
       >
-        <ThemeToggle />
-        <MoreMenu
-          onArchive={() => showFilter({ view: 'archive', labelId: null })}
-          onTrash={() => showFilter({ view: 'trash', labelId: null })}
-          onManageLabels={() => setLabelsOpen(true)}
-          onBackup={() => void backUp()}
-          onRestore={() => restoreInput.current?.click()}
-          onExport={() => void exportMarkdown()}
-        />
-      </TopBar>
-      <FilterChips filter={filter} labels={labels ?? []} onSelect={showFilter} />
-      <main className={styles.main}>
-        {mode === 'trash' && total > 0 && (
-          <div className={styles.trashBar}>
-            <p>Notes in Trash are deleted after 30 days.</p>
-            <button type='button' className={styles.textButton} onClick={() => void clearTrash()}>
-              Empty trash
-            </button>
-          </div>
-        )}
-        {filter.view === 'boards' ? (
-          <BoardTiles onOpen={(id) => void router.push(boardHref(id))} />
-        ) : sections ? (
-          <UpcomingView sections={sections} labelNames={labelNames} onOpen={openNote} images={images} placeNames={placeNames} />
-        ) : (
-          <>
-            {pinned.length > 0 && (
-              <section className={styles.section} aria-label='Pinned notes'>
-                {headings && <h2 className={styles.sectionTitle}>Pinned</h2>}
-                <NoteGrid
-                  notes={pinned}
-                  labelNames={labelNames}
-                  mode={mode}
-                  onOpen={openNote}
-                  reorderable={reorderable}
-                  images={images}
-                  placeNames={placeNames}
-                  highlight={filter.query}
-                />
-              </section>
-            )}
-            {others.length > 0 && (
-              <section className={styles.section} aria-label={headings ? 'Other notes' : 'Notes'}>
-                {headings && <h2 className={styles.sectionTitle}>Others</h2>}
-                <NoteGrid
-                  notes={others}
-                  labelNames={labelNames}
-                  mode={mode}
-                  onOpen={openNote}
-                  reorderable={reorderable}
-                  images={images}
-                  placeNames={placeNames}
-                  highlight={filter.query}
-                />
-              </section>
-            )}
-          </>
-        )}
-        {/* Also rendered on the server and while loading; _document hides it
-            before first paint when notes exist. */}
-        {total === 0 && filter.view !== 'boards' && (
-          <div className={styles.emptyState}>
-            <NotFound text={emptyMessage(filter)} />
-          </div>
-        )}
-      </main>
+        <main className={styles.main}>
+          {mode === 'trash' && total > 0 && (
+            <div className={styles.trashBar}>
+              <p>Notes in Trash are deleted after 30 days.</p>
+              <button type='button' className={styles.textButton} onClick={() => void clearTrash()}>
+                Empty trash
+              </button>
+            </div>
+          )}
+          {filter.view === 'boards' ? (
+            <BoardTiles onOpen={(id) => void router.push(boardHref(id))} />
+          ) : sections ? (
+            <UpcomingView sections={sections} labelNames={labelNames} onOpen={openNote} images={images} placeNames={placeNames} />
+          ) : (
+            <>
+              {pinned.length > 0 && (
+                <section className={styles.section} aria-label='Pinned notes'>
+                  {headings && <h2 className={styles.sectionTitle}>Pinned</h2>}
+                  <NoteGrid
+                    notes={pinned}
+                    labelNames={labelNames}
+                    mode={mode}
+                    onOpen={openNote}
+                    reorderable={reorderable}
+                    images={images}
+                    placeNames={placeNames}
+                    highlight={filter.query}
+                  />
+                </section>
+              )}
+              {others.length > 0 && (
+                <section className={styles.section} aria-label={headings ? 'Other notes' : 'Notes'}>
+                  {headings && <h2 className={styles.sectionTitle}>Others</h2>}
+                  <NoteGrid
+                    notes={others}
+                    labelNames={labelNames}
+                    mode={mode}
+                    onOpen={openNote}
+                    reorderable={reorderable}
+                    images={images}
+                    placeNames={placeNames}
+                    highlight={filter.query}
+                  />
+                </section>
+              )}
+            </>
+          )}
+          {/* Also rendered on the server and while loading; _document hides it
+              before first paint when notes exist. */}
+          {total === 0 && filter.view !== 'boards' && (
+            <div className={styles.emptyState}>
+              <NotFound text={emptyMessage(filter)} />
+            </div>
+          )}
+        </main>
+      </AppShell>
       <input
         ref={restoreInput}
         type='file'

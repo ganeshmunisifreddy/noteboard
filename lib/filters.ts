@@ -26,6 +26,12 @@ export const filterToQuery = (filter: BoardFilter): Record<string, string> => {
   return query;
 };
 
+// The sidebar item a filter belongs to.
+export const sectionOf = (filter: BoardFilter): string => {
+  if (['upcoming', 'boards', 'archive', 'trash'].includes(filter.view)) return filter.view;
+  return filter.labelId ? `label:${filter.labelId}` : 'notes';
+};
+
 export const matchesView = (note: Note, filter: BoardFilter): boolean => {
   if (filter.view === 'boards') return false; // the Boards view shows boards, not notes
   if (filter.view === 'trash') return note.trashedAt !== null;

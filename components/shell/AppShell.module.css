@@ -1,0 +1,64 @@
+.shell {
+  --sidebar-width: 248px;
+}
+
+.shell[data-sidebar='rail'] {
+  --sidebar-width: 72px;
+}
+
+.body {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+}
+
+.side {
+  position: sticky;
+  top: 64px;
+  height: calc(100vh - 64px);
+  overflow-y: auto;
+}
+
+.content {
+  min-width: 0;
+}
+
+@media (min-width: 601px) and (max-width: 1023px) {
+  .shell {
+    --sidebar-width: 72px;
+  }
+}
+
+@media (max-width: 600px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .side {
+    display: none;
+  }
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--scrim);
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 41;
+  width: min(300px, 85vw);
+  overflow-y: auto;
+  padding-top: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-raised);
+}
+
+.drawerTitle {
+  margin: 8px 24px;
+  font-size: var(--text-lg);
+  color: var(--accent);
+}

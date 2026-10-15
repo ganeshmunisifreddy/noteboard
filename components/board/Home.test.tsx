@@ -98,23 +98,22 @@ describe('Home', () => {
     await waitFor(() => expect(editorLoad.preload).toHaveBeenCalled(), { timeout: 3000 });
   });
 
-  it('keeps app options in the header and only filters in the filter row', async () => {
+  it('keeps app options in the header and sections in the sidebar', async () => {
     render(<Home />);
     const header = await screen.findByRole('banner');
     expect(within(header).getByRole('button', { name: 'More options' })).toBeInTheDocument();
     expect(within(header).getByRole('button', { name: /Switch to (dark|light) theme/ })).toBeInTheDocument();
-    expect(within(screen.getByRole('navigation', { name: 'Filters' })).queryByRole('button', { name: 'More options' })).toBeNull();
+    expect(within(header).getByRole('button', { name: 'Main menu' })).toBeInTheDocument();
+    expect(within(screen.getAllByRole('navigation', { name: 'Sections' })[0]).getByRole('link', { name: 'Trash' })).toBeInTheDocument();
   });
 
-  it('shows Upcoming from the filter chip', async () => {
-    const user = userEvent.setup();
+  it('links to Upcoming from the sidebar', async () => {
     const bill = await createNote({ kind: 'note', title: 'Pay bill' });
     await setDue(bill.id, addDays(localDate(Date.now()), -1), null, null);
     await createNote({ kind: 'note', title: 'No date' });
     render(<Home />);
     await screen.findByText('Pay bill');
-    await user.click(screen.getByRole('button', { name: 'Upcoming' }));
-    expect(router.push).toHaveBeenCalledWith({ pathname: '/', query: { view: 'upcoming' } }, undefined, { shallow: true });
+    expect(screen.getAllByRole('link', { name: /^Upcoming/ })[0]).toHaveAttribute('href', '/?view=upcoming');
 
     router.query = { view: 'upcoming' };
     const { unmount } = render(<Home />);
@@ -146,11 +145,9 @@ describe('Home', () => {
     expect(screen.getByText('Website · To do')).toBeInTheDocument();
   });
 
-  it('opens the Boards view from its chip', async () => {
-    const user = userEvent.setup();
+  it('links to Boards from the sidebar', async () => {
     render(<Home />);
-    await user.click(await screen.findByRole('button', { name: 'Boards' }));
-    expect(router.push).toHaveBeenCalledWith({ pathname: '/', query: { view: 'boards' } }, undefined, { shallow: true });
+    expect((await screen.findAllByRole('link', { name: 'Boards' }))[0]).toHaveAttribute('href', '/?view=boards');
   });
 
   it('shows board tiles in the Boards view', async () => {

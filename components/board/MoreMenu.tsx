@@ -1,21 +1,18 @@
-import { Archive, Download, EllipsisVertical, FileText, MonitorSmartphone, Tags, Trash2, Upload } from 'lucide-react';
+import { Download, EllipsisVertical, FileText, MonitorSmartphone, Upload } from 'lucide-react';
 import { DropdownMenu } from 'radix-ui';
 import { setTheme, useTheme } from '../../lib/theme';
 import IconButton from '../ui/IconButton';
 import styles from '../ui/Menu.module.css';
 
 type Props = {
-  onArchive: () => void;
-  onTrash: () => void;
-  onManageLabels: () => void;
   onBackup: () => void;
   onRestore: () => void;
   onExport: () => void;
 };
 
-// Non-modal so "Manage labels" can open its dialog without the menu
-// fighting it for focus.
-const MoreMenu = ({ onArchive, onTrash, onManageLabels, onBackup, onRestore, onExport }: Props) => {
+// Backup and export; the sections (Archive, Trash, labels) are in the sidebar.
+// Non-modal, so Restore's file picker doesn't fight the menu for focus.
+const MoreMenu = ({ onBackup, onRestore, onExport }: Props) => {
   const theme = useTheme();
   return (
     <DropdownMenu.Root modal={false}>
@@ -26,19 +23,6 @@ const MoreMenu = ({ onArchive, onTrash, onManageLabels, onBackup, onRestore, onE
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content className={styles.content} align='end' sideOffset={6}>
-          <DropdownMenu.Item className={styles.item} onSelect={onArchive}>
-            <Archive size={16} aria-hidden />
-            Archive
-          </DropdownMenu.Item>
-          <DropdownMenu.Item className={styles.item} onSelect={onTrash}>
-            <Trash2 size={16} aria-hidden />
-            Trash
-          </DropdownMenu.Item>
-          <DropdownMenu.Item className={styles.item} onSelect={onManageLabels}>
-            <Tags size={16} aria-hidden />
-            Manage labels
-          </DropdownMenu.Item>
-          <DropdownMenu.Separator className={styles.separator} />
           <DropdownMenu.Label className={styles.label}>Backup</DropdownMenu.Label>
           <DropdownMenu.Item className={styles.item} onSelect={onBackup}>
             <Download size={16} aria-hidden />

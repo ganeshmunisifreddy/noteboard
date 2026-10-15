@@ -1,7 +1,13 @@
+/* Beside the sidebar, left-aligned, so it shares its left edge with the search box. */
 .main {
   max-width: 1280px;
-  margin: 0 auto;
-  padding: 16px 16px 96px;
+  padding: 16px 24px 96px;
+}
+
+@media (max-width: 600px) {
+  .main {
+    padding: 12px 12px 96px;
+  }
 }
 
 .section + .section {
