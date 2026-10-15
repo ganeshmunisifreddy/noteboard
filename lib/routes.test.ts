@@ -1,6 +1,6 @@
 import type { NextRouter } from 'next/router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { leaveEditor, markOnBoard, newNoteHref, noteHref, openEditor } from './routes';
+import { BOARDS_HREF, boardHref, leaveEditor, markOnBoard, newNoteHref, noteHref, openEditor } from './routes';
 
 const fakeRouter = (pathname: string, asPath = pathname) =>
   ({ pathname, asPath, push: vi.fn(), replace: vi.fn(), back: vi.fn() }) as unknown as NextRouter;
@@ -65,5 +65,10 @@ describe('after a refresh in the editor', () => {
     openEditor(fakeRouter('/', '/?label=l1'), noteHref('a'));
     expect(JSON.parse(sessionStorage.getItem('boardScroll') ?? 'null')).toEqual({ url: '/?label=l1', y: 320 });
     window.scrollY = 0;
+  });
+
+  it('builds board links', () => {
+    expect(boardHref('b1')).toEqual({ pathname: '/board', query: { id: 'b1' } });
+    expect(BOARDS_HREF).toEqual({ pathname: '/', query: { view: 'boards' } });
   });
 });

@@ -12,6 +12,9 @@ export const newNoteHref = (kind: NoteKind): UrlObject => ({
   query: { new: kind, id: uuid() },
 });
 
+export const boardHref = (id: string): UrlObject => ({ pathname: '/board', query: { id } });
+export const BOARDS_HREF: UrlObject = { pathname: '/', query: { view: 'boards' } };
+
 let openedFromBoard = false;
 
 // Survives a refresh in the editor, when the in-memory flag above is lost.

@@ -27,7 +27,9 @@ const FilterChips = ({ filter, labels, onSelect }: Props) => {
         {chip('notes', 'Notes', isView('notes'), { view: 'notes', labelId: null })}
         {chip('lists', 'Lists', isView('lists'), { view: 'lists', labelId: null })}
         {chip('upcoming', 'Upcoming', isView('upcoming'), { view: 'upcoming', labelId: null })}
+        {chip('boards', 'Boards', isView('boards'), { view: 'boards', labelId: null })}
         {filter.view !== 'upcoming' &&
+          filter.view !== 'boards' &&
           labels.map((label) =>
             chip(
               label.id,

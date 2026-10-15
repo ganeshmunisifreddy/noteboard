@@ -9,6 +9,7 @@ import NoteGrid from '../components/board/NoteGrid';
 import TopBar from '../components/board/TopBar';
 import UpcomingView from '../components/board/UpcomingView';
 import { preloadRichEditor } from '../components/editor/useRichEditor';
+import BoardTiles from '../components/kanban/BoardTiles';
 import NotFound from '../components/NotFound';
 import LabelsDialog from '../components/ui/LabelsDialog';
 import ThemeToggle from '../components/ui/ThemeToggle';
@@ -19,7 +20,7 @@ import { downloadBackup, downloadMarkdown, restoreBackup, restoreErrorMessage, r
 import { upcomingSections } from '../lib/due';
 import { emptyMessage, filterToQuery, isReorderable, parseFilter } from '../lib/filters';
 import { emptyTrash, useBoardNotes, useLabels } from '../lib/notes';
-import { markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../lib/routes';
+import { boardHref, markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../lib/routes';
 import { useStartup } from '../lib/startup';
 import { hasNotesMarker } from '../lib/storage';
 import { useNow } from '../lib/time';
@@ -99,8 +100,10 @@ const Home: NextPage = () => {
   const showFilter = (next: Pick<BoardFilter, 'view' | 'labelId'>) =>
     void router.push({ pathname: '/', query: filterToQuery({ ...filter, ...next }) }, undefined, { shallow: true });
 
-  const search = (query: string) =>
-    void router.replace({ pathname: '/', query: filterToQuery({ ...filter, query }) }, undefined, { shallow: true });
+  const search = (query: string) => {
+    const view = filter.view === 'boards' && query ? 'all' : filter.view;
+    void router.replace({ pathname: '/', query: filterToQuery({ ...filter, view, query }) }, undefined, { shallow: true });
+  };
 
   const openNote = (id: string) => openEditor(router, noteHref(id));
   const newNote = (kind: NoteKind) => openEditor(router, newNoteHref(kind));
@@ -179,7 +182,9 @@ const Home: NextPage = () => {
             </button>
           </div>
         )}
-        {sections ? (
+        {filter.view === 'boards' ? (
+          <BoardTiles onOpen={(id) => void router.push(boardHref(id))} />
+        ) : sections ? (
           <UpcomingView sections={sections} labelNames={labelNames} onOpen={openNote} images={images} placeNames={placeNames} />
         ) : (
           <>
@@ -215,7 +220,7 @@ const Home: NextPage = () => {
         )}
         {/* Also rendered on the server and while loading; _document hides it
             before first paint when notes exist. */}
-        {total === 0 && (
+        {total === 0 && filter.view !== 'boards' && (
           <div className={styles.emptyState}>
             <NotFound text={emptyMessage(filter)} />
           </div>
