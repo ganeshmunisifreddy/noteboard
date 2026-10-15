@@ -85,8 +85,10 @@
   list-style: none;
 }
 
+/* A tick box replaces the bullet (lists that mix both keep their bullets). */
 .task {
   display: flex;
+  list-style: none;
   align-items: flex-start;
   gap: 8px;
 }

@@ -16,15 +16,22 @@ import {
 } from 'lucide-react';
 import { Toolbar } from 'radix-ui';
 import { Fragment, type ReactNode } from 'react';
+import { useKeyboardInset } from '../../lib/useKeyboardInset';
 import IconButton from '../ui/IconButton';
 import LinkPopover from './LinkPopover';
 import styles from './FormatBar.module.css';
 
-type Props = { editor: Editor; linkOpen: boolean; onLinkOpenChange: (open: boolean) => void };
+type Props = {
+  editor: Editor;
+  linkOpen: boolean;
+  onLinkOpenChange: (open: boolean) => void;
+  docked?: boolean; // phones: fixed just above the on-screen keyboard
+};
 
 type Action = { label: string; icon: ReactNode; pressed?: boolean; apply: (chain: ChainedCommands) => ChainedCommands };
 
-const FormatBar = ({ editor, linkOpen, onLinkOpenChange }: Props) => {
+const FormatBar = ({ editor, linkOpen, onLinkOpenChange, docked = false }: Props) => {
+  const keyboard = useKeyboardInset();
   const active = useEditorState({
     editor,
     selector: ({ editor: current }) => ({
@@ -65,7 +72,12 @@ const FormatBar = ({ editor, linkOpen, onLinkOpenChange }: Props) => {
   ];
 
   return (
-    <Toolbar.Root className={styles.bar} aria-label='Formatting'>
+    <Toolbar.Root
+      className={styles.bar}
+      aria-label='Formatting'
+      data-docked={docked ? 'true' : undefined}
+      style={docked ? { bottom: keyboard } : undefined}
+    >
       {groups.map((group, index) => (
         <Fragment key={index}>
           {index > 0 && <Toolbar.Separator className={styles.separator} />}

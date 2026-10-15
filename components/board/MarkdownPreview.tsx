@@ -83,7 +83,7 @@ const renderer = ({ onToggleTask, highlight }: RenderOptions) => {
         return list.ordered ? (
           <ol start={typeof list.start === 'number' ? list.start : undefined}>{items}</ol>
         ) : (
-          <ul className={list.items.some((item) => item.task) ? styles.tasks : undefined}>{items}</ul>
+          <ul className={list.items.every((item) => item.task) ? styles.tasks : undefined}>{items}</ul>
         );
       }
       case 'blockquote':

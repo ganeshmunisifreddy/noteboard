@@ -1,4 +1,4 @@
-import { Check, SquareKanban } from 'lucide-react';
+import { Check, SquareKanban, Tag } from 'lucide-react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
@@ -40,6 +40,7 @@ import type { Attachment, ChecklistItem, Note, NoteKind, Repeat } from '../../li
 import MarkdownPreview from '../board/MarkdownPreview';
 import IconButton from '../ui/IconButton';
 import { useToast } from '../ui/Toast';
+import LabelPicker from '../ui/LabelPicker';
 import type { MenuItem } from '../ui/Menu';
 import BoardMenu from './BoardPicker';
 import chipStyles from './BoardPicker.module.css';
@@ -524,40 +525,6 @@ const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
           readOnly={trashed}
           onChange={(e) => update({ title: e.target.value })}
         />
-        {due && (
-          <DueChip
-            due={due}
-            readOnly={trashed}
-            onEdit={() => {
-              openedFromChip.current = true;
-              setDateOpen(true);
-            }}
-            onRemove={() =>
-              void removeDate().then(() => {
-                // The chip is gone; keep focus nearby on the date button.
-                document.querySelector<HTMLElement>('[data-date-button]')?.focus();
-              })
-            }
-            onMarkDone={() => void markDueDone()}
-            onReopen={() => void reopenDue(noteId)}
-          />
-        )}
-        {place &&
-          (trashed ? (
-            <p className={chipStyles.chip}>{place}</p>
-          ) : (
-            <BoardMenu
-              columnId={stored?.columnId ?? null}
-              onPick={(columnId) => void pickColumn(columnId)}
-              onRemove={() => void removeFromBoard(noteId)}
-              trigger={
-                <button type='button' className={chipStyles.chip} aria-label={`Board: ${place}`}>
-                  <SquareKanban size={16} aria-hidden />
-                  {place}
-                </button>
-              }
-            />
-          ))}
         {draft.kind === 'note' ? (
           rich.status === 'ready' ? (
             <rich.Editor
@@ -591,14 +558,62 @@ const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
             onChange={(items) => update({ items })}
           />
         )}
-        {labelNames.length > 0 && (
-          <ul className={styles.labels} aria-label='Labels'>
-            {labelNames.map((name) => (
-              <li key={name} className={styles.label}>
-                {name}
-              </li>
-            ))}
-          </ul>
+        {(due || labelNames.length > 0 || place) && (
+          <div className={styles.details} role='group' aria-label='Details'>
+            {due && (
+              <DueChip
+                due={due}
+                readOnly={trashed}
+                onEdit={() => {
+                  openedFromChip.current = true;
+                  setDateOpen(true);
+                }}
+                onRemove={() =>
+                  void removeDate().then(() => {
+                    // The chip is gone; keep focus nearby on the date button.
+                    document.querySelector<HTMLElement>('[data-date-button]')?.focus();
+                  })
+                }
+                onMarkDone={() => void markDueDone()}
+                onReopen={() => void reopenDue(noteId)}
+              />
+            )}
+            {labelNames.map((name) =>
+              trashed ? (
+                <span key={name} className={styles.labelChip}>
+                  {name}
+                </span>
+              ) : (
+                <LabelPicker
+                  key={name}
+                  selectedIds={draft.labelIds}
+                  onChange={(labelIds) => update({ labelIds })}
+                  trigger={
+                    <button type='button' className={styles.labelChip} aria-label={`Label: ${name}`}>
+                      <Tag size={14} aria-hidden />
+                      {name}
+                    </button>
+                  }
+                />
+              ),
+            )}
+            {place &&
+              (trashed ? (
+                <p className={chipStyles.chip}>{place}</p>
+              ) : (
+                <BoardMenu
+                  columnId={stored?.columnId ?? null}
+                  onPick={(columnId) => void pickColumn(columnId)}
+                  onRemove={() => void removeFromBoard(noteId)}
+                  trigger={
+                    <button type='button' className={chipStyles.chip} aria-label={`Board: ${place}`}>
+                      <SquareKanban size={16} aria-hidden />
+                      {place}
+                    </button>
+                  }
+                />
+              ))}
+          </div>
         )}
         {stored && <EditedAt timestamp={stored.updatedAt} />}
         <ImageViewer

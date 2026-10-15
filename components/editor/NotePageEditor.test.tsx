@@ -1,8 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../../lib/db';
-import { createNote } from '../../lib/notes';
+import { createLabel, createNote, setDue } from '../../lib/notes';
 import NotePage from '../../pages/note';
 import { ToastProvider } from '../ui/Toast';
 
@@ -56,5 +56,28 @@ describe('NotePage with the rich editor', () => {
     unmount();
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(await db.notes.get('e2')).toMatchObject({ content: '- a\n- b', updatedAt: 1000 });
+  });
+});
+
+describe('the editor page layout', () => {
+  it('shows the date, labels and board as chips after the text', async () => {
+    const label = await createLabel('Home');
+    const note = await createNote({ kind: 'note', title: 'Trip', content: 'Pack', labelIds: [label.id] });
+    await setDue(note.id, '2999-01-01', null, null);
+    openNote(note.id);
+    const chips = await screen.findByRole('group', { name: 'Details' });
+    expect(within(chips).getByRole('button', { name: /Change date/ })).toBeInTheDocument();
+    expect(within(chips).getByRole('button', { name: 'Label: Home' })).toBeInTheDocument();
+    // The chips come after the text.
+    const text = await screen.findByRole('textbox', { name: 'Note' });
+    expect(text.compareDocumentPosition(chips) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('has a separate title style with a quiet placeholder', async () => {
+    const note = await createNote({ kind: 'note' });
+    openNote(note.id);
+    const title = await screen.findByRole('textbox', { name: 'Title' });
+    expect(title).toHaveAttribute('placeholder', 'Title');
+    expect(title.className).toMatch(/title/);
   });
 });
