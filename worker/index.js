@@ -1,14 +1,14 @@
 // Bundled by next-pwa and imported at the top of the service worker, so this
 // fetch handler runs before Workbox's routes.
 //
-// The board and editor are static pages that read everything from IndexedDB,
-// so one cached copy of each serves every query string (?view=…, ?id=…)
-// offline, including notes never opened before.
+// The board, editor and kanban board pages are static and read everything
+// from IndexedDB, so one cached copy of each serves every query string
+// (?view=…, ?id=…) offline, including notes and boards never opened before.
 import { networkFirst } from './networkFirst';
 import { openFromNotification } from './notificationClick';
 
 const SHELL_CACHE = 'app-shell';
-const SHELL_PATHS = ['/', '/note'];
+const SHELL_PATHS = ['/', '/note', '/board'];
 const NETWORK_TIMEOUT_MS = 3000;
 
 self.addEventListener('install', (event) => {
