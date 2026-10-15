@@ -1,7 +1,9 @@
+import { Check } from 'lucide-react';
 import { DropdownMenu } from 'radix-ui';
 import type { ReactElement } from 'react';
 import { useBoardColumns } from '../../lib/boards';
 import menuStyles from '../ui/Menu.module.css';
+import styles from './BoardPicker.module.css';
 
 type Props = {
   columnId: string | null;
@@ -34,6 +36,9 @@ const BoardMenu = ({ columnId, trigger, onPick, onRemove }: Props) => {
                     {columns.map((column) => (
                       <DropdownMenu.RadioItem key={column.id} value={column.id} className={menuStyles.item}>
                         {column.name}
+                        <DropdownMenu.ItemIndicator className={styles.check}>
+                          <Check size={16} aria-hidden />
+                        </DropdownMenu.ItemIndicator>
                       </DropdownMenu.RadioItem>
                     ))}
                   </DropdownMenu.RadioGroup>

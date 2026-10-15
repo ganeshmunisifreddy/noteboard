@@ -1,5 +1,5 @@
 import { Check, EllipsisVertical } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { COLUMN_NAME_MAX } from '../../lib/boards';
 import type { Column } from '../../lib/types';
 import IconButton from '../ui/IconButton';
@@ -21,7 +21,13 @@ type Props = {
 
 const ColumnHeader = ({ column, headingId, count, first, last, onRename, onMove, onSetDone, onDelete }: Props) => {
   const [renaming, setRenaming] = useState(false);
-  const items: MenuItem[] = [{ label: 'Rename', onSelect: () => setRenaming(true) }];
+  const actions = useRef<HTMLButtonElement>(null);
+  // Back to the column's menu button once the name field closes.
+  const stopRenaming = () => {
+    setRenaming(false);
+    requestAnimationFrame(() => actions.current?.focus());
+  };
+  const items: MenuItem[] = [{ label: 'Rename', keepFocus: true, onSelect: () => setRenaming(true) }];
   if (!first) items.push({ label: 'Move left', onSelect: () => onMove(-1) });
   if (!last) items.push({ label: 'Move right', onSelect: () => onMove(1) });
   items.push(
@@ -38,10 +44,10 @@ const ColumnHeader = ({ column, headingId, count, first, last, onRename, onMove,
           initial={column.name}
           maxLength={COLUMN_NAME_MAX}
           onSave={(name) => {
-            setRenaming(false);
+            stopRenaming();
             onRename(name);
           }}
-          onCancel={() => setRenaming(false)}
+          onCancel={stopRenaming}
         />
       ) : (
         <h2 id={headingId} className={styles.columnTitle}>
@@ -54,11 +60,14 @@ const ColumnHeader = ({ column, headingId, count, first, last, onRename, onMove,
           )}
         </h2>
       )}
-      <span className={styles.count}>{count}</span>
+      <span className={styles.count} aria-hidden>
+        {count}
+      </span>
+      <span className={styles.srOnly}>{count === 1 ? '1 card' : `${count} cards`}</span>
       <Menu
         items={items}
         trigger={
-          <IconButton label={`Column actions for ${column.name}`}>
+          <IconButton ref={actions} label={`Column actions for ${column.name}`} data-column-actions={column.id}>
             <EllipsisVertical size={16} aria-hidden />
           </IconButton>
         }

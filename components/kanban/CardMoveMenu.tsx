@@ -20,8 +20,9 @@ const MOVES: { move: CardMove; label: string }[] = [
   { move: 'bottom', label: 'Move to bottom' },
 ];
 
-// The way to move a card without dragging (WCAG 2.5.7). Focus is put back
-// by the board after the move, because the card may now be in another column.
+// The way to move a card without dragging (WCAG 2.5.7). When it closes,
+// focus goes back to this card's Move button wherever the card now is (the
+// button may have moved within the column or into another one).
 const CardMoveMenu = ({ title, buttonId, columns, canMove, onMove, onMoveTo }: Props) => (
   <DropdownMenu.Root>
     <DropdownMenu.Trigger asChild>
@@ -34,7 +35,12 @@ const CardMoveMenu = ({ title, buttonId, columns, canMove, onMove, onMoveTo }: P
         className={menuStyles.content}
         align='end'
         sideOffset={6}
-        onCloseAutoFocus={(event) => event.preventDefault()}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          requestAnimationFrame(() =>
+            document.querySelector<HTMLElement>(`[data-card-move="${CSS.escape(buttonId)}"]`)?.focus(),
+          );
+        }}
       >
         {columns.map((column) => (
           <DropdownMenu.Item key={column.id} className={menuStyles.item} onSelect={() => onMoveTo(column.id)}>

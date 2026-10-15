@@ -276,6 +276,10 @@
     scroll-snap-type: x mandatory;
   }
 
+  .columns[data-dragging] {
+    scroll-snap-type: none;
+  }
+
   .column,
   .newColumn {
     flex-basis: 85vw;

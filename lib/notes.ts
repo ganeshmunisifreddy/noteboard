@@ -7,7 +7,7 @@ import { db } from './db';
 import { keepProgress, markDoneChanges, newDue, seenIfPast } from './due';
 import { selectBoardNotes, type BoardNotes } from './filters';
 import { needsRenumber, positionBetween } from './order';
-import { columnNotes, endOf, sortedColumns } from './places';
+import { columnNotes, endOf, renumberColumn, sortedColumns } from './places';
 import { requestPersistentStorage, setHasNotesMarker } from './storage';
 import type { BoardFilter, ChecklistItem, Due, Label, Note, NoteChanges, NoteKind, Repeat } from './types';
 
@@ -181,8 +181,17 @@ export const getAllData = async () => {
 const placeBelow = async (note: Note) => {
   const column = note.columnId ? await db.columns.get(note.columnId) : undefined;
   if (!column) return { boardId: null, columnId: null, boardPosition: 0 };
-  const next = (await columnNotes(column)).find((other) => other.boardPosition > note.boardPosition);
-  return { boardId: column.boardId, columnId: column.id, boardPosition: positionBetween(note.boardPosition, next?.boardPosition ?? null) };
+  const neighbours = async () => {
+    const notes = await columnNotes(column);
+    const index = notes.findIndex((other) => other.id === note.id);
+    return { own: notes[index]?.boardPosition ?? note.boardPosition, next: notes[index + 1]?.boardPosition ?? null };
+  };
+  let { own, next } = await neighbours();
+  if (needsRenumber(own, next)) {
+    await renumberColumn(column);
+    ({ own, next } = await neighbours());
+  }
+  return { boardId: column.boardId, columnId: column.id, boardPosition: positionBetween(own, next) };
 };
 
 // The copy and its images are saved together or not at all.

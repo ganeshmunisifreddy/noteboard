@@ -2,15 +2,11 @@ import { db } from './db';
 import { markDoneChanges, seenIfPast } from './due';
 import { nextTopPosition } from './notes';
 import { needsRenumber, positionBetween } from './order';
-import { columnNotes, endOf, sortedColumns, topOf } from './places';
+import { columnNotes, endOf, renumberColumn, sortedColumns, topOf } from './places';
 import type { Column, Note } from './types';
 
-const renumber = async (column: Column) => {
-  const notes = await columnNotes(column);
-  await Promise.all(notes.map((note, index) => db.notes.update(note.id, { boardPosition: index })));
-};
-
-export type PlaceResult = { before: Note; dateChanged: boolean };
+// `columnId` is where the card ended up (a repeat leaving the Done column goes back to the first one).
+export type PlaceResult = { before: Note; dateChanged: boolean; columnId: string };
 
 // Puts a note in a column between two of its cards (null = start or end).
 // Moving to another column is an edit. Entering a Done column marks an open
@@ -30,7 +26,7 @@ export const placeNote = async (
     let before = await find(beforeId);
     let after = await find(afterId);
     if (needsRenumber(before, after)) {
-      await renumber(column);
+      await renumberColumn(column);
       before = await find(beforeId);
       after = await find(afterId);
     }
@@ -57,7 +53,7 @@ export const placeNote = async (
       }
     }
     await db.notes.update(noteId, patch);
-    return { before: note, dateChanged };
+    return { before: note, dateChanged, columnId: patch.columnId ?? columnId };
   });
 
 // At the end of a column: "Move to column" and the editor's Board menu.
@@ -97,13 +93,14 @@ export const putBackPlace = async (before: Note) => {
 
 export type CardPlace = Pick<Note, 'boardId' | 'columnId' | 'boardPosition'>;
 
-// Where a new card goes; null when the column no longer exists.
-export const newCardPlace = async (columnId: string, at: 'top' | 'bottom'): Promise<CardPlace | null> => {
-  const column = await db.columns.get(columnId);
+// Where a new card goes. If its column was deleted while the card was being
+// written, it goes to the board's first column; null when the board is gone too.
+export const newCardPlace = async (columnId: string, at: 'top' | 'bottom', boardId?: string): Promise<CardPlace | null> => {
+  const column = (await db.columns.get(columnId)) ?? (boardId ? (await sortedColumns(boardId))[0] : undefined);
   if (!column) return null;
   return {
     boardId: column.boardId,
-    columnId,
+    columnId: column.id,
     boardPosition: at === 'top' ? await topOf(column) : await endOf(column),
   };
 };

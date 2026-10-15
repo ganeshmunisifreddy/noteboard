@@ -453,6 +453,14 @@ describe('boards in backups', () => {
   const v4 = (notes: unknown[], boards: unknown[] = [board], cols: unknown[] = columns) =>
     file({ format: 'noteboard-backup', version: 4, exportedAt: 'x', notes, labels: [], attachments: [], boards, columns: cols });
 
+  it('keeps one Done column per board after a merge', () => {
+    const localDone: Column = { ...columns[0], done: true, updatedAt: 9 };
+    const imported = parseBackup(v4([], [board], columns));
+    const plan = planMerge([], [], imported, Date.now(), [board], [localDone, { ...columns[1], updatedAt: 0 }]);
+    const merged = new Map([[localDone.id, localDone], ...plan.columns.map((c) => [c.id, c] as const)]);
+    expect([...merged.values()].filter((c) => c.done)).toHaveLength(1);
+  });
+
   it('round-trips boards, columns and places', async () => {
     const card = makeNote({ id: 'n1', boardId: 'b1', columnId: 'c2', boardPosition: 3, updatedAt: 5 });
     const contents = JSON.stringify(buildBackup([card], [], new Date(), [], [board], columns));

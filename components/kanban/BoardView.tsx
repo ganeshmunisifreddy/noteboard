@@ -1,11 +1,11 @@
 import { ArrowLeft, EllipsisVertical, Plus } from 'lucide-react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useBoardImages } from '../../lib/attachments';
 import { BOARD_NAME_MAX, deleteBoard, renameBoard, restoreBoard, type BoardData } from '../../lib/boards';
 import { useLabels } from '../../lib/notes';
-import { BOARDS_HREF, newNoteHref, noteHref, openEditor } from '../../lib/routes';
+import { BOARDS_HREF, markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../../lib/routes';
 import type { NoteKind } from '../../lib/types';
 import IconButton from '../ui/IconButton';
 import Menu from '../ui/Menu';
@@ -24,11 +24,28 @@ const BoardView = ({ data }: { data: BoardData }) => {
   const [addingColumn, setAddingColumn] = useState(0);
   const [deleting, setDeleting] = useState(false);
   const { board, columns, cards } = data;
+  const boardActions = useRef<HTMLButtonElement>(null);
+
+  // Back from a card: "opened from a board" starts over, and the page
+  // returns to where it was scrolled (sideways scroll is kept by the columns).
+  useEffect(() => {
+    markOnBoard();
+  }, []);
+  useEffect(() => {
+    const y = takeBoardScroll(router.asPath);
+    if (y !== null) window.scrollTo(0, y);
+  }, [router.asPath]);
+
+  const stopRenaming = () => {
+    setRenaming(false);
+    requestAnimationFrame(() => boardActions.current?.focus());
+  };
+
   const labelNames = useMemo(() => new Map((labels ?? []).map((l) => [l.id, l.name])), [labels]);
   const noteCount = [...cards.values()].reduce((sum, list) => sum + list.length, 0);
 
   const addCard = (columnId: string, kind: NoteKind, at: 'top' | 'bottom' = 'bottom') =>
-    openEditor(router, newNoteHref(kind, { columnId, at }));
+    openEditor(router, newNoteHref(kind, { columnId, boardId: board.id, at }));
 
   const remove = async (notesTo: 'keep' | 'trash') => {
     const snapshot = await deleteBoard(board.id, notesTo);
@@ -51,10 +68,10 @@ const BoardView = ({ data }: { data: BoardData }) => {
             initial={board.name}
             maxLength={BOARD_NAME_MAX}
             onSave={(name) => {
-              setRenaming(false);
+              stopRenaming();
               void renameBoard(board.id, name);
             }}
-            onCancel={() => setRenaming(false)}
+            onCancel={stopRenaming}
           />
         ) : (
           <h1 className={styles.boardTitle}>{board.name}</h1>
@@ -70,12 +87,12 @@ const BoardView = ({ data }: { data: BoardData }) => {
         </button>
         <Menu
           items={[
-            { label: 'Rename board', onSelect: () => setRenaming(true) },
-            { label: 'Add column', onSelect: () => setAddingColumn((n) => n + 1) },
+            { label: 'Rename board', keepFocus: true, onSelect: () => setRenaming(true) },
+            { label: 'Add column', keepFocus: true, onSelect: () => setAddingColumn((n) => n + 1) },
             { label: 'Delete board…', danger: true, onSelect: () => setDeleting(true) },
           ]}
           trigger={
-            <IconButton label='Board actions'>
+            <IconButton ref={boardActions} label='Board actions'>
               <EllipsisVertical size={18} aria-hidden />
             </IconButton>
           }

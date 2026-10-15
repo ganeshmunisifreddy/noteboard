@@ -178,3 +178,15 @@ describe('other card moves', () => {
     expect(moveInColumns(order, 'a', { type: 'column', id: 'todo' })).toEqual(order);
   });
 });
+
+describe('new cards whose column is gone', () => {
+  it('go to the board’s first column', async () => {
+    const { board, columns } = await setup();
+    expect(await newCardPlace('gone', 'bottom', board.id)).toEqual({
+      boardId: board.id,
+      columnId: columns[0].id,
+      boardPosition: 0,
+    });
+    expect(await newCardPlace('gone', 'bottom', 'no-board')).toBeNull();
+  });
+});

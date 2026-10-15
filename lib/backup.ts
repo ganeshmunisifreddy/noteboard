@@ -332,6 +332,20 @@ export const planMerge = (
   };
   const boards = newer(localBoards, imported.boards);
   const columns = newer(localColumns, imported.columns);
+  // At most one Done column per board: when a merge brings a second, the
+  // more recently changed one stays.
+  const merged = new Map([...localColumns, ...columns].map((c) => [c.id, c]));
+  for (const boardId of new Set([...merged.values()].map((c) => c.boardId))) {
+    const done = [...merged.values()]
+      .filter((c) => c.boardId === boardId && c.done)
+      .sort((a, b) => b.updatedAt - a.updatedAt || (a.id < b.id ? -1 : 1));
+    for (const extra of done.slice(1)) {
+      const fixed = { ...extra, done: false, updatedAt: now };
+      const index = columns.findIndex((c) => c.id === extra.id);
+      if (index >= 0) columns[index] = fixed;
+      else columns.push(fixed);
+    }
+  }
   const allColumns = new Map([...localColumns, ...columns].map((c) => [c.id, c]));
   const allBoards = new Set([...localBoards, ...boards].map((b) => b.id));
   const placeOf = (note: ImportedNote) => {

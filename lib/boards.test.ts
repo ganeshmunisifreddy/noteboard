@@ -200,3 +200,26 @@ describe('board views', () => {
     expect(map.get(todo.id)).toBe('Website · To do');
   });
 });
+
+describe('Undo after deleting', () => {
+  it('keeps edits made after a column was deleted', async () => {
+    const board = await createBoard('B', 'basic');
+    const [todo, doing] = await sortedColumns(board.id);
+    await card('a', doing.id, board.id, 0);
+    const snapshot = await deleteColumn(doing.id);
+    await db.notes.update('a', { title: 'Edited after' });
+    await restoreColumn(snapshot!);
+    expect(await db.notes.get('a')).toMatchObject({ title: 'Edited after', columnId: doing.id });
+    expect(todo).toBeDefined();
+  });
+
+  it('keeps edits made after a board was deleted', async () => {
+    const board = await createBoard('B', 'basic');
+    const [todo] = await sortedColumns(board.id);
+    await card('a', todo.id, board.id, 0);
+    const snapshot = await deleteBoard(board.id, 'trash');
+    await db.notes.update('a', { title: 'Edited after' });
+    await restoreBoard(snapshot!);
+    expect(await db.notes.get('a')).toMatchObject({ title: 'Edited after', columnId: todo.id, trashedAt: null });
+  });
+});

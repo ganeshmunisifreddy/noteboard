@@ -5,6 +5,7 @@ import { createBoard } from '../../lib/boards';
 import { db } from '../../lib/db';
 import { createNote } from '../../lib/notes';
 import { sortedColumns } from '../../lib/places';
+import { leaveEditor, noteHref, openEditor } from '../../lib/routes';
 import BoardPage from '../../pages/board';
 import { ToastProvider } from '../ui/Toast';
 
@@ -168,5 +169,67 @@ describe('board page', () => {
     open(board.id);
     await user.click(await screen.findByRole('button', { name: 'Back to boards' }));
     expect(router.push).toHaveBeenLastCalledWith({ pathname: '/', query: { view: 'boards' } });
+  });
+
+  it('puts focus in the name field when renaming or adding a column from a menu', async () => {
+    const user = userEvent.setup();
+    const { board, columns } = await setup();
+    open(board.id);
+    await user.click(await screen.findByRole('button', { name: 'Board actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Rename board' }));
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Board name' })).toHaveFocus());
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Board actions' })).toHaveFocus());
+
+    await user.click(screen.getByRole('button', { name: 'Board actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Add column' }));
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Column name' })).toHaveFocus());
+    await user.keyboard('{Escape}');
+
+    await user.click(within(screen.getByRole('region', { name: /To do/ })).getByRole('button', { name: 'Column actions for To do' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Rename' }));
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Column name' })).toHaveFocus());
+    await user.keyboard('!{Enter}');
+    await waitFor(async () => expect((await db.columns.get(columns[0].id))?.name).toBe('To do!'));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Column actions for To do!' })).toHaveFocus());
+  });
+
+  it('says where a deleted column’s notes go and keeps focus nearby', async () => {
+    const user = userEvent.setup();
+    const { board } = await setup();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    open(board.id);
+    const doing = await screen.findByRole('region', { name: /Doing/ });
+    await user.click(within(doing).getByRole('button', { name: 'Column actions for Doing' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete column' }));
+    expect(confirm).toHaveBeenCalledWith('Delete the column “Doing”? Its notes move to “To do”.');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Column actions for To do' })).toHaveFocus());
+  });
+
+  it('restores the page scroll when coming back to the board', async () => {
+    const { board } = await setup();
+    sessionStorage.setItem('boardScroll', JSON.stringify({ url: `/board?id=${board.id}`, y: 320 }));
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    open(board.id);
+    await screen.findByRole('heading', { level: 1, name: 'Website redesign' });
+    expect(scrollTo).toHaveBeenCalledWith(0, 320);
+  });
+
+  it('forgets “opened from a board” once the board shows again', async () => {
+    const { board } = await setup();
+    router.pathname = '/board';
+    router.asPath = `/board?id=${board.id}`;
+    openEditor(router as never, noteHref('n1'));
+    open(board.id);
+    await screen.findByRole('heading', { level: 1, name: 'Website redesign' });
+    leaveEditor(router as never);
+    expect(router.back).not.toHaveBeenCalled();
+  });
+
+  it('reads column counts as cards', async () => {
+    const { board } = await setup();
+    open(board.id);
+    const doing = await screen.findByRole('region', { name: /Doing/ });
+    expect(within(doing).getByText('1 card')).toBeInTheDocument();
   });
 });

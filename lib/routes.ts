@@ -5,13 +5,17 @@ import type { NoteKind } from './types';
 
 export const noteHref = (id: string): UrlObject => ({ pathname: '/note', query: { id } });
 
-export type NewCardPlace = { columnId: string; at: 'top' | 'bottom' };
+export type NewCardPlace = { columnId: string; boardId?: string; at: 'top' | 'bottom' };
 
 // New notes get their id up front so the editor's URL and identity stay the
 // same when the note is first saved. A new card also carries its column.
 export const newNoteHref = (kind: NoteKind, place?: NewCardPlace): UrlObject => ({
   pathname: '/note',
-  query: { new: kind, id: uuid(), ...(place ? { column: place.columnId, at: place.at } : {}) },
+  query: {
+    new: kind,
+    id: uuid(),
+    ...(place ? { column: place.columnId, at: place.at, ...(place.boardId ? { board: place.boardId } : {}) } : {}),
+  },
 });
 
 export const boardHref = (id: string): UrlObject => ({ pathname: '/board', query: { id } });

@@ -27,3 +27,9 @@ export const endOf = async (column: Column) => {
   const notes = await columnNotes(column);
   return notes.length > 0 ? notes[notes.length - 1].boardPosition + 1 : 0;
 };
+
+// Card positions 0, 1, 2, … again, once the gaps between them run out.
+export const renumberColumn = async (column: Column) => {
+  const notes = await columnNotes(column);
+  await Promise.all(notes.map((note, index) => db.notes.update(note.id, { boardPosition: index })));
+};

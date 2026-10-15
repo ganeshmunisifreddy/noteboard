@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBoard } from '../../lib/boards';
 import { db } from '../../lib/db';
+import { newDue } from '../../lib/due';
 import { createNote } from '../../lib/notes';
 import { sortedColumns } from '../../lib/places';
 import NotePage from '../../pages/note';
@@ -79,5 +80,21 @@ describe('boards in the editor', () => {
     open({ id: 'n1' });
     await screen.findByText(/This note is in Trash/);
     expect(screen.queryByRole('button', { name: 'Board' })).not.toBeInTheDocument();
+  });
+
+  it('says the date was reopened when a done card leaves the Done column', async () => {
+    const user = userEvent.setup();
+    const board = await createBoard('Website', 'basic');
+    const [, , done] = await sortedColumns(board.id);
+    await createNote({ id: 'n1', kind: 'note', title: 'Logo', boardId: board.id, columnId: done.id, boardPosition: 0 });
+    await db.notes.update('n1', { due: { ...newDue('2999-01-01', null, null), doneAt: 5 } });
+    open({ id: 'n1' });
+    (await screen.findByRole('button', { name: 'Board' })).focus();
+    await user.keyboard('{Enter}');
+    (await screen.findByRole('menuitem', { name: 'Website' })).focus();
+    await user.keyboard('{ArrowRight}');
+    (await screen.findByRole('menuitemradio', { name: 'To do' })).focus();
+    await user.keyboard('{Enter}');
+    expect(await screen.findByText('Date reopened')).toBeInTheDocument();
   });
 });

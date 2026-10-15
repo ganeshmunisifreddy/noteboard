@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBoard } from '../../lib/boards';
@@ -44,5 +44,20 @@ describe('BoardTiles', () => {
     expect(board.name).toBe('Job hunt');
     expect(onOpen).toHaveBeenCalledWith(board.id);
     expect((await sortedColumns(board.id)).map((c) => c.name)).toEqual(['Ideas', 'Next', 'In progress', 'Review', 'Done']);
+  });
+
+  it('creates one board even when Create is pressed twice', async () => {
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+    render(<BoardTiles onOpen={onOpen} />);
+    await user.click(await screen.findByRole('button', { name: 'New board' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New board' });
+    await user.type(within(dialog).getByLabelText('Name'), 'Twice');
+    const form = within(dialog).getByRole('button', { name: 'Create' }).closest('form')!;
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    await waitFor(() => expect(onOpen).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(await db.boards.count()).toBe(1);
   });
 });

@@ -1,5 +1,5 @@
 import { Dialog } from 'radix-ui';
-import { useId, useState, type FormEvent } from 'react';
+import { useId, useRef, useState, type FormEvent } from 'react';
 import { BOARD_NAME_MAX, BOARD_TEMPLATES, createBoard, type BoardTemplate } from '../../lib/boards';
 import type { Board } from '../../lib/types';
 import styles from './Dialog.module.css';
@@ -12,13 +12,19 @@ const NewBoardForm = ({ onCreated, onCancel }: { onCreated: (board: Board) => vo
   const [template, setTemplate] = useState<BoardTemplate>('basic');
   const [error, setError] = useState<string | null>(null);
   const id = useId();
+  // A second press while the first is saving creates nothing more.
+  const creating = useRef(false);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (creating.current) return;
+    creating.current = true;
     try {
       onCreated(await createBoard(name, template));
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      creating.current = false;
     }
   };
 

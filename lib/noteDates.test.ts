@@ -168,4 +168,20 @@ describe('dates on notes', () => {
     const copy = await duplicateNote('a');
     expect(copy).toMatchObject({ boardId: board.id, columnId: todo.id, boardPosition: 0.5 });
   });
+
+  it('makes room for a copy between crowded cards', async () => {
+    const board = await createBoard('B', 'basic');
+    const [todo] = await sortedColumns(board.id);
+    // One float step apart: their average lands on one of them.
+    await createNote({ id: 'a', kind: 'note', boardId: board.id, columnId: todo.id, boardPosition: 1 });
+    await createNote({ id: 'b', kind: 'note', boardId: board.id, columnId: todo.id, boardPosition: 1 + Number.EPSILON });
+    const copy = await duplicateNote('a');
+    const ids = (await db.notes.toArray())
+      .filter((n) => n.columnId === todo.id)
+      .sort((x, y) => x.boardPosition - y.boardPosition)
+      .map((n) => n.id);
+    expect(ids).toEqual(['a', copy!.id, 'b']);
+    const positions = (await db.notes.bulkGet(['a', copy!.id, 'b'])).map((n) => n!.boardPosition);
+    expect(new Set(positions).size).toBe(3);
+  });
 });

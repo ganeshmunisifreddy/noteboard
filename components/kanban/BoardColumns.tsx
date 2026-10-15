@@ -89,6 +89,7 @@ const BoardColumns = ({ data, labelNames, images, onOpen, onAddCard, startAdding
   const toast = useToast();
   const [adding, setAdding] = useState(startAddingColumn);
   const scroller = useRef<HTMLDivElement>(null);
+  const addColumnButton = useRef<HTMLButtonElement>(null);
   const { board, columns, cards } = data;
   const [announcement, setAnnouncement] = useState('');
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -144,7 +145,15 @@ const BoardColumns = ({ data, labelNames, images, onOpen, onAddCard, startAdding
       toast({ message: 'Couldn’t move the card.' });
     } finally {
       setSaving((n) => n - 1);
-      setPreview((p) => p && { ...p, base: null });
+      // Nothing saved, or the card went elsewhere (a repeat leaving the Done
+      // column): show what's stored rather than the hoped-for order.
+      if (!result || result.columnId !== columnId) setPreview(null);
+      else setPreview((p) => p && { ...p, base: null });
+    }
+    if (result && result.columnId !== columnId) {
+      setAnnouncement(`Marked ${titleOf(noteId)} done; its next date moved it to ${columnName.get(result.columnId)}`);
+      // Its Move button is remounted in the other column: keep focus on it.
+      if (document.activeElement?.getAttribute('data-card-move') === noteId) refocusId.current = noteId;
     }
     if (result?.dateChanged) {
       const before = result.before;
@@ -190,7 +199,8 @@ const BoardColumns = ({ data, labelNames, images, onOpen, onAddCard, startAdding
   const onDragEnd = ({ active }: DragEndEvent) => {
     setActiveId(null);
     const id = String(active.id);
-    const order = shown;
+    // The order as dragged, even if the stored order changed meanwhile.
+    const order = preview?.order ?? shown;
     const columnId = Object.keys(order).find((key) => order[key].includes(id));
     const was = Object.keys(stored).find((key) => stored[key].includes(id));
     if (!columnId || (columnId === was && order[columnId].indexOf(id) === stored[columnId].indexOf(id))) {
@@ -200,12 +210,24 @@ const BoardColumns = ({ data, labelNames, images, onOpen, onAddCard, startAdding
     void save(id, columnId, order[columnId]);
   };
 
+  // Its notes go to the column on the left (or right), or back to the main board.
   const removeColumn = async (columnId: string, name: string, count: number) => {
-    if (count > 0 && !window.confirm(`Delete the column “${name}”? Its notes move to the next column.`)) return;
+    const index = columns.findIndex((c) => c.id === columnId);
+    const target = columns[index - 1] ?? columns[index + 1] ?? null;
+    const where = target ? `Its notes move to “${target.name}”.` : 'Its notes go back to your main board.';
+    if (count > 0 && !window.confirm(`Delete the column “${name}”? ${where}`)) return;
     const snapshot = await deleteColumn(columnId);
-    if (snapshot) {
-      toast({ message: 'Column deleted', actionLabel: 'Undo', onAction: () => void restoreColumn(snapshot) });
-    }
+    if (!snapshot) return;
+    requestAnimationFrame(() => {
+      const next = target && document.querySelector<HTMLElement>(`[data-column-actions="${CSS.escape(target.id)}"]`);
+      (next ?? addColumnButton.current)?.focus();
+    });
+    toast({ message: 'Column deleted', actionLabel: 'Undo', onAction: () => void restoreColumn(snapshot) });
+  };
+
+  const stopAdding = () => {
+    setAdding(false);
+    requestAnimationFrame(() => addColumnButton.current?.focus());
   };
 
   const active = activeId ? notesById.get(activeId) : undefined;
@@ -234,6 +256,8 @@ const BoardColumns = ({ data, labelNames, images, onOpen, onAddCard, startAdding
       <div
         ref={scroller}
         className={styles.columns}
+        // Snapping would fight the board's scrolling at its edges while dragging.
+        data-dragging={activeId ? '' : undefined}
         onScroll={(e) => {
           try {
             sessionStorage.setItem(scrollKey(board.id), String(e.currentTarget.scrollLeft));
@@ -311,13 +335,13 @@ const BoardColumns = ({ data, labelNames, images, onOpen, onAddCard, startAdding
               initial=''
               maxLength={COLUMN_NAME_MAX}
               onSave={(name) => {
-                setAdding(false);
+                stopAdding();
                 void addColumn(board.id, name);
               }}
-              onCancel={() => setAdding(false)}
+              onCancel={stopAdding}
             />
           ) : (
-            <button type='button' className={styles.addColumn} onClick={() => setAdding(true)}>
+            <button ref={addColumnButton} type='button' className={styles.addColumn} onClick={() => setAdding(true)}>
               <Plus size={16} aria-hidden />
               Add column
             </button>

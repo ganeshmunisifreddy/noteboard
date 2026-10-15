@@ -1,5 +1,6 @@
 .chip {
   display: inline-flex;
+  align-self: flex-start;
   align-items: center;
   gap: 6px;
   min-height: 32px;
@@ -14,4 +15,10 @@
 
 .chip:hover {
   background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.check {
+  display: inline-flex;
+  margin-left: auto;
+  color: var(--accent);
 }

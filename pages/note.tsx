@@ -50,7 +50,9 @@ const NotePage: NextPage = () => {
   // A new card from a board column carries its place.
   const column = single(router.query.column);
   const newPlace: NewCardPlace | null =
-    newKind && column ? { columnId: column, at: router.query.at === 'top' ? 'top' : 'bottom' } : null;
+    newKind && column
+      ? { columnId: column, boardId: single(router.query.board) ?? undefined, at: router.query.at === 'top' ? 'top' : 'bottom' }
+      : null;
 
   // `/note?new=list` without an id: give the draft its id up front.
   useEffect(() => {

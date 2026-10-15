@@ -134,7 +134,7 @@ const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
 
   // A new card from a board column is created there, at the top or bottom.
   const create = async (draft: Draft) => {
-    const place = newPlace ? await newCardPlace(newPlace.columnId, newPlace.at) : null;
+    const place = newPlace ? await newCardPlace(newPlace.columnId, newPlace.at, newPlace.boardId) : null;
     await createNote({ id: noteId, ...draft, ...place });
   };
 
@@ -258,7 +258,11 @@ const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
       const result = await placeAtEnd(noteId, columnId);
       if (result?.dateChanged) {
         const before = result.before;
-        toast({ message: 'Marked done', actionLabel: 'Undo', onAction: () => void putBackPlace(before) });
+        toast({
+          message: before.due?.doneAt === null ? 'Marked done' : 'Date reopened',
+          actionLabel: 'Undo',
+          onAction: () => void putBackPlace(before),
+        });
       }
     } catch (error) {
       toast({ message: isQuotaError(error) ? 'Couldn’t save: storage is full.' : 'Couldn’t save your changes.' });

@@ -3,9 +3,11 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBoard } from '../../lib/boards';
 import { db } from '../../lib/db';
+import { localDate } from '../../lib/calendar';
 import { newDue } from '../../lib/due';
 import { createNote } from '../../lib/notes';
 import { sortedColumns } from '../../lib/places';
+import { presetRepeat } from '../../lib/repeat';
 import BoardPage from '../../pages/board';
 import { ToastProvider } from '../ui/Toast';
 
@@ -25,6 +27,7 @@ beforeEach(async () => {
   await db.delete();
   await db.open();
   vi.clearAllMocks();
+  vi.restoreAllMocks();
 });
 
 const open = (id: string) => {
@@ -115,5 +118,54 @@ describe('moving cards from the Move menu', () => {
     await user.click(await screen.findByRole('button', { name: 'Undo' }));
     await waitFor(async () => expect((await db.notes.get('Gamma'))?.columnId).toBe(columns[0].id));
     expect((await db.notes.get('Gamma'))?.due?.doneAt).toBeNull();
+  });
+
+  it('keeps focus on the Move button after moving within a column', async () => {
+    const user = userEvent.setup();
+    const { board, columns } = await setup();
+    open(board.id);
+    await screen.findByText('Alpha');
+    await user.click(moveMenu('Alpha'));
+    await user.click(await screen.findByRole('menuitem', { name: 'Move down' }));
+    await waitFor(async () => expect(await order(columns[0].id)).toEqual(['Beta', 'Alpha', 'Gamma']));
+    await waitFor(() => expect(moveMenu('Alpha')).toHaveFocus());
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(moveMenu('Alpha')).toHaveFocus();
+  });
+
+  it('returns focus to the Move button when the menu closes with Escape', async () => {
+    const user = userEvent.setup();
+    const { board } = await setup();
+    open(board.id);
+    await screen.findByText('Beta');
+    await user.click(moveMenu('Beta'));
+    await screen.findByRole('menu');
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(moveMenu('Beta')).toHaveFocus());
+  });
+
+  it('keeps the card in place when a move can’t be saved', async () => {
+    const user = userEvent.setup();
+    const { board } = await setup();
+    open(board.id);
+    await screen.findByText('Alpha');
+    vi.spyOn(db.notes, 'update').mockRejectedValue(new Error('disk full'));
+    await user.click(moveMenu('Alpha'));
+    await user.click(await screen.findByRole('menuitem', { name: 'Move to Doing' }));
+    expect(await screen.findByText('Couldn’t move the card.')).toBeInTheDocument();
+    await waitFor(() => expect(within(screen.getByRole('region', { name: /To do/ })).getByText('Alpha')).toBeInTheDocument());
+  });
+
+  it('says where a repeating card goes after the Done column', async () => {
+    const user = userEvent.setup();
+    const { board } = await setup();
+    const today = localDate(Date.now());
+    await db.notes.update('Gamma', { due: newDue(today, null, presetRepeat('daily', today)) });
+    open(board.id);
+    await screen.findByText('Gamma');
+    await user.click(moveMenu('Gamma'));
+    await user.click(await screen.findByRole('menuitem', { name: 'Move to Done' }));
+    expect(await screen.findByText('Marked Gamma done; its next date moved it to To do')).toHaveAttribute('role', 'status');
+    await waitFor(() => expect(moveMenu('Gamma')).toHaveFocus());
   });
 });

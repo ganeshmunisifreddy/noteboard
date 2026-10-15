@@ -64,6 +64,17 @@ const toMainBoard = async (notes: Note[], now: number) => {
   return placed;
 };
 
+// Undo puts back where the notes were (and whether they were in Trash),
+// keeping any edits made to them since.
+const putBackPlaces = async (notes: Note[]) => {
+  const now = Date.now();
+  await Promise.all(
+    notes.map(({ id, boardId, columnId, boardPosition, position, trashedAt }) =>
+      db.notes.update(id, { boardId, columnId, boardPosition, position, trashedAt, updatedAt: now }),
+    ),
+  );
+};
+
 export type BoardSnapshot = { board: Board; columns: Column[]; notes: Note[] };
 
 // The board, its columns and its cards' places go together; the notes either
@@ -95,7 +106,7 @@ export const restoreBoard = async ({ board, columns, notes }: BoardSnapshot) => 
   await db.transaction('rw', db.boards, db.columns, db.notes, async () => {
     await db.boards.put(board);
     await db.columns.bulkPut(columns);
-    await db.notes.bulkPut(notes);
+    await putBackPlaces(notes);
   });
   await refreshHasNotesMarker();
 };
@@ -184,7 +195,7 @@ export const deleteColumn = async (id: string): Promise<ColumnSnapshot | undefin
 export const restoreColumn = async ({ column, notes }: ColumnSnapshot) => {
   await db.transaction('rw', db.columns, db.notes, async () => {
     await db.columns.put(column);
-    await db.notes.bulkPut(notes);
+    await putBackPlaces(notes);
   });
 };
 
