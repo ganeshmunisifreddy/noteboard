@@ -8,6 +8,7 @@ import {
   useSensors,
   type DragEndEvent,
   type DragOverEvent,
+  type CollisionDetection,
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { Plus } from 'lucide-react';
@@ -18,6 +19,7 @@ import {
   COLUMN_NAME_MAX,
   deleteColumn,
   moveColumn,
+  moveColumnTo,
   renameColumn,
   restoreColumn,
   setDoneColumn,
@@ -25,6 +27,7 @@ import {
 } from '../../lib/boards';
 import {
   archiveCards,
+  columnOver,
   moveCards,
   moveIndex,
   moveInColumns,
@@ -38,7 +41,7 @@ import {
   type PlaceResult,
 } from '../../lib/cards';
 import { putBackDue, removeDue, setDue, trashNote, undoTrash, updateNote, useLabels } from '../../lib/notes';
-import { neighbors } from '../../lib/order';
+import { moveId, neighbors } from '../../lib/order';
 import type { Board, Column, Note, NoteKind } from '../../lib/types';
 import type { MenuItem } from '../ui/Menu';
 import { useToast } from '../ui/Toast';
@@ -184,12 +187,40 @@ const BoardColumns = ({
     void save(noteId, columnId, next[columnId]);
   };
 
+  const [columnPreview, setColumnPreview] = useState<string[] | null>(null);
+  const storedColumns = columns.map((c) => c.id);
+  // A dragged column's new order shows until the stored one catches up.
+  if (columnPreview && !activeId && columnPreview.join() === storedColumns.join()) setColumnPreview(null);
+  const columnById = new Map(columns.map((c) => [c.id, c]));
+  const orderedColumns = (columnPreview ?? storedColumns)
+    .map((id) => columnById.get(id))
+    .filter((c): c is Column => !!c);
+  const isColumnDrag = (id: string | number) => String(id).startsWith('col:');
+  const columnOfCard = (cardId: string) => Object.keys(shown).find((key) => shown[key].includes(cardId));
+  const nameOf = (id: string | number) =>
+    isColumnDrag(id) ? `column ${columnById.get(String(id).slice(4))?.name}` : titleOf(String(id));
+
+  // Cards only land on cards and lists; columns only on column slots.
+  const collisions: CollisionDetection = (args) =>
+    closestCorners({
+      ...args,
+      droppableContainers: args.droppableContainers.filter(
+        (c) => String(c.id).startsWith('col-slot:') === isColumnDrag(args.active.id),
+      ),
+    });
+
   const onDragStart = ({ active }: DragStartEvent) => {
     setActiveId(String(active.id));
+    if (isColumnDrag(active.id)) return setColumnPreview(storedColumns);
     setPreview({ base: null, order: shown });
   };
 
   const onDragOver = ({ active, over }: DragOverEvent) => {
+    if (isColumnDrag(active.id)) {
+      const column = over ? columnOver(String(over.id), columnOfCard) : null;
+      if (column) setColumnPreview((p) => moveId(p ?? storedColumns, String(active.id).slice(4), column));
+      return;
+    }
     const target = targetOf(over?.id);
     if (!target) return;
     setPreview((p) => ({ base: p?.base ?? null, order: moveInColumns(p?.order ?? shown, String(active.id), target) }));
@@ -197,6 +228,17 @@ const BoardColumns = ({
 
   const onDragEnd = ({ active }: DragEndEvent) => {
     setActiveId(null);
+    if (isColumnDrag(active.id)) {
+      const columnId = String(active.id).slice(4);
+      const index = (columnPreview ?? storedColumns).indexOf(columnId);
+      if (index < 0 || index === storedColumns.indexOf(columnId)) return setColumnPreview(null);
+      setAnnouncement(`Moved column ${columnById.get(columnId)?.name} to position ${index + 1} of ${storedColumns.length}`);
+      moveColumnTo(columnId, index).catch(() => {
+        setColumnPreview(null);
+        toast({ message: 'Couldn’t move the column.' });
+      });
+      return;
+    }
     const id = String(active.id);
     // The order as dragged, even if the stored order changed meanwhile.
     const order = preview?.order ?? shown;
@@ -364,21 +406,22 @@ const BoardColumns = ({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={collisions}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
       onDragCancel={() => {
         setActiveId(null);
         setPreview(null);
+        setColumnPreview(null);
       }}
       accessibility={{
         announcements: {
-          onDragStart: ({ active: card }) => `Picked up ${titleOf(String(card.id))}`,
+          onDragStart: ({ active: item }) => `Picked up ${nameOf(item.id)}`,
           onDragOver: () => undefined,
           onDragMove: () => undefined,
-          onDragEnd: ({ active: card }) => `Dropped ${titleOf(String(card.id))}`,
-          onDragCancel: ({ active: card }) => `Stopped moving ${titleOf(String(card.id))}`,
+          onDragEnd: ({ active: item }) => `Dropped ${nameOf(item.id)}`,
+          onDragCancel: ({ active: item }) => `Stopped moving ${nameOf(item.id)}`,
         },
       }}
     >
@@ -395,7 +438,7 @@ const BoardColumns = ({
           }
         }}
       >
-        {columns.map((column, index) => {
+        {orderedColumns.map((column, index) => {
           const ids = visible(column.id);
           const all = shown[column.id] ?? [];
           return (
@@ -405,7 +448,7 @@ const BoardColumns = ({
               ids={ids}
               total={all.length}
               first={index === 0}
-              last={index === columns.length - 1}
+              last={index === orderedColumns.length - 1}
               notesById={notesById}
               labelNames={labelNames}
               images={images}
@@ -467,6 +510,10 @@ const BoardColumns = ({
         {active ? (
           <div className={styles.overlay} aria-hidden inert>
             <KanbanCard note={active} labelNames={[]} imageCount={0} onOpen={() => {}} />
+          </div>
+        ) : activeId && isColumnDrag(activeId) ? (
+          <div className={styles.columnOverlay} aria-hidden inert>
+            {columnById.get(activeId.slice(4))?.name}
           </div>
         ) : null}
       </DragOverlay>

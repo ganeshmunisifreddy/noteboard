@@ -102,25 +102,34 @@ const BoardColumn = ({
   const [adding, setAdding] = useState(false);
   const addButton = useRef<HTMLButtonElement>(null);
   const headingId = `column-${column.id}`;
+  // The column is a drop slot for other columns, dragged by its header.
+  const { setNodeRef: setSlotRef } = useDroppable({ id: `col-slot:${column.id}` });
+  const { setNodeRef: setHandleRef, listeners, isDragging } = useDraggable({ id: `col:${column.id}` });
   const stopAdding = (refocus: boolean) => {
     setAdding(false);
     if (refocus) requestAnimationFrame(() => addButton.current?.focus());
   };
   return (
-    <section className={styles.column} aria-labelledby={headingId}>
-      <ColumnHeader
-        column={column}
-        headingId={headingId}
-        count={ids.length}
-        total={total}
-        first={first}
-        last={last}
-        bulkItems={bulkItems}
-        onRename={onRename}
-        onMove={onMove}
-        onSetDone={onSetDone}
-        onDelete={onDelete}
-      />
+    <section
+      ref={setSlotRef}
+      className={isDragging ? `${styles.column} ${styles.dragging}` : styles.column}
+      aria-labelledby={headingId}
+    >
+      <div ref={setHandleRef} className={styles.columnGrab} {...listeners}>
+        <ColumnHeader
+          column={column}
+          headingId={headingId}
+          count={ids.length}
+          total={total}
+          first={first}
+          last={last}
+          bulkItems={bulkItems}
+          onRename={onRename}
+          onMove={onMove}
+          onSetDone={onSetDone}
+          onDelete={onDelete}
+        />
+      </div>
       <ColumnDrop id={column.id}>
         <ol className={styles.cards}>
           {ids.map((noteId) => {

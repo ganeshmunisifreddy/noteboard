@@ -3,6 +3,7 @@ import { createBoard } from './boards';
 import { localDate, localMoment } from './calendar';
 import {
   archiveCards,
+  columnOver,
   moveCards,
   moveIndex,
   moveInColumns,
@@ -290,5 +291,16 @@ describe('bulk card actions', () => {
     await db.columns.delete(columns[1].id);
     expect(await moveCards(['a'], columns[1].id)).toEqual([]);
     expect((await db.notes.get('a'))?.columnId).toBe(columns[0].id);
+  });
+});
+
+describe('columnOver', () => {
+  const columnOf = (id: string) => ({ n1: 'c2' } as Record<string, string>)[id];
+  it('reads the column from any droppable on it', () => {
+    expect(columnOver('col-slot:c1', columnOf)).toBe('c1');
+    expect(columnOver('column:c3', columnOf)).toBe('c3');
+    expect(columnOver('card:n1', columnOf)).toBe('c2');
+    expect(columnOver('card:missing', columnOf)).toBeNull();
+    expect(columnOver('other', columnOf)).toBeNull();
   });
 });

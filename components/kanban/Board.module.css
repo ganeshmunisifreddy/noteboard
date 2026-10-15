@@ -420,3 +420,15 @@
     overflow-x: auto;
   }
 }
+
+.columnGrab {
+  cursor: grab;
+}
+
+.columnOverlay {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-raised);
+  font-weight: 700;
+}

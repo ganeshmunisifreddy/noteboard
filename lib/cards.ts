@@ -125,6 +125,14 @@ export const moveShown = (ids: string[], shown: string[], id: string, move: Card
   return [...rest.slice(0, at), id, ...rest.slice(at)];
 };
 
+// The column a dragged column is over: its slot, its card list, or one of its cards.
+export const columnOver = (overId: string, columnOf: (cardId: string) => string | undefined): string | null => {
+  if (overId.startsWith('col-slot:')) return overId.slice(9);
+  if (overId.startsWith('column:')) return overId.slice(7);
+  if (overId.startsWith('card:')) return columnOf(overId.slice(5)) ?? null;
+  return null;
+};
+
 export type DropTarget = { type: 'card'; id: string } | { type: 'column'; id: string };
 
 // The board's order while a card is dragged: over a card it takes that
