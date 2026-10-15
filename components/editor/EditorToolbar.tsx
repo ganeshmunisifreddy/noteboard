@@ -5,19 +5,22 @@ import {
   Copy,
   EllipsisVertical,
   FileText,
+  ImagePlus,
   ListChecks,
   Palette,
   Pin,
   RotateCcw,
+  SquareKanban,
   Tag,
   Trash2,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { useMediaQuery } from '../../lib/useMediaQuery';
 import ColorPicker from '../ui/ColorPicker';
 import IconButton from '../ui/IconButton';
 import LabelPicker from '../ui/LabelPicker';
-import Menu from '../ui/Menu';
-import AddImageButton from './AddImageButton';
+import Menu, { type MenuItem } from '../ui/Menu';
+import AddImageButton, { useImagePicker } from './AddImageButton';
 import type { Draft } from './NoteEditor';
 import styles from './EditorToolbar.module.css';
 
@@ -35,9 +38,11 @@ type Props = {
   onDeleteForever: () => void;
   onAddImages: (files: File[]) => void;
   dateButton?: ReactNode;
-  boardButton?: ReactNode;
+  boardItems: MenuItem[]; // the Board submenu: boards, their columns, Remove from board
 };
 
+// The everyday actions (pin, colour, date, labels, image) stay out; the rest
+// are in ⋮. On a phone, labels and images move into ⋮ too.
 const EditorToolbar = ({
   draft,
   trashed,
@@ -52,70 +57,115 @@ const EditorToolbar = ({
   onDeleteForever,
   onAddImages,
   dateButton,
-  boardButton,
-}: Props) => (
-  <header className={styles.bar}>
-    <IconButton label='Back to notes' onClick={onBack}>
-      <ArrowLeft size={20} aria-hidden />
-    </IconButton>
-    <div className={styles.actions}>
-      {trashed ? (
-        <>
-          <button type='button' className={styles.textButton} onClick={onRestore}>
-            <RotateCcw size={16} aria-hidden />
-            Restore
-          </button>
-          <IconButton label='Delete forever' onClick={onDeleteForever}>
-            <Trash2 size={18} aria-hidden />
-          </IconButton>
-        </>
-      ) : (
-        <>
-          <AddImageButton onAdd={onAddImages} />
-          {dateButton}
-          {boardButton}
-          <IconButton label={draft.pinned ? 'Unpin note' : 'Pin note'} aria-pressed={draft.pinned} onClick={onTogglePin}>
-            <Pin size={18} fill={draft.pinned ? 'currentColor' : 'none'} aria-hidden />
-          </IconButton>
-          <ColorPicker
-            value={draft.color}
-            onChange={(color) => onChange({ color })}
-            trigger={
-              <IconButton label='Change colour'>
-                <Palette size={18} aria-hidden />
-              </IconButton>
-            }
-          />
-          <LabelPicker
-            selectedIds={draft.labelIds}
-            onChange={(labelIds) => onChange({ labelIds })}
-            trigger={
-              <IconButton label='Labels'>
-                <Tag size={18} aria-hidden />
-              </IconButton>
-            }
-          />
-          <IconButton label={draft.kind === 'note' ? 'Convert to list' : 'Convert to note'} onClick={onSwitchKind}>
-            {draft.kind === 'note' ? <ListChecks size={18} aria-hidden /> : <FileText size={18} aria-hidden />}
-          </IconButton>
-          <IconButton label={draft.archived ? 'Unarchive' : 'Archive'} onClick={onArchive}>
-            {draft.archived ? <ArchiveRestore size={18} aria-hidden /> : <Archive size={18} aria-hidden />}
-          </IconButton>
-          <Menu
-            items={[
-              { label: 'Make a copy', icon: <Copy size={16} aria-hidden />, onSelect: onCopy },
-              { label: 'Delete', icon: <Trash2 size={16} aria-hidden />, danger: true, onSelect: onDelete },
-            ]}
-            trigger={
-              <IconButton label='More actions'>
-                <EllipsisVertical size={18} aria-hidden />
-              </IconButton>
-            }
-          />
-        </>
-      )}
-    </div>
-  </header>
-);
+  boardItems,
+}: Props) => {
+  const phone = useMediaQuery('(max-width: 600px)');
+  const images = useImagePicker(onAddImages);
+  const [labelsOpen, setLabelsOpen] = useState(false);
+
+  const more: MenuItem[] = [
+    ...(phone
+      ? [
+          {
+            label: 'Labels…',
+            icon: <Tag size={16} aria-hidden />,
+            keepFocus: true, // the label picker takes focus
+            onSelect: () => requestAnimationFrame(() => setLabelsOpen(true)),
+          },
+          { label: 'Add image', icon: <ImagePlus size={16} aria-hidden />, onSelect: images.open },
+        ]
+      : []),
+    { label: 'Board', icon: <SquareKanban size={16} aria-hidden />, items: boardItems },
+    {
+      label: draft.kind === 'note' ? 'Turn into list' : 'Turn into text',
+      icon: draft.kind === 'note' ? <ListChecks size={16} aria-hidden /> : <FileText size={16} aria-hidden />,
+      onSelect: onSwitchKind,
+    },
+    { label: 'Make a copy', icon: <Copy size={16} aria-hidden />, onSelect: onCopy },
+    {
+      label: draft.archived ? 'Unarchive' : 'Archive',
+      icon: draft.archived ? <ArchiveRestore size={16} aria-hidden /> : <Archive size={16} aria-hidden />,
+      onSelect: onArchive,
+    },
+    { label: 'Delete', icon: <Trash2 size={16} aria-hidden />, danger: true, onSelect: onDelete },
+  ];
+
+  const moreMenu = (
+    <Menu
+      items={more}
+      trigger={
+        <IconButton label='More actions'>
+          <EllipsisVertical size={18} aria-hidden />
+        </IconButton>
+      }
+    />
+  );
+
+  return (
+    <header className={styles.bar}>
+      <IconButton label='Back to notes' onClick={onBack}>
+        <ArrowLeft size={20} aria-hidden />
+      </IconButton>
+      <div className={styles.actions}>
+        {trashed ? (
+          <>
+            <button type='button' className={styles.textButton} onClick={onRestore}>
+              <RotateCcw size={16} aria-hidden />
+              Restore
+            </button>
+            <IconButton label='Delete forever' onClick={onDeleteForever}>
+              <Trash2 size={18} aria-hidden />
+            </IconButton>
+          </>
+        ) : (
+          <>
+            <IconButton
+              label={draft.pinned ? 'Unpin note' : 'Pin note'}
+              aria-pressed={draft.pinned}
+              onClick={onTogglePin}
+            >
+              <Pin size={18} fill={draft.pinned ? 'currentColor' : 'none'} aria-hidden />
+            </IconButton>
+            <ColorPicker
+              value={draft.color}
+              onChange={(color) => onChange({ color })}
+              trigger={
+                <IconButton label='Change colour'>
+                  <Palette size={18} aria-hidden />
+                </IconButton>
+              }
+            />
+            {dateButton}
+            {phone ? (
+              // Labels… in ⋮ opens the picker next to ⋮.
+              <LabelPicker
+                selectedIds={draft.labelIds}
+                onChange={(labelIds) => onChange({ labelIds })}
+                open={labelsOpen}
+                onOpenChange={setLabelsOpen}
+                anchor={<span className={styles.anchor}>{moreMenu}</span>}
+              />
+            ) : (
+              <>
+                <LabelPicker
+                  selectedIds={draft.labelIds}
+                  onChange={(labelIds) => onChange({ labelIds })}
+                  trigger={
+                    <IconButton label='Labels'>
+                      <Tag size={18} aria-hidden />
+                    </IconButton>
+                  }
+                />
+                <AddImageButton onOpen={images.open} />
+                {moreMenu}
+              </>
+            )}
+            {images.input}
+          </>
+        )}
+      </div>
+    </header>
+  );
+};
 
 export default EditorToolbar;

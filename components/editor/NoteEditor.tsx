@@ -1,4 +1,4 @@
-import { SquareKanban } from 'lucide-react';
+import { Check, SquareKanban } from 'lucide-react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
@@ -31,7 +31,7 @@ import {
   useNoteAttachments,
 } from '../../lib/attachments';
 import { newCardPlace, placeAtEnd, putBackPlace, removeFromBoard } from '../../lib/cards';
-import { usePlaceNames } from '../../lib/boards';
+import { useBoardColumns, usePlaceNames } from '../../lib/boards';
 import { formatDue } from '../../lib/due';
 import { leaveEditor, noteHref, openEditor, type NewCardPlace } from '../../lib/routes';
 import { isQuotaError } from '../../lib/storage';
@@ -40,6 +40,7 @@ import type { Attachment, ChecklistItem, Note, NoteKind, Repeat } from '../../li
 import MarkdownPreview from '../board/MarkdownPreview';
 import IconButton from '../ui/IconButton';
 import { useToast } from '../ui/Toast';
+import type { MenuItem } from '../ui/Menu';
 import BoardMenu from './BoardPicker';
 import chipStyles from './BoardPicker.module.css';
 import ChecklistEditor from './ChecklistEditor';
@@ -247,6 +248,21 @@ const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
     await removeDue(noteId);
     toast({ message: 'Date removed', actionLabel: 'Undo', onAction: () => void putBackDue(noteId, before) });
   };
+
+  // ⋮ › Board: each board's columns (the current one ticked), and Remove from board.
+  const boardColumns = useBoardColumns() ?? [];
+  const boardItems: MenuItem[] = boardColumns.map(({ board, columns }) => ({
+    key: board.id,
+    label: board.name,
+    items: columns.map((column) => ({
+      key: column.id,
+      label: column.name,
+      icon: column.id === stored?.columnId ? <Check size={16} aria-hidden /> : undefined,
+      onSelect: () => void pickColumn(column.id),
+    })),
+  }));
+  if (stored?.columnId) boardItems.push({ label: 'Remove from board', onSelect: () => void removeFromBoard(noteId) });
+  if (boardItems.length === 0) boardItems.push({ label: 'No boards yet', onSelect: () => {} });
 
   const placeNames = usePlaceNames();
   const place = stored?.columnId ? placeNames?.get(stored.columnId) : undefined;
@@ -477,18 +493,7 @@ const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
           onRestore={() => void restore()}
           onDeleteForever={() => void removeForever()}
           onAddImages={(files) => void addFiles(files)}
-          boardButton={
-            <BoardMenu
-              columnId={stored?.columnId ?? null}
-              onPick={(columnId) => void pickColumn(columnId)}
-              onRemove={() => void removeFromBoard(noteId)}
-              trigger={
-                <IconButton label='Board'>
-                  <SquareKanban size={18} aria-hidden />
-                </IconButton>
-              }
-            />
-          }
+          boardItems={boardItems}
           dateButton={
             <DatePopover
               due={due}
