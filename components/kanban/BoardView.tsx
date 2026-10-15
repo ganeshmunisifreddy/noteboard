@@ -9,6 +9,7 @@ import {
   deleteBoard,
   renameBoard,
   restoreBoard,
+  starBoard,
   useBoardColumns,
   type BoardData,
 } from '../../lib/boards';
@@ -139,6 +140,10 @@ const BoardView = ({ data }: { data: BoardData }) => {
           items={[
             { label: 'Rename board', keepFocus: true, onSelect: () => setRenaming(true) },
             { label: 'Add column', keepFocus: true, onSelect: () => setAddingColumn((n) => n + 1) },
+            {
+              label: board.starred ? 'Unstar board' : 'Star board',
+              onSelect: () => void starBoard(board.id, !board.starred),
+            },
             { label: 'Delete board…', danger: true, onSelect: () => setDeleting(true) },
           ]}
           trigger={

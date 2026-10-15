@@ -164,6 +164,17 @@ describe('board page', () => {
     expect(screen.queryByRole('menuitem', { name: 'Move all cards to' })).not.toBeInTheDocument();
   });
 
+  it('stars the board from its menu', async () => {
+    const user = userEvent.setup();
+    const { board } = await setup();
+    open(board.id);
+    await user.click(await screen.findByRole('button', { name: 'Board actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Star board' }));
+    await waitFor(async () => expect((await db.boards.get(board.id))?.starred).toBe(true));
+    await user.click(screen.getByRole('button', { name: 'Board actions' }));
+    expect(await screen.findByRole('menuitem', { name: 'Unstar board' })).toBeInTheDocument();
+  });
+
   it('renames, moves, marks Done and deletes columns', async () => {
     const user = userEvent.setup();
     const { board, columns } = await setup();

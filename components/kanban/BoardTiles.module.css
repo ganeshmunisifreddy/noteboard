@@ -40,6 +40,7 @@
 }
 
 .name {
+  padding-right: 64px; /* clear of the star and menu buttons */
   font-size: var(--text-md);
   font-weight: 700;
 }
@@ -80,4 +81,40 @@
   box-shadow: none;
   font-weight: 700;
   color: var(--text-muted);
+}
+
+.item {
+  position: relative;
+}
+
+.dragging {
+  opacity: 0.4;
+}
+
+.actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 2px;
+}
+
+.starred {
+  color: var(--accent);
+}
+
+.heading {
+  margin: 8px 4px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
