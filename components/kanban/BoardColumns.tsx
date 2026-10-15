@@ -24,20 +24,24 @@ import {
   type BoardData,
 } from '../../lib/boards';
 import {
+  archiveCards,
   moveIndex,
   moveInColumns,
+  placeAtEnd,
   placeNote,
+  putBackCards,
   putBackPlace,
   quickAddCard,
   type CardMove,
   type PlaceResult,
 } from '../../lib/cards';
+import { putBackDue, removeDue, setDue, trashNote, undoTrash, updateNote, useLabels } from '../../lib/notes';
 import { moveToIndex, neighbors } from '../../lib/order';
-import type { NoteKind } from '../../lib/types';
+import type { Board, Column, Note, NoteKind } from '../../lib/types';
 import { useToast } from '../ui/Toast';
 import styles from './Board.module.css';
 import BoardColumn from './BoardColumn';
-import CardMoveMenu from './CardMoveMenu';
+import CardMenu from './CardMenu';
 import InlineName from './InlineName';
 import KanbanCard from './KanbanCard';
 
@@ -45,6 +49,7 @@ type Props = {
   data: BoardData;
   labelNames: Map<string, string>;
   images?: Map<string, BoardImages>;
+  boards: { board: Board; columns: Column[] }[]; // every board, for Move to board
   onOpen: (id: string) => void;
   onAddCard: (columnId: string, kind: NoteKind) => void;
   startAddingColumn?: boolean; // the board menu's "Add column"
@@ -60,7 +65,16 @@ const targetOf = (id: string | number | undefined) => {
   return null;
 };
 
-const BoardColumns = ({ data, labelNames, images, onOpen, onAddCard, startAddingColumn = false, onCardAdded }: Props) => {
+const BoardColumns = ({
+  data,
+  labelNames,
+  images,
+  boards,
+  onOpen,
+  onAddCard,
+  startAddingColumn = false,
+  onCardAdded,
+}: Props) => {
   const toast = useToast();
   const [adding, setAdding] = useState(startAddingColumn);
   const scroller = useRef<HTMLDivElement>(null);
@@ -185,6 +199,67 @@ const BoardColumns = ({ data, labelNames, images, onOpen, onAddCard, startAdding
     void save(id, columnId, order[columnId]);
   };
 
+  const labels = useLabels() ?? [];
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  // A card leaving the board (archived, deleted, moved away): where focus goes instead.
+  const leaving = useRef<{ id: string; next: string } | null>(null);
+  const otherBoards = boards.filter((b) => b.board.id !== board.id);
+
+  const nextFocus = (noteId: string, columnId: string) => {
+    const ids = shown[columnId] ?? [];
+    const index = ids.indexOf(noteId);
+    const other = ids[index + 1] ?? ids[index - 1];
+    return other ? `[data-card-move="${CSS.escape(other)}"]` : `[data-add-card="${CSS.escape(columnId)}"]`;
+  };
+
+  const leave = (noteId: string, columnId: string) => {
+    leaving.current = { id: noteId, next: nextFocus(noteId, columnId) };
+  };
+
+  const focusAfterMenu = (noteId: string) => {
+    const left = leaving.current?.id === noteId ? leaving.current : null;
+    leaving.current = null;
+    document.querySelector<HTMLElement>(left ? left.next : `[data-card-move="${CSS.escape(noteId)}"]`)?.focus();
+  };
+
+  const archive = async (noteId: string, columnId: string) => {
+    leave(noteId, columnId);
+    const states = await archiveCards([noteId]);
+    setAnnouncement(`Archived ${titleOf(noteId)}`);
+    toast({ message: 'Note archived', actionLabel: 'Undo', onAction: () => void putBackCards(states) });
+  };
+
+  const remove = async (noteId: string, columnId: string) => {
+    leave(noteId, columnId);
+    await trashNote(noteId);
+    setAnnouncement(`Moved ${titleOf(noteId)} to trash`);
+    toast({ message: 'Moved to trash', actionLabel: 'Undo', onAction: () => void undoTrash(noteId) });
+  };
+
+  const moveToBoard = async (noteId: string, columnId: string, fromColumn: string) => {
+    const target = otherBoards.find((b) => b.columns.some((c) => c.id === columnId));
+    const where = `${target?.board.name} · ${target?.columns.find((c) => c.id === columnId)?.name}`;
+    leave(noteId, fromColumn);
+    const result = await placeAtEnd(noteId, columnId);
+    if (!result) return;
+    setAnnouncement(`Moved ${titleOf(noteId)} to ${where}`);
+    toast({ message: `Moved to ${where}`, actionLabel: 'Undo', onAction: () => void putBackPlace(result.before) });
+  };
+
+  const removeDate = async (noteId: string) => {
+    const before = notesById.get(noteId)?.due ?? null;
+    if (!before) return;
+    await removeDue(noteId);
+    toast({ message: 'Date removed', actionLabel: 'Undo', onAction: () => void putBackDue(noteId, before) });
+  };
+
+  const toggleLabel = (note: Note, labelId: string) =>
+    void updateNote(note.id, {
+      labelIds: note.labelIds.includes(labelId)
+        ? note.labelIds.filter((id) => id !== labelId)
+        : [...note.labelIds, labelId],
+    });
+
   const quickAdd = async (columnId: string, title: string) => {
     try {
       const note = await quickAddCard(columnId, board.id, title);
@@ -282,14 +357,26 @@ const BoardColumns = ({ data, labelNames, images, onOpen, onAddCard, startAdding
               onMove={(direction) => void moveColumn(column.id, direction)}
               onSetDone={(done) => void setDoneColumn(column.id, done)}
               onDelete={() => void removeColumn(column.id, column.name, ids.length)}
+              onCardMenu={setMenuFor}
               cardMenu={(note) => (
-                <CardMoveMenu
-                  title={note.title || 'Untitled'}
-                  buttonId={note.id}
+                <CardMenu
+                  note={note}
+                  labels={labels}
                   columns={columns.filter((c) => c.id !== column.id).map((c) => ({ id: c.id, name: c.name }))}
+                  boards={otherBoards}
+                  open={menuFor === note.id}
+                  onOpenChange={(isOpen) => setMenuFor(isOpen ? note.id : null)}
                   canMove={(move) => moveIndex(ids, note.id, move) !== null}
                   onMove={(move) => moveWithin(note.id, column.id, move)}
                   onMoveTo={(columnId) => moveToColumn(note.id, columnId)}
+                  onMoveToBoard={(columnId) => void moveToBoard(note.id, columnId, column.id)}
+                  onColor={(color) => void updateNote(note.id, { color })}
+                  onToggleLabel={(labelId) => toggleLabel(note, labelId)}
+                  onSaveDate={(date, time, repeat) => void setDue(note.id, date, time, repeat)}
+                  onRemoveDate={() => void removeDate(note.id)}
+                  onArchive={() => void archive(note.id, column.id)}
+                  onDelete={() => void remove(note.id, column.id)}
+                  onCloseFocus={() => focusAfterMenu(note.id)}
                 />
               )}
             />

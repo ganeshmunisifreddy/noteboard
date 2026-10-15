@@ -1,6 +1,6 @@
 import { AlarmClock } from 'lucide-react';
 import { Popover } from 'radix-ui';
-import { useId, useState, type FormEvent } from 'react';
+import { useId, useState, type FormEvent, type ReactElement } from 'react';
 import { localDate, WEEKDAY_LONG, WEEKDAY_SHORT } from '../../lib/calendar';
 import {
   formFromDue,
@@ -254,15 +254,20 @@ type Props = {
   onSave: Save;
   onRemove: () => void;
   onCloseAutoFocus?: (event: Event) => void;
+  anchor?: ReactElement; // opened from elsewhere (a card's menu): no date button of its own
 };
 
-const DatePopover = ({ due, open, onOpenChange, onSave, onRemove, onCloseAutoFocus }: Props) => (
+const DatePopover = ({ due, open, onOpenChange, onSave, onRemove, onCloseAutoFocus, anchor }: Props) => (
   <Popover.Root open={open} onOpenChange={onOpenChange}>
-    <Popover.Trigger asChild>
-      <IconButton label={due ? 'Change date' : 'Add date'} data-date-button=''>
-        <AlarmClock size={18} aria-hidden />
-      </IconButton>
-    </Popover.Trigger>
+    {anchor ? (
+      <Popover.Anchor asChild>{anchor}</Popover.Anchor>
+    ) : (
+      <Popover.Trigger asChild>
+        <IconButton label={due ? 'Change date' : 'Add date'} data-date-button=''>
+          <AlarmClock size={18} aria-hidden />
+        </IconButton>
+      </Popover.Trigger>
+    )}
     <Popover.Portal>
       <Popover.Content
         className={styles.content}

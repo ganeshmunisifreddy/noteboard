@@ -54,7 +54,19 @@ const order = async (columnId: string) =>
     .sort((a, b) => a.boardPosition - b.boardPosition)
     .map((n) => n.id);
 
-const moveMenu = (title: string) => screen.getByRole('button', { name: `Move ${title}` });
+const moveMenu = (title: string) => screen.getByRole('button', { name: `Card actions for ${title}` });
+
+// Radix submenus open, and their items are chosen, by keyboard in jsdom.
+const openMove = async (user: ReturnType<typeof userEvent.setup>, title: string) => {
+  await user.click(moveMenu(title));
+  (await screen.findByRole('menuitem', { name: 'Move' })).focus();
+  await user.keyboard('{ArrowRight}');
+};
+
+const choose = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
+  (await screen.findByRole('menuitem', { name })).focus();
+  await user.keyboard('{Enter}');
+};
 
 describe('moving cards from the Move menu', () => {
   it('moves a card down and announces it', async () => {
@@ -62,8 +74,8 @@ describe('moving cards from the Move menu', () => {
     const { board, columns } = await setup();
     open(board.id);
     await screen.findByText('Alpha');
-    await user.click(moveMenu('Alpha'));
-    await user.click(await screen.findByRole('menuitem', { name: 'Move down' }));
+    await openMove(user, 'Alpha');
+    await choose(user, 'Move down');
     await waitFor(async () => expect(await order(columns[0].id)).toEqual(['Beta', 'Alpha', 'Gamma']));
     // dnd-kit has its own live region; the board's names the move.
     expect(screen.getByText('Moved Alpha to To do, position 2 of 3')).toHaveAttribute('role', 'status');
@@ -74,8 +86,8 @@ describe('moving cards from the Move menu', () => {
     const { board } = await setup();
     open(board.id);
     await screen.findByText('Alpha');
-    await user.click(moveMenu('Alpha'));
-    const menu = await screen.findByRole('menu');
+    await openMove(user, 'Alpha');
+    const menu = (await screen.findAllByRole('menu')).at(-1) as HTMLElement;
     expect(within(menu).queryByRole('menuitem', { name: 'Move up' })).not.toBeInTheDocument();
     expect(within(menu).queryByRole('menuitem', { name: 'Move to top' })).not.toBeInTheDocument();
     expect(within(menu).getByRole('menuitem', { name: 'Move to Doing' })).toBeInTheDocument();
@@ -87,10 +99,10 @@ describe('moving cards from the Move menu', () => {
     const { board, columns } = await setup();
     open(board.id);
     await screen.findByText('Alpha');
-    await user.click(moveMenu('Alpha'));
-    await user.click(await screen.findByRole('menuitem', { name: 'Move to bottom' }));
-    await user.click(moveMenu('Alpha'));
-    await user.click(await screen.findByRole('menuitem', { name: 'Move up' }));
+    await openMove(user, 'Alpha');
+    await choose(user, 'Move to bottom');
+    await openMove(user, 'Alpha');
+    await choose(user, 'Move up');
     await waitFor(async () => expect(await order(columns[0].id)).toEqual(['Beta', 'Alpha', 'Gamma']));
   });
 
@@ -99,8 +111,8 @@ describe('moving cards from the Move menu', () => {
     const { board, columns } = await setup();
     open(board.id);
     await screen.findByText('Alpha');
-    await user.click(moveMenu('Beta'));
-    await user.click(await screen.findByRole('menuitem', { name: 'Move to Doing' }));
+    await openMove(user, 'Beta');
+    await choose(user, 'Move to Doing');
     await waitFor(async () => expect(await order(columns[1].id)).toEqual(['Beta']));
     await waitFor(() => expect(moveMenu('Beta')).toHaveFocus());
     expect(within(screen.getByRole('region', { name: /Doing/ })).getByText('Beta')).toBeInTheDocument();
@@ -112,8 +124,8 @@ describe('moving cards from the Move menu', () => {
     await db.notes.update('Gamma', { due: newDue('2999-01-01', null, null) });
     open(board.id);
     await screen.findByText('Gamma');
-    await user.click(moveMenu('Gamma'));
-    await user.click(await screen.findByRole('menuitem', { name: 'Move to Done' }));
+    await openMove(user, 'Gamma');
+    await choose(user, 'Move to Done');
     await waitFor(async () => expect((await db.notes.get('Gamma'))?.due?.doneAt).not.toBeNull());
     await user.click(await screen.findByRole('button', { name: 'Undo' }));
     await waitFor(async () => expect((await db.notes.get('Gamma'))?.columnId).toBe(columns[0].id));
@@ -125,8 +137,8 @@ describe('moving cards from the Move menu', () => {
     const { board, columns } = await setup();
     open(board.id);
     await screen.findByText('Alpha');
-    await user.click(moveMenu('Alpha'));
-    await user.click(await screen.findByRole('menuitem', { name: 'Move down' }));
+    await openMove(user, 'Alpha');
+    await choose(user, 'Move down');
     await waitFor(async () => expect(await order(columns[0].id)).toEqual(['Beta', 'Alpha', 'Gamma']));
     await waitFor(() => expect(moveMenu('Alpha')).toHaveFocus());
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -150,8 +162,8 @@ describe('moving cards from the Move menu', () => {
     open(board.id);
     await screen.findByText('Alpha');
     vi.spyOn(db.notes, 'update').mockRejectedValue(new Error('disk full'));
-    await user.click(moveMenu('Alpha'));
-    await user.click(await screen.findByRole('menuitem', { name: 'Move to Doing' }));
+    await openMove(user, 'Alpha');
+    await choose(user, 'Move to Doing');
     expect(await screen.findByText('Couldn’t move the card.')).toBeInTheDocument();
     await waitFor(() => expect(within(screen.getByRole('region', { name: /To do/ })).getByText('Alpha')).toBeInTheDocument());
   });
@@ -163,8 +175,8 @@ describe('moving cards from the Move menu', () => {
     await db.notes.update('Gamma', { due: newDue(today, null, presetRepeat('daily', today)) });
     open(board.id);
     await screen.findByText('Gamma');
-    await user.click(moveMenu('Gamma'));
-    await user.click(await screen.findByRole('menuitem', { name: 'Move to Done' }));
+    await openMove(user, 'Gamma');
+    await choose(user, 'Move to Done');
     expect(await screen.findByText('Marked Gamma done; its next date moved it to To do')).toHaveAttribute('role', 'status');
     await waitFor(() => expect(moveMenu('Gamma')).toHaveFocus());
   });

@@ -313,3 +313,15 @@
   align-items: center;
   gap: 4px;
 }
+
+.menuAnchor {
+  display: inline-flex;
+}
+
+.swatch {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--note-bg);
+}

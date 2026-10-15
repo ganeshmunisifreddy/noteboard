@@ -3,7 +3,14 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useBoardImages } from '../../lib/attachments';
-import { BOARD_NAME_MAX, deleteBoard, renameBoard, restoreBoard, type BoardData } from '../../lib/boards';
+import {
+  BOARD_NAME_MAX,
+  deleteBoard,
+  renameBoard,
+  restoreBoard,
+  useBoardColumns,
+  type BoardData,
+} from '../../lib/boards';
 import { useLabels } from '../../lib/notes';
 import { BOARDS_HREF, markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../../lib/routes';
 import type { NoteKind } from '../../lib/types';
@@ -20,6 +27,7 @@ const BoardView = ({ data }: { data: BoardData }) => {
   const toast = useToast();
   const labels = useLabels();
   const images = useBoardImages();
+  const boards = useBoardColumns();
   const [renaming, setRenaming] = useState(false);
   const [addingColumn, setAddingColumn] = useState(0);
   const [deleting, setDeleting] = useState(false);
@@ -104,6 +112,7 @@ const BoardView = ({ data }: { data: BoardData }) => {
           data={data}
           labelNames={labelNames}
           images={images}
+          boards={boards ?? []}
           onOpen={(id) => openEditor(router, noteHref(id))}
           onAddCard={(columnId, kind) => addCard(columnId, kind)}
           startAddingColumn={addingColumn > 0}

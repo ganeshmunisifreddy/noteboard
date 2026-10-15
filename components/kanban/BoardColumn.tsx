@@ -12,7 +12,7 @@ import QuickAdd from './QuickAdd';
 
 // A card that can be dragged and dropped on (dnd-kit). The whole card is the
 // drag handle: a mouse drag starts after 5px, a touch drag after a 250ms press.
-const DraggableCard = ({ id, children }: { id: string; children: ReactNode }) => {
+const DraggableCard = ({ id, onMenu, children }: { id: string; onMenu: () => void; children: ReactNode }) => {
   const { setNodeRef: setDragRef, listeners, isDragging } = useDraggable({ id });
   const { setNodeRef: setDropRef } = useDroppable({ id: `card:${id}` });
   const ref = useCallback(
@@ -22,10 +22,25 @@ const DraggableCard = ({ id, children }: { id: string; children: ReactNode }) =>
     },
     [setDragRef, setDropRef],
   );
-  // Pointer only: the card's own buttons (Open, Move) are the keyboard way in,
-  // so dnd-kit's focusable "button" attributes aren't applied.
+  const pointer = useRef('mouse');
+  // Pointer only: the card's own buttons (Open, Card actions) are the keyboard
+  // way in, so dnd-kit's focusable "button" attributes aren't applied.
   return (
-    <li ref={ref} className={isDragging ? styles.dragging : undefined} {...listeners}>
+    <li
+      ref={ref}
+      className={isDragging ? styles.dragging : undefined}
+      {...listeners}
+      onPointerDown={(e) => {
+        pointer.current = e.pointerType;
+        listeners?.onPointerDown?.(e);
+      }}
+      onContextMenu={(e) => {
+        // A touch long-press stays a drag; only a mouse right-click opens the menu.
+        if (pointer.current !== 'mouse') return;
+        e.preventDefault();
+        onMenu();
+      }}
+    >
       {children}
     </li>
   );
@@ -60,6 +75,7 @@ type Props = {
   onSetDone: (done: boolean) => void;
   onDelete: () => void;
   cardMenu: (note: Note) => ReactNode;
+  onCardMenu: (noteId: string) => void; // right-click
 };
 
 const BoardColumn = ({
@@ -81,6 +97,7 @@ const BoardColumn = ({
   onSetDone,
   onDelete,
   cardMenu,
+  onCardMenu,
 }: Props) => {
   const [adding, setAdding] = useState(false);
   const addButton = useRef<HTMLButtonElement>(null);
@@ -110,7 +127,7 @@ const BoardColumn = ({
             const note = notesById.get(noteId);
             if (!note) return null;
             return (
-              <DraggableCard key={noteId} id={noteId}>
+              <DraggableCard key={noteId} id={noteId} onMenu={() => onCardMenu(noteId)}>
                 <KanbanCard
                   note={note}
                   labelNames={note.labelIds.map((id) => labelNames.get(id)).filter((n): n is string => !!n)}
