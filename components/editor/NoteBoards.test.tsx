@@ -50,13 +50,23 @@ describe('boards in the editor', () => {
     const [, doing] = await sortedColumns(board.id);
     await createNote({ id: 'n1', kind: 'note', title: 'Logo' });
     open({ id: 'n1' });
-    await user.click(await screen.findByRole('button', { name: 'Board' }));
+    await user.click(await screen.findByRole('button', { name: 'More actions' }));
     // Keyboard: jsdom's pointer moves close Radix submenus.
+    (await screen.findByRole('menuitem', { name: 'Board' })).focus();
+    await user.keyboard('{ArrowRight}');
     (await screen.findByRole('menuitem', { name: 'Website' })).focus();
     await user.keyboard('{ArrowRight}');
-    (await screen.findByRole('menuitemradio', { name: 'Doing' })).focus();
+    (await screen.findByRole('menuitemcheckbox', { name: 'Doing' })).focus();
     await user.keyboard('{Enter}');
     await waitFor(async () => expect((await db.notes.get('n1'))?.columnId).toBe(doing.id));
+    // The submenu says which column the note is in.
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    (await screen.findByRole('menuitem', { name: 'Board' })).focus();
+    await user.keyboard('{ArrowRight}');
+    (await screen.findByRole('menuitem', { name: 'Website' })).focus();
+    await user.keyboard('{ArrowRight}');
+    expect(await screen.findByRole('menuitemcheckbox', { name: 'Doing' })).toBeChecked();
+    await user.keyboard('{Escape}{Escape}{Escape}');
     const chip = await screen.findByRole('button', { name: 'Board: Website · Doing' });
     await user.click(chip);
     await user.click(await screen.findByRole('menuitem', { name: 'Remove from board' }));
@@ -89,11 +99,13 @@ describe('boards in the editor', () => {
     await createNote({ id: 'n1', kind: 'note', title: 'Logo', boardId: board.id, columnId: done.id, boardPosition: 0 });
     await db.notes.update('n1', { due: { ...newDue('2999-01-01', null, null), doneAt: 5 } });
     open({ id: 'n1' });
-    (await screen.findByRole('button', { name: 'Board' })).focus();
+    (await screen.findByRole('button', { name: 'More actions' })).focus();
     await user.keyboard('{Enter}');
+    (await screen.findByRole('menuitem', { name: 'Board' })).focus();
+    await user.keyboard('{ArrowRight}');
     (await screen.findByRole('menuitem', { name: 'Website' })).focus();
     await user.keyboard('{ArrowRight}');
-    (await screen.findByRole('menuitemradio', { name: 'To do' })).focus();
+    (await screen.findByRole('menuitemcheckbox', { name: 'To do' })).focus();
     await user.keyboard('{Enter}');
     expect(await screen.findByText('Date reopened')).toBeInTheDocument();
   });

@@ -5,9 +5,24 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 12px 24px;
+  height: 64px;
+  padding: 0 24px 0 12px;
   background: var(--surface);
   box-shadow: 0 1px 0 var(--border);
+}
+
+.brand {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-width: calc(var(--sidebar-width, 248px) - 4px);
+}
+
+@media (max-width: 1023px) {
+  .brand {
+    min-width: 0;
+  }
 }
 
 .logo {
@@ -19,6 +34,7 @@
 .search {
   display: flex;
   flex: 1;
+  min-width: 0; /* shrinks on narrow phones so ⋮ stays on screen */
   align-items: center;
   gap: 8px;
   max-width: 640px;
@@ -97,11 +113,11 @@
 
 @media (max-width: 600px) {
   .bar {
-    gap: 10px;
-    padding: 10px 12px;
+    gap: 8px;
+    padding: 0 8px;
   }
   .logo {
-    font-size: var(--text-md);
+    display: none;
   }
   .newButton {
     display: none;

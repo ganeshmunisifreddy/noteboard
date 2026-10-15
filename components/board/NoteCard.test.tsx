@@ -162,3 +162,68 @@ describe('NoteCard', () => {
     expect(screen.getByRole('button', { name: 'Open note: Logo' })).toHaveAccessibleDescription(/Website · Doing/);
   });
 });
+
+describe('tick boxes on cards', () => {
+  it('ticks a tick box in a text note from the card', async () => {
+    const user = userEvent.setup();
+    const note = await createNote({ kind: 'note', title: 'Shop', content: '```\n- [ ] code\n```\n- [ ] milk\n- [x] eggs' });
+    render(
+      <ToastProvider>
+        <NoteCard note={note} labelNames={[]} mode='board' onOpen={vi.fn()} />
+      </ToastProvider>,
+    );
+    const milk = screen.getByRole('checkbox', { name: 'Mark ‘milk’ done' });
+    expect(screen.getByRole('checkbox', { name: 'Mark ‘eggs’ not done' })).toBeChecked();
+    await user.click(milk);
+    await waitFor(async () =>
+      expect((await db.notes.get(note.id))?.content).toBe('```\n- [ ] code\n```\n- [x] milk\n- [x] eggs'),
+    );
+  });
+});
+
+describe('search matches on cards', () => {
+  it('marks search matches in the title and text', async () => {
+    const note = await createNote({ kind: 'note', title: 'Milk run', content: 'Buy **milk** today' });
+    render(
+      <ToastProvider>
+        <NoteCard note={note} labelNames={[]} mode='board' onOpen={vi.fn()} highlight='milk' />
+      </ToastProvider>,
+    );
+    const marks = document.querySelectorAll('mark');
+    expect([...marks].map((m) => m.textContent)).toEqual(['Milk', 'milk']);
+  });
+});
+
+describe('image-only cards', () => {
+  it('shows only the images (no empty body, no "Empty note")', async () => {
+    const note = await createNote({ kind: 'note' });
+    render(
+      <ToastProvider>
+        <NoteCard
+          note={note}
+          labelNames={[]}
+          mode='board'
+          onOpen={vi.fn()}
+          images={[makeAttachment({ noteId: note.id })]}
+          imageCount={1}
+        />
+      </ToastProvider>,
+    );
+    expect(screen.queryByText('Empty note')).not.toBeInTheDocument();
+    expect(screen.getByRole('article')).toHaveAttribute('data-only-images', 'true');
+  });
+});
+
+describe('tick box names and numbered lists', () => {
+  it('names a tick box by its plain text, and leaves numbered "[ ]" lines as text', async () => {
+    const note = await createNote({ kind: 'note', title: 'T', content: '- [ ] **milk** &amp; eggs\n\n1. [ ] one' });
+    render(
+      <ToastProvider>
+        <NoteCard note={note} labelNames={[]} mode='board' onOpen={vi.fn()} />
+      </ToastProvider>,
+    );
+    expect(screen.getByRole('checkbox', { name: 'Mark ‘milk & eggs’ done' })).toBeInTheDocument();
+    expect(screen.getAllByRole('checkbox')).toHaveLength(1);
+    expect(screen.getByText(/\[ \] one/)).toBeInTheDocument();
+  });
+});

@@ -16,7 +16,9 @@ A notes and checklists app by Nine Technology, built with [Next.js](https://next
   - Drag columns by their name; star boards to keep them first and drag boards into any order
 - Drag cards into your own order (mouse, touch, or the grip button with arrow keys)
 - Backup and restore (JSON, merges with what's there) and export as Markdown, from the ⋯ menu
-- Search and filters (All, Notes, Lists, Upcoming, Boards, labels), kept in the URL
+- A sidebar with every section (Notes, Upcoming, Boards, your labels, Archive, Trash), collapsible to icons; a drawer on phones
+- Search with matches highlighted on cards; All · Text · Lists on Notes; everything kept in the URL
+- Tick boxes inside text notes (type `[ ] ` at the start of a line), tickable on cards
 - Light and dark themes
 - Keyboard shortcuts: `n` new note, `l` new list, `/` search, `Esc` leave the editor
 
@@ -54,6 +56,7 @@ In production the app runs under pm2 via `ecosystem.config.js`.
 - `lib/markdown.ts`: how notes are read as Markdown (cards, search, conversion and the editor share it); `components/editor/RichEditor.tsx`: the Tiptap editor
 - `lib/images.ts`: shrinking images on the device; `lib/attachments.ts`: stored images and thumbnails
 - `lib/calendar.ts`, `lib/repeat.ts`, `lib/due.ts`: dates, repeats and Mark done; `lib/reminders.ts`: the reminder clock (one tab at a time) and notifications. Reminders only fire while Noteboard is open; there's no server.
+- `components/shell/`: the app shell and sidebar; `lib/tasks.ts`: tick boxes in a note's Markdown
 - `pages/board.tsx`, `components/kanban/`: kanban boards; `lib/boards.ts` (boards and columns), `lib/cards.ts` (placing notes on them), `lib/places.ts` (column order), `lib/boardFilter.ts` (the board filter)
 - `lib/migrate.ts`: one-time move of notes from the old `localStorage` format (the old data is kept as `notes-backup-v1`)
 - `styles/tokens.css`: colours, spacing and type, light and dark

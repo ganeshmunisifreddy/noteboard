@@ -1,33 +1,35 @@
 import { Lexer, Marked, Tokenizer, type Token } from 'marked';
 
-// Task-list markers ("- [ ] milk") stay text: the editor has no task items.
-// Escaping the bracket keeps the line a plain list item. Fenced code is left
-// as it is.
-export const normalizeMarkdown = (markdown: string) => {
-  let inFence = false;
+// Before tick boxes existed the editor saved "- [ ] milk" escaped
+// ("- \\[ \\] milk") to keep it text; those lines are tick boxes now.
+// Fenced code is left as it is.
+export const unescapeTaskMarkers = (markdown: string) => {
+  let fence: string | null = null;
   return markdown
     .split('\n')
     .map((line) => {
-      if (/^ {0,3}(```|~~~)/.test(line)) {
-        inFence = !inFence;
+      const opener = /^ {0,3}(```|~~~)/.exec(line)?.[1];
+      if (opener) {
+        if (fence === null) fence = opener;
+        else if (opener === fence) fence = null;
         return line;
       }
-      return inFence ? line : line.replace(/^(\s*(?:[-*+]|\d+[.)])[ \t]+)\[([ xX])\]/, '$1\\[$2]');
+      return fence ? line : line.replace(/^(\s*(?:>\s*)*(?:[-*+]|\d+[.)])[ \t]+)\\\[([ xX])\\\]/, '$1[$2]');
     })
     .join('\n');
 };
 
 class NoteLexer extends Lexer {
   lex(src: string) {
-    return super.lex(normalizeMarkdown(src));
+    return super.lex(unescapeTaskMarkers(src));
   }
 }
 
 // How Noteboard reads Markdown, shared by the editor, cards, search and
-// conversion: GitHub-flavoured, a single line break is a line break, and
-// indented text, raw HTML, reference definitions, pipe tables and task
-// markers stay plain text (old notes are full of such lines). Returning
-// undefined (not false) from a tokenizer switches that rule off.
+// conversion: GitHub-flavoured, a single line break is a line break,
+// "- [ ]" lines are tick boxes, and indented text, raw HTML, reference
+// definitions and pipe tables stay plain text (old notes are full of such
+// lines). Returning undefined (not false) from a tokenizer switches that rule off.
 export const createMarked = () => {
   const instance = new Marked(
     { gfm: true, breaks: true },
@@ -117,6 +119,7 @@ const blockLines = (tokens: Token[]): string[] =>
       case 'space':
       case 'hr':
       case 'def':
+      case 'checkbox': // a tick box's marker; its text follows
         return [];
       case 'code':
         return token.text.split('\n');

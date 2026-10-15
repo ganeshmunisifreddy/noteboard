@@ -53,8 +53,8 @@ const NewBoardForm = ({ onCreated, onCancel }: { onCreated: (board: Board) => vo
       <fieldset className={styles.options}>
         <legend>Template</legend>
         {BOARD_TEMPLATES.map((t) => (
-          <div key={t.id} className={styles.option}>
-            <label className={styles.option}>
+          <div key={t.id} className={styles.option} data-option='' data-checked={template === t.id ? 'true' : undefined}>
+            <label className={styles.optionLabel}>
               <input
                 type='radio'
                 name={`${id}-template`}

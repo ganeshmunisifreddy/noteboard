@@ -3,7 +3,8 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 4px 12px;
+  /* Lined up with the text column (max 720px, 24px padding, centred). */
+  padding: 4px max(12px, calc((100% - 720px) / 2 + 20px));
   overflow-x: auto;
   scrollbar-width: none;
   border-bottom: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
@@ -30,4 +31,20 @@
   height: 18px;
   margin: 0 4px;
   background: color-mix(in srgb, var(--text) 20%, transparent);
+}
+
+@media (max-width: 600px) {
+  /* Hidden until you type; then fixed just above the keyboard. */
+  .bar:not([data-docked]) {
+    display: none;
+  }
+  .bar[data-docked] {
+    position: fixed;
+    right: 0;
+    left: 0;
+    z-index: 30;
+    padding: 4px 8px;
+    border-top: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+    border-bottom: none;
+  }
 }

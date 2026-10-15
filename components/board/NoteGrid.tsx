@@ -149,6 +149,7 @@ type Props = {
   reorderable: boolean;
   images?: Map<string, BoardImages>;
   placeNames?: Map<string, string>; // columnId → "Board · Column"
+  highlight?: string; // the search, marked on cards
 };
 
 // dnd-kit's defaults read out note ids; these use titles. Keyboard moves
@@ -216,7 +217,7 @@ const KEY_TARGETS: Record<string, (index: number, last: number) => number> = {
   End: (_, last) => last,
 };
 
-const NoteGrid = ({ notes, labelNames, mode, onOpen, reorderable, images, placeNames }: Props) => {
+const NoteGrid = ({ notes, labelNames, mode, onOpen, reorderable, images, placeNames, highlight }: Props) => {
   const toast = useToast();
   const hintId = useId();
   const [sizes, measure] = useSizes();
@@ -357,6 +358,7 @@ const NoteGrid = ({ notes, labelNames, mode, onOpen, reorderable, images, placeN
       images={images?.get(note.id)?.shown}
       imageCount={images?.get(note.id)?.total}
       place={note.columnId ? placeNames?.get(note.columnId) : undefined}
+      highlight={highlight}
       mode={mode}
       onOpen={onOpen}
       labelNames={note.labelIds.map((id) => labelNames.get(id)).filter((name): name is string => !!name)}

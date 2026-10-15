@@ -96,3 +96,28 @@
 .prose :global(hr.ProseMirror-selectednode) {
   outline: 2px solid var(--focus);
 }
+
+.prose :global(ul[data-type='taskList']) {
+  padding-left: 0.2em;
+  list-style: none;
+}
+
+.prose :global(li[data-type='taskItem']) {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+}
+
+.prose :global(li[data-type='taskItem'] > label) {
+  flex: none;
+  margin-top: 0.3em;
+}
+
+.prose :global(li[data-type='taskItem'] > div) {
+  flex: 1;
+  min-width: 0;
+}
+
+.prose :global(li[data-checked='true'] > div) {
+  text-decoration: line-through;
+}

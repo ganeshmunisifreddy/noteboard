@@ -127,17 +127,18 @@ const BoardView = ({ data }: { data: BoardData }) => {
           onClick={() => (filterOpen ? closeFilter(false) : setFilterOpen(true))}
         >
           <ListFilter size={16} aria-hidden />
-          Filter
+          <span className={styles.buttonText}>Filter</span>
           {filtering && <span className={styles.filterDot} aria-hidden />}
         </button>
         <button
           type='button'
           className={styles.primary}
+          aria-label='Add card'
           disabled={columns.length === 0}
           onClick={() => columns[0] && addCard(columns[0].id, 'note', 'top')}
         >
           <Plus size={16} aria-hidden />
-          Add card
+          <span className={styles.buttonText}>Add card</span>
         </button>
         <Menu
           items={[

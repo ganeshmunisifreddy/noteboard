@@ -438,3 +438,24 @@
   box-shadow: var(--shadow-raised);
   font-weight: 700;
 }
+
+/* Phones: Filter and Add card become icon buttons (their names stay), so the
+   board name has room. */
+@media (max-width: 600px) {
+  .buttonText {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .primary,
+  .filterButton {
+    justify-content: center;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    padding: 0;
+  }
+}

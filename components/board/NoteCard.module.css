@@ -2,8 +2,8 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 14px 16px 6px;
+  gap: 6px;
+  padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--note-bg);
@@ -58,7 +58,7 @@
 }
 
 .title {
-  font-size: var(--text-md);
+  font-size: 15px;
   font-weight: 700;
   color: var(--text);
   overflow-wrap: anywhere;
@@ -157,10 +157,43 @@
   opacity: 1;
 }
 
+/* A card of images only: the actions sit over the bottom of the images on
+   hover (nothing there to tick or read), so there's no strip below them.
+   Every other card keeps them in flow, so they never cover a tick box. */
+@media (hover: hover) {
+  .card[data-only-images] .actions {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    margin: 0;
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+    box-shadow: var(--shadow-card);
+  }
+}
+
+/* Touch screens: 44px buttons wrap rather than spill out of narrow cards. */
+@media (pointer: coarse) {
+  .actions {
+    flex-wrap: wrap;
+  }
+}
+
 @media (hover: none) {
   .actions {
     opacity: 1;
   }
+}
+
+.card[data-only-images] {
+  padding-bottom: 0;
+}
+
+/* The image grid (after the open button) takes the bottom corners too. Not
+   overflow: hidden on the card, which would clip its focus ring. */
+.card[data-only-images] > :nth-child(2) {
+  border-radius: var(--radius-lg);
 }
 
 .srOnly {
@@ -181,4 +214,10 @@
   font-size: var(--text-xs);
   font-weight: 700;
   color: var(--note-ink);
+}
+
+.mark {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: inherit;
 }

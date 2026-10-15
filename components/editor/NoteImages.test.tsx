@@ -126,6 +126,8 @@ describe('images in the note editor', () => {
     await waitFor(async () => expect(await db.attachments.count()).toBe(0));
     // The page takes clicks again once the viewer has closed.
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    // The viewer's closing dialog blocks pointer events for a moment.
+    await waitFor(() => expect(document.body.style.pointerEvents).not.toBe('none'));
     await user.click(await screen.findByRole('button', { name: 'Undo' }));
     await waitFor(async () => expect(await db.attachments.count()).toBe(1));
   });

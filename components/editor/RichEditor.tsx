@@ -2,6 +2,7 @@ import { EditorContent, useEditor, type UseEditorOptions } from '@tiptap/react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { safeUrl, tidyMarkdown } from '../../lib/markdown';
+import { useMediaQuery } from '../../lib/useMediaQuery';
 import { editorExtensions } from './extensions';
 import FormatBar from './FormatBar';
 import styles from './RichEditor.module.css';
@@ -109,6 +110,22 @@ const RichEditor = ({ value, onChange, readOnly, autoFocus, barSlot }: RichEdito
     shown.current = tidyMarkdown(editor.getMarkdown());
   }, [editor, value]);
 
+  // On a phone the formatting bar docks above the keyboard while typing.
+  const phone = useMediaQuery('(max-width: 600px)');
+  const [focused, setFocused] = useState(false);
+  // Keyboard users tab from the text into the bar; it stays while they're in it.
+  const [barFocused, setBarFocused] = useState(false);
+  useEffect(() => {
+    const onFocus = () => setFocused(true);
+    const onBlur = () => setFocused(false);
+    editor.on('focus', onFocus);
+    editor.on('blur', onBlur);
+    return () => {
+      editor.off('focus', onFocus);
+      editor.off('blur', onBlur);
+    };
+  }, [editor]);
+
   useEffect(() => {
     readOnlyNow.current = readOnly;
     editor.setEditable(!readOnly, false);
@@ -118,7 +135,16 @@ const RichEditor = ({ value, onChange, readOnly, autoFocus, barSlot }: RichEdito
     <>
       {barSlot &&
         !readOnly &&
-        createPortal(<FormatBar editor={editor} linkOpen={linkOpen} onLinkOpenChange={setLinkOpen} />, barSlot)}
+        createPortal(
+          <FormatBar
+            editor={editor}
+            linkOpen={linkOpen}
+            onLinkOpenChange={setLinkOpen}
+            docked={phone && (focused || barFocused || linkOpen)}
+            onFocusWithin={setBarFocused}
+          />,
+          barSlot,
+        )}
       <EditorContent editor={editor} className={styles.content} />
     </>
   );

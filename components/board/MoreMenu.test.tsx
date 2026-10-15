@@ -9,21 +9,21 @@ beforeEach(() => {
 });
 
 const actions = {
-  onArchive: vi.fn(),
-  onTrash: vi.fn(),
-  onManageLabels: vi.fn(),
   onBackup: vi.fn(),
   onRestore: vi.fn(),
   onExport: vi.fn(),
 };
 
 describe('MoreMenu', () => {
-  it('holds places, labels and backup, but not the theme choices', async () => {
+  it('holds backup and export (sections live in the sidebar), but not the theme choices', async () => {
     const user = userEvent.setup();
     render(<MoreMenu {...actions} />);
     await user.click(screen.getByRole('button', { name: 'More options' }));
-    for (const name of ['Archive', 'Trash', 'Manage labels', 'Back up notes', 'Restore from backup…', 'Export as Markdown']) {
+    for (const name of ['Back up notes', 'Restore from backup…', 'Export as Markdown']) {
       expect(await screen.findByRole('menuitem', { name })).toBeInTheDocument();
+    }
+    for (const name of ['Archive', 'Trash', 'Manage labels']) {
+      expect(screen.queryByRole('menuitem', { name })).toBeNull();
     }
     expect(screen.queryByRole('menuitemradio')).toBeNull();
     expect(screen.queryByRole('menuitem', { name: 'Use device theme' })).toBeNull();
