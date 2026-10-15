@@ -1,6 +1,6 @@
 import { addDays, localDate, localMoment, MONTH_SHORT, parseDate, WEEKDAY_SHORT, weekdayOf } from './calendar';
 import { nextDate, repeatText } from './repeat';
-import type { Due, Repeat } from './types';
+import type { ChecklistItem, Due, Note, Repeat } from './types';
 
 export const DEFAULT_TIME = '09:00';
 export const DONE_DAYS = 30;
@@ -151,4 +151,14 @@ export const upcomingSections = <T extends { id: string; due: Due | null }>(
     );
     return [{ key, title: UPCOMING_TITLES[key], notes: list.map((entry) => entry.note) }];
   });
+};
+
+// Mark done for a whole note: a list whose repeat moved on starts unticked.
+export const markDoneChanges = (note: Note & { due: Due }, now: number): { due: Due; items: ChecklistItem[] } => {
+  const due = completeDue(note.due, now);
+  const movedOn = due.doneAt === null;
+  return {
+    due,
+    items: note.kind === 'list' && movedOn ? note.items.map((item) => ({ ...item, done: false })) : note.items,
+  };
 };

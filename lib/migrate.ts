@@ -24,6 +24,7 @@ const toNote = (entry: Record<string, unknown>, timestamp: number, position: num
   createdAt: timestamp,
   updatedAt: timestamp,
   position,
+  due: null,
 });
 
 // Moves notes saved by the localStorage version into IndexedDB, once.

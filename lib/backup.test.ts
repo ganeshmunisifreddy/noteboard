@@ -84,6 +84,7 @@ describe('parseBackup', () => {
         createdAt: 0,
         updatedAt: 0,
         position: null,
+        due: null,
       },
     ]);
   });

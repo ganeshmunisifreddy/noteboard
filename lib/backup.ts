@@ -66,6 +66,7 @@ const toNote = (entry: Record<string, unknown>): ImportedNote => {
     createdAt: finite(entry.createdAt) ?? updatedAt,
     updatedAt,
     position: finite(entry.position),
+    due: null, // read from the backup in v3 (lib/backup.ts toDue)
   };
 };
 

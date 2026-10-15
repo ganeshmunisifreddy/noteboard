@@ -29,6 +29,7 @@ export type Note = {
   createdAt: number;
   updatedAt: number;
   position: number; // board order; lower comes first
+  due: Due | null; // see Due; null when the note has no date
 };
 
 export type Label = { id: string; name: string };
@@ -83,6 +84,6 @@ export type NoteChanges = Partial<
   Pick<Note, 'kind' | 'title' | 'content' | 'items' | 'color' | 'labelIds' | 'pinned' | 'archived' | 'position'>
 >;
 
-export type BoardView = 'all' | 'notes' | 'lists' | 'archive' | 'trash';
+export type BoardView = 'all' | 'notes' | 'lists' | 'upcoming' | 'archive' | 'trash';
 
 export type BoardFilter = { view: BoardView; labelId: string | null; query: string };
