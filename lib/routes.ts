@@ -5,12 +5,21 @@ import type { NoteKind } from './types';
 
 export const noteHref = (id: string): UrlObject => ({ pathname: '/note', query: { id } });
 
+export type NewCardPlace = { columnId: string; boardId?: string; at: 'top' | 'bottom' };
+
 // New notes get their id up front so the editor's URL and identity stay the
-// same when the note is first saved.
-export const newNoteHref = (kind: NoteKind): UrlObject => ({
+// same when the note is first saved. A new card also carries its column.
+export const newNoteHref = (kind: NoteKind, place?: NewCardPlace): UrlObject => ({
   pathname: '/note',
-  query: { new: kind, id: uuid() },
+  query: {
+    new: kind,
+    id: uuid(),
+    ...(place ? { column: place.columnId, at: place.at, ...(place.boardId ? { board: place.boardId } : {}) } : {}),
+  },
 });
+
+export const boardHref = (id: string): UrlObject => ({ pathname: '/board', query: { id } });
+export const BOARDS_HREF: UrlObject = { pathname: '/', query: { view: 'boards' } };
 
 let openedFromBoard = false;
 
@@ -57,7 +66,8 @@ export const markOnBoard = () => {
 };
 
 export const openEditor = (router: NextRouter, href: UrlObject) => {
-  if (router.pathname === '/') {
+  // From the board or a kanban board: Back returns there.
+  if (router.pathname === '/' || router.pathname === '/board') {
     openedFromBoard = true;
     rememberBoard(router.asPath);
     void router.push(href);

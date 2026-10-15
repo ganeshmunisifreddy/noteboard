@@ -1,11 +1,13 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { Attachment, ImageFile, Label, Note } from './types';
+import type { Attachment, Board, Column, ImageFile, Label, Note } from './types';
 
 export type NoteboardDB = Dexie & {
   notes: EntityTable<Note, 'id'>;
   labels: EntityTable<Label, 'id'>;
   attachments: EntityTable<Attachment, 'id'>;
   imageFiles: EntityTable<ImageFile, 'id'>;
+  boards: EntityTable<Board, 'id'>;
+  columns: EntityTable<Column, 'id'>;
 };
 
 export const db = new Dexie('noteboard') as NoteboardDB;
@@ -52,5 +54,29 @@ db.version(4)
       .toCollection()
       .modify((note: { due?: unknown }) => {
         if (note.due === undefined) note.due = null;
+      }),
+  );
+
+// v5: kanban boards. Notes gain their place on a board (indexed by board);
+// every existing note starts on the main board.
+db.version(5)
+  .stores({
+    notes: 'id, updatedAt, trashedAt, position, boardId, *labelIds',
+    labels: 'id, &name',
+    attachments: 'id, noteId',
+    imageFiles: 'id',
+    boards: 'id, position',
+    columns: 'id, boardId',
+  })
+  .upgrade((tx) =>
+    tx
+      .table('notes')
+      .toCollection()
+      .modify((note: { boardId?: unknown; columnId?: unknown; boardPosition?: unknown }) => {
+        if (note.boardId === undefined) {
+          note.boardId = null;
+          note.columnId = null;
+          note.boardPosition = 0;
+        }
       }),
   );

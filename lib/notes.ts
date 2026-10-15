@@ -4,9 +4,10 @@ import { v4 as uuid } from 'uuid';
 import { copyAttachments, deleteAttachmentsOf } from './attachments';
 import { toggleItemIn } from './checklist';
 import { db } from './db';
-import { alertTime, keepProgress, markDoneChanges, newDue } from './due';
+import { keepProgress, markDoneChanges, newDue, seenIfPast } from './due';
 import { selectBoardNotes, type BoardNotes } from './filters';
 import { needsRenumber, positionBetween } from './order';
+import { columnNotes, endOf, renumberColumn, sortedColumns } from './places';
 import { requestPersistentStorage, setHasNotesMarker } from './storage';
 import type { BoardFilter, ChecklistItem, Due, Label, Note, NoteChanges, NoteKind, Repeat } from './types';
 
@@ -25,7 +26,7 @@ const afterWrite = async () => {
 };
 
 // A position above every note, so it lands at the top of its section.
-const nextTopPosition = async () => {
+export const nextTopPosition = async () => {
   const first = await db.notes.orderBy('position').first();
   return first ? first.position - 1 : 0;
 };
@@ -55,6 +56,9 @@ export const createNote = async (input: NewNote): Promise<Note> => {
     updatedAt: now,
     position: input.position ?? 0,
     due: input.due ?? null,
+    boardId: input.boardId ?? null,
+    columnId: input.columnId ?? null,
+    boardPosition: input.boardPosition ?? 0,
   };
   // Reading the top position and writing in one transaction keeps two quick
   // writes from landing on the same place.
@@ -174,9 +178,25 @@ export const getAllData = async () => {
   return { notes, labels };
 };
 
+const placeBelow = async (note: Note) => {
+  const column = note.columnId ? await db.columns.get(note.columnId) : undefined;
+  if (!column) return { boardId: null, columnId: null, boardPosition: 0 };
+  const neighbours = async () => {
+    const notes = await columnNotes(column);
+    const index = notes.findIndex((other) => other.id === note.id);
+    return { own: notes[index]?.boardPosition ?? note.boardPosition, next: notes[index + 1]?.boardPosition ?? null };
+  };
+  let { own, next } = await neighbours();
+  if (needsRenumber(own, next)) {
+    await renumberColumn(column);
+    ({ own, next } = await neighbours());
+  }
+  return { boardId: column.boardId, columnId: column.id, boardPosition: positionBetween(own, next) };
+};
+
 // The copy and its images are saved together or not at all.
 export const duplicateNote = async (id: string): Promise<Note | undefined> => {
-  const copy = await db.transaction('rw', db.notes, db.attachments, db.imageFiles, async () => {
+  const copy = await db.transaction('rw', db.notes, db.columns, db.attachments, db.imageFiles, async () => {
     const note = await db.notes.get(id);
     if (!note) return undefined;
     const now = Date.now();
@@ -196,6 +216,8 @@ export const duplicateNote = async (id: string): Promise<Note | undefined> => {
       position: await nextTopPosition(),
       // The date comes along; whether it was done, alerted or snoozed doesn’t.
       due: note.due && seenIfPast({ ...note.due, doneAt: null, alertedAt: null, snoozedUntil: null }, now),
+      // A card's copy sits just below it in the same column.
+      ...(note.columnId && note.boardId ? await placeBelow(note) : { boardId: null, columnId: null, boardPosition: 0 }),
     };
     await db.notes.add(created);
     await copyAttachments(id, created.id);
@@ -207,10 +229,6 @@ export const duplicateNote = async (id: string): Promise<Note | undefined> => {
 
 // Dates change here, not through the editor's draft (the draft doesn't hold
 // `due`, so a draft save never overwrites them). Each change is an edit.
-// A date whose alert time has already passed counts as alerted: the user is
-// looking at it right now, so it shouldn't set off a reminder.
-const seenIfPast = (due: Due, now: number): Due => (alertTime(due) <= now ? { ...due, alertedAt: now } : due);
-
 const changeDue = async (id: string, change: (note: Note) => Partial<Note> | null) => {
   await db.transaction('rw', db.notes, async () => {
     const note = await db.notes.get(id);
@@ -229,12 +247,22 @@ export const putBackDue = (id: string, due: Due | null, items?: ChecklistItem[])
   changeDue(id, () => (items ? { due, items } : { due }));
 
 // Resolves to the note as it was, for Undo; undefined when there was nothing to mark.
+// On a board with a Done column, a finished card moves to its end.
 export const markDone = async (id: string, now = Date.now()): Promise<Note | undefined> => {
   let before: Note | undefined;
-  await changeDue(id, (note) => {
-    if (!note.due || note.due.doneAt !== null) return null;
+  await db.transaction('rw', db.notes, db.columns, async () => {
+    const note = await db.notes.get(id);
+    if (!note || !note.due || note.due.doneAt !== null) return;
     before = note;
-    return markDoneChanges({ ...note, due: note.due }, now);
+    const patch: Partial<Note> = { ...markDoneChanges({ ...note, due: note.due }, now), updatedAt: Date.now() };
+    if (patch.due?.doneAt !== null && note.boardId && note.columnId) {
+      const done = (await sortedColumns(note.boardId)).find((column) => column.done);
+      if (done && done.id !== note.columnId) {
+        patch.columnId = done.id;
+        patch.boardPosition = await endOf(done);
+      }
+    }
+    await db.notes.update(id, patch);
   });
   return before;
 };
@@ -297,11 +325,18 @@ export const useLabels = (): Label[] | undefined =>
 
 export const useBoardNotes = (filter: BoardFilter): BoardNotes | undefined => {
   const notes = useLiveQuery(() => db.notes.toArray().catch((): Note[] => []), []);
+  const columnIds = useLiveQuery(
+    () => db.columns.toCollection().primaryKeys().catch((): string[] => []),
+    [],
+  );
   const labels = useLabels();
   const { view, labelId, query } = filter;
   return useMemo(
-    () => (notes && labels ? selectBoardNotes(notes, labels, { view, labelId, query }) : undefined),
-    [notes, labels, view, labelId, query],
+    () =>
+      notes && labels && columnIds
+        ? selectBoardNotes(notes, labels, { view, labelId, query }, new Set(columnIds))
+        : undefined,
+    [notes, labels, columnIds, view, labelId, query],
   );
 };
 

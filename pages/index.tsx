@@ -9,16 +9,18 @@ import NoteGrid from '../components/board/NoteGrid';
 import TopBar from '../components/board/TopBar';
 import UpcomingView from '../components/board/UpcomingView';
 import { preloadRichEditor } from '../components/editor/useRichEditor';
+import BoardTiles from '../components/kanban/BoardTiles';
 import NotFound from '../components/NotFound';
 import LabelsDialog from '../components/ui/LabelsDialog';
 import ThemeToggle from '../components/ui/ThemeToggle';
 import { useToast } from '../components/ui/Toast';
 import { useBoardImages } from '../lib/attachments';
+import { usePlaceNames } from '../lib/boards';
 import { downloadBackup, downloadMarkdown, restoreBackup, restoreErrorMessage, restoredMessage } from '../lib/backup';
 import { upcomingSections } from '../lib/due';
 import { emptyMessage, filterToQuery, isReorderable, parseFilter } from '../lib/filters';
 import { emptyTrash, useBoardNotes, useLabels } from '../lib/notes';
-import { markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../lib/routes';
+import { boardHref, markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../lib/routes';
 import { useStartup } from '../lib/startup';
 import { hasNotesMarker } from '../lib/storage';
 import { useNow } from '../lib/time';
@@ -32,6 +34,7 @@ const Home: NextPage = () => {
   const filter = parseFilter(router.query);
   const board = useBoardNotes(filter);
   const labels = useLabels();
+  const placeNames = usePlaceNames();
   const [labelsOpen, setLabelsOpen] = useState(false);
   // Bumped after Back/Forward so the search box picks up the URL's query
   // (typing only replaces the URL, so it never triggers this).
@@ -97,8 +100,10 @@ const Home: NextPage = () => {
   const showFilter = (next: Pick<BoardFilter, 'view' | 'labelId'>) =>
     void router.push({ pathname: '/', query: filterToQuery({ ...filter, ...next }) }, undefined, { shallow: true });
 
-  const search = (query: string) =>
-    void router.replace({ pathname: '/', query: filterToQuery({ ...filter, query }) }, undefined, { shallow: true });
+  const search = (query: string) => {
+    const view = filter.view === 'boards' && query ? 'all' : filter.view;
+    void router.replace({ pathname: '/', query: filterToQuery({ ...filter, view, query }) }, undefined, { shallow: true });
+  };
 
   const openNote = (id: string) => openEditor(router, noteHref(id));
   const newNote = (kind: NoteKind) => openEditor(router, newNoteHref(kind));
@@ -177,27 +182,45 @@ const Home: NextPage = () => {
             </button>
           </div>
         )}
-        {sections ? (
-          <UpcomingView sections={sections} labelNames={labelNames} onOpen={openNote} images={images} />
+        {filter.view === 'boards' ? (
+          <BoardTiles onOpen={(id) => void router.push(boardHref(id))} />
+        ) : sections ? (
+          <UpcomingView sections={sections} labelNames={labelNames} onOpen={openNote} images={images} placeNames={placeNames} />
         ) : (
           <>
             {pinned.length > 0 && (
               <section className={styles.section} aria-label='Pinned notes'>
                 {headings && <h2 className={styles.sectionTitle}>Pinned</h2>}
-                <NoteGrid notes={pinned} labelNames={labelNames} mode={mode} onOpen={openNote} reorderable={reorderable} images={images} />
+                <NoteGrid
+                  notes={pinned}
+                  labelNames={labelNames}
+                  mode={mode}
+                  onOpen={openNote}
+                  reorderable={reorderable}
+                  images={images}
+                  placeNames={placeNames}
+                />
               </section>
             )}
             {others.length > 0 && (
               <section className={styles.section} aria-label={headings ? 'Other notes' : 'Notes'}>
                 {headings && <h2 className={styles.sectionTitle}>Others</h2>}
-                <NoteGrid notes={others} labelNames={labelNames} mode={mode} onOpen={openNote} reorderable={reorderable} images={images} />
+                <NoteGrid
+                  notes={others}
+                  labelNames={labelNames}
+                  mode={mode}
+                  onOpen={openNote}
+                  reorderable={reorderable}
+                  images={images}
+                  placeNames={placeNames}
+                />
               </section>
             )}
           </>
         )}
         {/* Also rendered on the server and while loading; _document hides it
             before first paint when notes exist. */}
-        {total === 0 && (
+        {total === 0 && filter.view !== 'boards' && (
           <div className={styles.emptyState}>
             <NotFound text={emptyMessage(filter)} />
           </div>

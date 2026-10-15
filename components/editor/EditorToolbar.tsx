@@ -35,6 +35,7 @@ type Props = {
   onDeleteForever: () => void;
   onAddImages: (files: File[]) => void;
   dateButton?: ReactNode;
+  boardButton?: ReactNode;
 };
 
 const EditorToolbar = ({
@@ -51,6 +52,7 @@ const EditorToolbar = ({
   onDeleteForever,
   onAddImages,
   dateButton,
+  boardButton,
 }: Props) => (
   <header className={styles.bar}>
     <IconButton label='Back to notes' onClick={onBack}>
@@ -71,6 +73,7 @@ const EditorToolbar = ({
         <>
           <AddImageButton onAdd={onAddImages} />
           {dateButton}
+          {boardButton}
           <IconButton label={draft.pinned ? 'Unpin note' : 'Pin note'} aria-pressed={draft.pinned} onClick={onTogglePin}>
             <Pin size={18} fill={draft.pinned ? 'currentColor' : 'none'} aria-hidden />
           </IconButton>

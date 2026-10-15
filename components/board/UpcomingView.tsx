@@ -11,17 +11,26 @@ type Props = {
   labelNames: Map<string, string>;
   onOpen: (id: string) => void;
   images?: Map<string, BoardImages>;
+  placeNames?: Map<string, string>;
 };
 
 // Dated notes by when they're due. Sorted by date, so no dragging here.
-const UpcomingView = ({ sections, labelNames, onOpen, images }: Props) => {
+const UpcomingView = ({ sections, labelNames, onOpen, images, placeNames }: Props) => {
   const [showDone, setShowDone] = useState(false);
   return (
     <>
       {sections.map(({ key, title, notes }) => {
         const headingId = `upcoming-${key}`;
         const grid = (
-          <NoteGrid notes={notes} labelNames={labelNames} mode='board' onOpen={onOpen} reorderable={false} images={images} />
+          <NoteGrid
+            notes={notes}
+            labelNames={labelNames}
+            mode='board'
+            onOpen={onOpen}
+            reorderable={false}
+            images={images}
+            placeNames={placeNames}
+          />
         );
         if (key === 'done') {
           return (

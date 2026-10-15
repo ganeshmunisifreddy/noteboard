@@ -31,11 +31,12 @@ type Props = {
   dragHandle?: ReactNode;
   images?: Attachment[];
   imageCount?: number; // all of the note's images; `images` may be only the first few
+  place?: string; // "Board · Column" for a board note shown outside its board
 };
 
 const PREVIEW_ITEMS = 8;
 
-const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle, images = [], imageCount = images.length }: Props) => {
+const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle, images = [], imageCount = images.length, place }: Props) => {
   const toast = useToast();
   const id = useId();
   const openItems = note.items.filter((i) => !i.done);
@@ -50,6 +51,7 @@ const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle, images = [], ima
     showContent && `${id}-content`,
     showItems && `${id}-items`,
     labelNames.length > 0 && `${id}-labels`,
+    place && `${id}-place`,
     note.due && `${id}-due`,
   ]
     .filter(Boolean)
@@ -119,6 +121,11 @@ const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle, images = [], ima
             </li>
           ))}
         </ul>
+      )}
+      {place && (
+        <p id={`${id}-place`} className={styles.place}>
+          {place}
+        </p>
       )}
       {note.due && <CardDue due={note.due} id={`${id}-due`} />}
       <div className={styles.actions}>

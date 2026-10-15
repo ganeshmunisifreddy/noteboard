@@ -1,0 +1,24 @@
+.chip {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  margin: 4px 0 12px;
+  padding: 4px 12px;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+.chip:hover {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.check {
+  display: inline-flex;
+  margin-left: auto;
+  color: var(--accent);
+}

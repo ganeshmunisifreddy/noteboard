@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useEffect, useId, useRef, useState } from 'react';
 import { addDays, localDate, localMoment } from '../../lib/calendar';
+import { putBackPlace } from '../../lib/cards';
 import { db } from '../../lib/db';
 import { formatDue, formatTime, lowerNearDay } from '../../lib/due';
-import { markDone, putBackDue, snooze } from '../../lib/notes';
+import { markDone, snooze } from '../../lib/notes';
 import { showSystemNotification, titleOf, useReminderClock, type DueNote } from '../../lib/reminders';
 import { noteHref, openEditor } from '../../lib/routes';
 import { useNow } from '../../lib/time';
@@ -165,7 +166,7 @@ const ReminderAlerts = () => {
     toast({
       message: movedTo ? `Moved to ${movedTo}` : 'Marked done',
       actionLabel: 'Undo',
-      onAction: () => void putBackDue(id, before.due, before.items),
+      onAction: () => void putBackPlace(before),
     });
   };
 

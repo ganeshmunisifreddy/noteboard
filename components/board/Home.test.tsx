@@ -1,9 +1,11 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createBoard } from '../../lib/boards';
 import { db } from '../../lib/db';
 import { addDays, localDate } from '../../lib/calendar';
 import { createNote, setDue } from '../../lib/notes';
+import { sortedColumns } from '../../lib/places';
 import Home from '../../pages/index';
 
 const router = vi.hoisted(() => {
@@ -125,5 +127,44 @@ describe('Home', () => {
     await createNote({ kind: 'note', title: 'No date' });
     render(<Home />);
     expect(await screen.findByText('No upcoming dates. Add one from a note’s ⏰ button.')).toBeInTheDocument();
+  });
+
+  it('hides board notes from the main board but finds them with their place', async () => {
+    const board = await createBoard('Website', 'basic');
+    const [todo] = await sortedColumns(board.id);
+    await createNote({ kind: 'note', title: 'Logo idea', boardId: board.id, columnId: todo.id, boardPosition: 0 });
+    await createNote({ kind: 'note', title: 'Groceries' });
+    const { unmount } = render(<Home />);
+    await screen.findByText('Groceries');
+    expect(screen.queryByText('Logo idea')).not.toBeInTheDocument();
+    unmount();
+
+    router.query = { q: 'logo' };
+    render(<Home />);
+    expect(await screen.findByText('Logo idea')).toBeInTheDocument();
+    expect(screen.getByText('Website · To do')).toBeInTheDocument();
+  });
+
+  it('opens the Boards view from its chip', async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+    await user.click(await screen.findByRole('button', { name: 'Boards' }));
+    expect(router.push).toHaveBeenCalledWith({ pathname: '/', query: { view: 'boards' } }, undefined, { shallow: true });
+  });
+
+  it('shows board tiles in the Boards view', async () => {
+    await createBoard('House move', 'basic');
+    router.query = { view: 'boards' };
+    render(<Home />);
+    expect(await screen.findByRole('link', { name: /House move/ })).toBeInTheDocument();
+    expect(screen.queryByText('Notes you add appear here')).not.toBeInTheDocument();
+  });
+
+  it('searches all notes from the Boards view', async () => {
+    const user = userEvent.setup();
+    router.query = { view: 'boards' };
+    render(<Home />);
+    await user.type(await screen.findByRole('searchbox', { name: 'Search notes' }), 'x');
+    expect(router.replace).toHaveBeenLastCalledWith({ pathname: '/', query: { q: 'x' } }, undefined, { shallow: true });
   });
 });

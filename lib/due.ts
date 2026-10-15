@@ -44,6 +44,10 @@ export const dueMoment = (due: Pick<Due, 'date' | 'time'>) => localMoment(due.da
 
 export const alertTime = (due: Due) => due.snoozedUntil ?? dueMoment(due);
 
+// A date whose alert time has already passed counts as alerted: the user is
+// looking at it right now, so it shouldn't set off a reminder.
+export const seenIfPast = (due: Due, now: number): Due => (alertTime(due) <= now ? { ...due, alertedAt: now } : due);
+
 export const isDone = (due: Due) => due.doneAt !== null;
 
 // With a time: once it has passed. Without: from the next day.
