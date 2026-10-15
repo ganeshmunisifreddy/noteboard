@@ -7,6 +7,7 @@ import MoreMenu from '../components/board/MoreMenu';
 import type { CardMode } from '../components/board/NoteCard';
 import NoteGrid from '../components/board/NoteGrid';
 import TopBar from '../components/board/TopBar';
+import UpcomingView from '../components/board/UpcomingView';
 import { preloadRichEditor } from '../components/editor/useRichEditor';
 import NotFound from '../components/NotFound';
 import LabelsDialog from '../components/ui/LabelsDialog';
@@ -14,11 +15,13 @@ import ThemeToggle from '../components/ui/ThemeToggle';
 import { useToast } from '../components/ui/Toast';
 import { useBoardImages } from '../lib/attachments';
 import { downloadBackup, downloadMarkdown, restoreBackup, restoreErrorMessage, restoredMessage } from '../lib/backup';
+import { upcomingSections } from '../lib/due';
 import { emptyMessage, filterToQuery, isReorderable, parseFilter } from '../lib/filters';
 import { emptyTrash, useBoardNotes, useLabels } from '../lib/notes';
 import { markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../lib/routes';
 import { useStartup } from '../lib/startup';
 import { hasNotesMarker } from '../lib/storage';
+import { useNow } from '../lib/time';
 import type { BoardFilter, NoteKind } from '../lib/types';
 import styles from '../styles/Home.module.css';
 
@@ -36,6 +39,7 @@ const Home: NextPage = () => {
   const restoreInput = useRef<HTMLInputElement>(null);
   // Loaded with the notes, so cards appear with their images in place.
   const images = useBoardImages();
+  const now = useNow();
   const loaded = status !== 'pending' && board !== undefined && images !== undefined;
 
   useEffect(() => {
@@ -134,7 +138,10 @@ const Home: NextPage = () => {
   const mode: CardMode = filter.view === 'trash' ? 'trash' : filter.view === 'archive' ? 'archive' : 'board';
   const pinned = loaded && board ? board.pinned : [];
   const others = loaded && board ? board.others : [];
-  const total = pinned.length + others.length;
+  const sections = filter.view === 'upcoming' ? upcomingSections(others, now) : null;
+  const total = sections
+    ? sections.reduce((count, section) => count + section.notes.length, 0)
+    : pinned.length + others.length;
   const headings = pinned.length > 0 && others.length > 0;
   const reorderable = isReorderable(filter);
 
@@ -170,17 +177,23 @@ const Home: NextPage = () => {
             </button>
           </div>
         )}
-        {pinned.length > 0 && (
-          <section className={styles.section} aria-label='Pinned notes'>
-            {headings && <h2 className={styles.sectionTitle}>Pinned</h2>}
-            <NoteGrid notes={pinned} labelNames={labelNames} mode={mode} onOpen={openNote} reorderable={reorderable} images={images} />
-          </section>
-        )}
-        {others.length > 0 && (
-          <section className={styles.section} aria-label={headings ? 'Other notes' : 'Notes'}>
-            {headings && <h2 className={styles.sectionTitle}>Others</h2>}
-            <NoteGrid notes={others} labelNames={labelNames} mode={mode} onOpen={openNote} reorderable={reorderable} images={images} />
-          </section>
+        {sections ? (
+          <UpcomingView sections={sections} labelNames={labelNames} onOpen={openNote} images={images} />
+        ) : (
+          <>
+            {pinned.length > 0 && (
+              <section className={styles.section} aria-label='Pinned notes'>
+                {headings && <h2 className={styles.sectionTitle}>Pinned</h2>}
+                <NoteGrid notes={pinned} labelNames={labelNames} mode={mode} onOpen={openNote} reorderable={reorderable} images={images} />
+              </section>
+            )}
+            {others.length > 0 && (
+              <section className={styles.section} aria-label={headings ? 'Other notes' : 'Notes'}>
+                {headings && <h2 className={styles.sectionTitle}>Others</h2>}
+                <NoteGrid notes={others} labelNames={labelNames} mode={mode} onOpen={openNote} reorderable={reorderable} images={images} />
+              </section>
+            )}
+          </>
         )}
         {/* Also rendered on the server and while loading; _document hides it
             before first paint when notes exist. */}

@@ -8,6 +8,7 @@ import {
   parseFilter,
   selectBoardNotes,
 } from './filters';
+import { newDue } from './due';
 import { makeNote } from './testUtils';
 import type { BoardFilter } from './types';
 
@@ -165,5 +166,28 @@ describe('isReorderable', () => {
     expect(isReorderable({ ...all, view: 'trash' })).toBe(false);
     expect(isReorderable({ ...all, query: 'milk' })).toBe(false);
     expect(isReorderable({ ...all, query: '  ' })).toBe(true);
+  });
+});
+
+describe('the Upcoming view', () => {
+  const dated = newDue('2026-10-20', null, null);
+
+  it('is read from the URL without a label', () => {
+    expect(parseFilter({ view: 'upcoming', label: 'l1' })).toEqual({ view: 'upcoming', labelId: null, query: '' });
+    expect(filterToQuery({ view: 'upcoming', labelId: null, query: '' })).toEqual({ view: 'upcoming' });
+  });
+
+  it('shows dated notes not in Archive or Trash', () => {
+    const filter = { view: 'upcoming' as const, labelId: null, query: '' };
+    expect(matchesView(makeNote({ due: dated }), filter)).toBe(true);
+    expect(matchesView(makeNote(), filter)).toBe(false);
+    expect(matchesView(makeNote({ due: dated, archived: true }), filter)).toBe(false);
+    expect(matchesView(makeNote({ due: dated, trashedAt: 1 }), filter)).toBe(false);
+  });
+
+  it('is not reorderable and has its own empty message', () => {
+    const filter = { view: 'upcoming' as const, labelId: null, query: '' };
+    expect(isReorderable(filter)).toBe(false);
+    expect(emptyMessage(filter)).toBe('No upcoming dates. Add one from a note’s ⏰ button.');
   });
 });

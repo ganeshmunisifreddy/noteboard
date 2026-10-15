@@ -16,6 +16,7 @@ import ColorPicker from '../ui/ColorPicker';
 import IconButton from '../ui/IconButton';
 import Menu from '../ui/Menu';
 import { useToast } from '../ui/Toast';
+import CardDue from './CardDue';
 import CardImages from './CardImages';
 import MarkdownPreview from './MarkdownPreview';
 import styles from './NoteCard.module.css';
@@ -49,6 +50,7 @@ const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle, images = [], ima
     showContent && `${id}-content`,
     showItems && `${id}-items`,
     labelNames.length > 0 && `${id}-labels`,
+    note.due && `${id}-due`,
   ]
     .filter(Boolean)
     .join(' ');
@@ -118,6 +120,7 @@ const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle, images = [], ima
           ))}
         </ul>
       )}
+      {note.due && <CardDue due={note.due} id={`${id}-due`} />}
       <div className={styles.actions}>
         {dragHandle}
         {mode === 'trash' ? (

@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../../lib/db';
-import { createNote } from '../../lib/notes';
+import { addDays, localDate } from '../../lib/calendar';
+import { createNote, setDue } from '../../lib/notes';
 import Home from '../../pages/index';
 
 const router = vi.hoisted(() => {
@@ -101,5 +102,28 @@ describe('Home', () => {
     expect(within(header).getByRole('button', { name: 'More options' })).toBeInTheDocument();
     expect(within(header).getByRole('button', { name: /Switch to (dark|light) theme/ })).toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Filters' })).queryByRole('button', { name: 'More options' })).toBeNull();
+  });
+
+  it('shows Upcoming from the filter chip', async () => {
+    const user = userEvent.setup();
+    const bill = await createNote({ kind: 'note', title: 'Pay bill' });
+    await setDue(bill.id, addDays(localDate(Date.now()), -1), null, null);
+    await createNote({ kind: 'note', title: 'No date' });
+    render(<Home />);
+    await screen.findByText('Pay bill');
+    await user.click(screen.getByRole('button', { name: 'Upcoming' }));
+    expect(router.push).toHaveBeenCalledWith({ pathname: '/', query: { view: 'upcoming' } }, undefined, { shallow: true });
+
+    router.query = { view: 'upcoming' };
+    const { unmount } = render(<Home />);
+    expect(await screen.findByRole('heading', { name: 'Overdue' })).toBeInTheDocument();
+    unmount();
+  });
+
+  it('says when nothing has a date', async () => {
+    router.query = { view: 'upcoming' };
+    await createNote({ kind: 'note', title: 'No date' });
+    render(<Home />);
+    expect(await screen.findByText('No upcoming dates. Add one from a note’s ⏰ button.')).toBeInTheDocument();
   });
 });
