@@ -4,6 +4,7 @@ import {
   NEWER_VERSION,
   NOT_A_BACKUP,
   backupFileName,
+  collectBackup,
   buildBackup,
   markdownFileName,
   parseBackup,
@@ -13,9 +14,11 @@ import {
   restoredMessage,
   toMarkdown,
 } from './backup';
+import { addImages, getAttachments } from './attachments';
 import { db } from './db';
+import type { ProcessedImage } from './images';
 import { createLabel, createNote, getAllData } from './notes';
-import { makeNote } from './testUtils';
+import { bytesOf, makeNote } from './testUtils';
 
 beforeEach(async () => {
   await db.delete();
@@ -37,10 +40,11 @@ describe('buildBackup', () => {
     const backup = buildBackup([note], [{ id: 'l', name: 'Work' }], new Date('2026-10-14T12:00:00Z'));
     expect(backup).toEqual({
       format: 'noteboard-backup',
-      version: 1,
+      version: 2,
       exportedAt: '2026-10-14T12:00:00.000Z',
       notes: [note],
       labels: [{ id: 'l', name: 'Work' }],
+      attachments: [],
     });
   });
 });
@@ -53,7 +57,7 @@ describe('parseBackup', () => {
   });
 
   it('rejects backups from a newer version', () => {
-    expect(() => parseBackup(backupOf([], [], 2))).toThrow(new BackupError(NEWER_VERSION));
+    expect(() => parseBackup(backupOf([], [], 3))).toThrow(new BackupError(NEWER_VERSION));
   });
 
   it('skips broken entries and fills defaults', () => {
@@ -230,5 +234,89 @@ describe('messages and file names', () => {
     const date = new Date(2026, 0, 5, 23, 30);
     expect(backupFileName(date)).toBe('noteboard-backup-2026-01-05.json');
     expect(markdownFileName(date)).toBe('noteboard-notes-2026-01-05.md');
+  });
+});
+
+const fakeImage = async (file: File): Promise<ProcessedImage> => ({
+  bytes: bytesOf(`full-${file.name}`),
+  type: 'image/jpeg',
+  width: 10,
+  height: 10,
+  thumb: bytesOf(`thumb-${file.name}`),
+  thumbType: 'image/jpeg',
+});
+const photo = (name: string) => new File(['x'], name, { type: 'image/jpeg' });
+const asText = (bytes: ArrayBuffer | undefined) => (bytes ? new TextDecoder().decode(new Uint8Array(bytes)) : undefined);
+
+describe('backups with images', () => {
+  it('restores images into an empty database', async () => {
+    await createNote({ id: 'p', kind: 'note', title: 'Receipt' });
+    await addImages('p', [photo('r.jpg')], fakeImage);
+    const text = JSON.stringify(await collectBackup());
+    await db.delete();
+    await db.open();
+    await restoreBackup(text);
+    const [image] = await getAttachments('p');
+    expect(asText(image.thumb)).toBe('thumb-r.jpg');
+    expect(asText((await db.imageFiles.get(image.id))?.bytes)).toBe('full-r.jpg');
+  });
+
+  it('still restores version 1 backups', async () => {
+    expect(await restoreBackup(backupOf([{ id: 'old', title: 'Old', updatedAt: 1 }]))).toMatchObject({ added: 1 });
+    expect(await db.attachments.count()).toBe(0);
+  });
+
+  it('replaces the images of a note the backup has a newer copy of', async () => {
+    await createNote({ id: 'p', kind: 'note' });
+    await addImages('p', [photo('local.jpg')], fakeImage);
+    const backup = JSON.parse(JSON.stringify(await collectBackup()));
+    await db.attachments.clear();
+    await db.imageFiles.clear();
+    await addImages('p', [photo('other.jpg')], fakeImage);
+    backup.notes[0].updatedAt = Date.now() + 1000;
+    await restoreBackup(JSON.stringify(backup));
+    expect((await getAttachments('p')).map((a) => asText(a.thumb))).toEqual(['thumb-local.jpg']);
+  });
+
+  it('keeps local images when the local note is newer', async () => {
+    await createNote({ id: 'p', kind: 'note' });
+    await addImages('p', [photo('backup.jpg')], fakeImage);
+    const backup = JSON.stringify(await collectBackup());
+    await db.attachments.clear();
+    await db.imageFiles.clear();
+    await addImages('p', [photo('mine.jpg')], fakeImage);
+    await db.notes.update('p', { updatedAt: Date.now() + 1000 });
+    await restoreBackup(backup);
+    expect((await getAttachments('p')).map((a) => asText(a.thumb))).toEqual(['thumb-mine.jpg']);
+  });
+
+  it('skips broken images and images of notes not in the backup', async () => {
+    const image = (id: string, noteId: string, data: string) => ({
+      id, noteId, position: 0, type: 'image/jpeg', width: 1, height: 1, alt: '', createdAt: 0,
+      thumbType: 'image/jpeg', data, thumb: 'aGk=',
+    });
+    const text = JSON.stringify({
+      format: 'noteboard-backup',
+      version: 2,
+      exportedAt: 'x',
+      notes: [{ id: 'n', title: 'N', updatedAt: 5 }],
+      labels: [],
+      attachments: [image('good', 'n', 'aGk='), image('broken', 'n', 'not base64!'), image('orphan', 'gone', 'aGk=')],
+    });
+    await restoreBackup(text);
+    expect((await db.attachments.toArray()).map((a) => a.id)).toEqual(['good']);
+  });
+});
+
+describe('toMarkdown with images', () => {
+  it('notes how many images a note has', () => {
+    const notes = [makeNote({ id: 'a', title: 'Trip', content: 'Pack' }), makeNote({ id: 'b', title: 'One' })];
+    const counts = new Map([
+      ['a', 3],
+      ['b', 1],
+    ]);
+    const markdown = toMarkdown(notes, [], counts);
+    expect(markdown).toContain('## Trip\n_3 images (not included in the Markdown export)_\n\nPack');
+    expect(markdown).toContain('## One\n_1 image (not included in the Markdown export)_');
   });
 });

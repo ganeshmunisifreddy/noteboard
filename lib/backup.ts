@@ -1,15 +1,20 @@
 import { v4 as uuid } from 'uuid';
+import { deleteAttachmentsOf, getAllImages } from './attachments';
+import { fromBase64, toBase64 } from './base64';
 import { db } from './db';
-import { selectBoardNotes } from './filters';
 import { downloadFile } from './download';
+import { selectBoardNotes } from './filters';
 import { getAllData, refreshHasNotesMarker } from './notes';
 import { isQuotaError } from './storage';
-import { NOTE_COLORS, type ChecklistItem, type Label, type Note, type NoteColor } from './types';
+import { NOTE_COLORS, type Attachment, type ChecklistItem, type ImageFile, type Label, type Note, type NoteColor } from './types';
 
 export const BACKUP_FORMAT = 'noteboard-backup';
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
 export const NOT_A_BACKUP = 'That file isn’t a Noteboard backup.';
 export const NEWER_VERSION = 'This backup is from a newer version of Noteboard.';
+
+// An image in a backup: its details, plus the full image and thumbnail as base64.
+export type BackupAttachment = Omit<Attachment, 'thumb'> & { data: string; thumb: string };
 
 export type Backup = {
   format: typeof BACKUP_FORMAT;
@@ -17,12 +22,14 @@ export type Backup = {
   exportedAt: string;
   notes: Note[];
   labels: Label[];
+  attachments: BackupAttachment[];
 };
 
 // Position is filled in during the merge when the backup has none.
 export type ImportedNote = Omit<Note, 'position'> & { position: number | null };
-export type ImportedBackup = { notes: ImportedNote[]; labels: Label[] };
-// Note counts, plus how many labels were new.
+export type ImportedImage = { attachment: Attachment; file: ImageFile };
+export type ImportedBackup = { notes: ImportedNote[]; labels: Label[]; attachments: ImportedImage[] };
+
 export type MergeCounts = { added: number; updated: number; unchanged: number; labels: number };
 
 export class BackupError extends Error {}
@@ -67,13 +74,63 @@ const toLabel = (entry: Record<string, unknown>): Label | null => {
   return { id: typeof entry.id === 'string' && entry.id ? entry.id : uuid(), name };
 };
 
-export const buildBackup = (notes: Note[], labels: Label[], now = new Date()): Backup => ({
+const toImage = (entry: Record<string, unknown>): ImportedImage | null => {
+  const id = text(entry.id);
+  const noteId = text(entry.noteId);
+  const type = text(entry.type);
+  const bytes = fromBase64(text(entry.data));
+  const thumb = fromBase64(text(entry.thumb));
+  if (!id || !noteId || !type.startsWith('image/') || !bytes || !thumb) return null;
+  const thumbType = text(entry.thumbType);
+  return {
+    attachment: {
+      id,
+      noteId,
+      position: finite(entry.position) ?? 0,
+      type,
+      width: finite(entry.width) ?? 0,
+      height: finite(entry.height) ?? 0,
+      size: bytes.byteLength,
+      alt: text(entry.alt).trim(),
+      createdAt: finite(entry.createdAt) ?? 0,
+      thumb,
+      thumbType: thumbType.startsWith('image/') ? thumbType : type,
+    },
+    file: { id, bytes },
+  };
+};
+
+const toBackupAttachment = ({ thumb, ...details }: Attachment, bytes: ArrayBuffer): BackupAttachment => ({
+  ...details,
+  data: toBase64(bytes),
+  thumb: toBase64(thumb),
+});
+
+export const buildBackup = (
+  notes: Note[],
+  labels: Label[],
+  now = new Date(),
+  attachments: BackupAttachment[] = [],
+): Backup => ({
   format: BACKUP_FORMAT,
   version: BACKUP_VERSION,
   exportedAt: now.toISOString(),
   notes,
   labels,
+  attachments,
 });
+
+// Everything in the database, images included.
+export const collectBackup = async (now = new Date()): Promise<Backup> => {
+  const { notes, labels } = await getAllData();
+  const { attachments, files } = await getAllImages();
+  const bytes = new Map(files.map((file) => [file.id, file.bytes]));
+  const packed = attachments.flatMap((attachment) => {
+    const data = bytes.get(attachment.id);
+    return data ? [toBackupAttachment(attachment, data)] : [];
+  });
+  return buildBackup(notes, labels, now, packed);
+};
 
 export const parseBackup = (contents: string): ImportedBackup => {
   let data: unknown;
@@ -102,7 +159,14 @@ export const parseBackup = (contents: string): ImportedBackup => {
     .filter(isRecord)
     .map(toLabel)
     .filter((l): l is Label => l !== null);
-  return { notes: [...notes.values()], labels };
+  const attachments =
+    data.version >= 2 && Array.isArray(data.attachments)
+      ? data.attachments
+          .filter(isRecord)
+          .map(toImage)
+          .filter((image): image is ImportedImage => image !== null)
+      : [];
+  return { notes: [...notes.values()], labels, attachments };
 };
 
 const labelKey = (name: string) => name.trim().toLowerCase();
@@ -144,17 +208,24 @@ export const planMerge = (localNotes: Note[], localLabels: Label[], imported: Im
     if (current) counts.updated += 1;
     else counts.added += 1;
   }
-  return { labels, notes, counts };
+  // Images follow their note: a note taken from the backup brings its images.
+  const replaceImagesOf = notes.map((note) => note.id);
+  const changed = new Set(replaceImagesOf);
+  const attachments = imported.attachments.filter((image) => changed.has(image.attachment.noteId));
+  return { labels, notes, counts, attachments, replaceImagesOf };
 };
 
 // All or nothing: a failure leaves the database unchanged.
 export const restoreBackup = async (contents: string): Promise<MergeCounts> => {
   const imported = parseBackup(contents);
-  const counts = await db.transaction('rw', db.notes, db.labels, async () => {
+  const counts = await db.transaction('rw', [db.notes, db.labels, db.attachments, db.imageFiles], async () => {
     const [notes, labels] = await Promise.all([db.notes.toArray(), db.labels.toArray()]);
     const plan = planMerge(notes, labels, imported);
     await db.labels.bulkAdd(plan.labels);
     await db.notes.bulkPut(plan.notes);
+    await deleteAttachmentsOf(plan.replaceImagesOf);
+    await db.attachments.bulkPut(plan.attachments.map((image) => image.attachment));
+    await db.imageFiles.bulkPut(plan.attachments.map((image) => image.file));
     return plan.counts;
   });
   await refreshHasNotesMarker();
@@ -163,12 +234,14 @@ export const restoreBackup = async (contents: string): Promise<MergeCounts> => {
 
 const SEPARATOR = '\n\n---\n\n';
 
-export const toMarkdown = (notes: Note[], labels: Label[]): string => {
+export const toMarkdown = (notes: Note[], labels: Label[], imageCounts: Map<string, number> = new Map()): string => {
   const names = new Map(labels.map((l) => [l.id, l.name]));
   const block = (note: Note) => {
     const head = [`## ${note.title.trim() || 'Untitled'}`];
     const noteLabels = note.labelIds.map((id) => names.get(id)).filter((n): n is string => !!n);
     if (noteLabels.length > 0) head.push(`Labels: ${noteLabels.join(', ')}`);
+    const images = imageCounts.get(note.id) ?? 0;
+    if (images > 0) head.push(`_${images} ${images === 1 ? 'image' : 'images'} (not included in the Markdown export)_`);
     const body =
       note.kind === 'note'
         ? note.content.trimEnd()
@@ -206,11 +279,13 @@ export const backupFileName = (date: Date) => `noteboard-backup-${dateStamp(date
 export const markdownFileName = (date: Date) => `noteboard-notes-${dateStamp(date)}.md`;
 
 export const downloadBackup = async (now = new Date()) => {
-  const { notes, labels } = await getAllData();
-  downloadFile(backupFileName(now), JSON.stringify(buildBackup(notes, labels, now), null, 2), 'application/json');
+  downloadFile(backupFileName(now), JSON.stringify(await collectBackup(now), null, 2), 'application/json');
 };
 
 export const downloadMarkdown = async (now = new Date()) => {
   const { notes, labels } = await getAllData();
-  downloadFile(markdownFileName(now), toMarkdown(notes, labels), 'text/markdown');
+  const { attachments } = await getAllImages();
+  const counts = new Map<string, number>();
+  for (const attachment of attachments) counts.set(attachment.noteId, (counts.get(attachment.noteId) ?? 0) + 1);
+  downloadFile(markdownFileName(now), toMarkdown(notes, labels, counts), 'text/markdown');
 };
