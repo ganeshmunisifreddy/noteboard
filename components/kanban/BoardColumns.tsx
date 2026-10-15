@@ -28,6 +28,7 @@ import {
   moveCards,
   moveIndex,
   moveInColumns,
+  moveShown,
   placeAtEnd,
   placeNote,
   putBackCards,
@@ -37,7 +38,7 @@ import {
   type PlaceResult,
 } from '../../lib/cards';
 import { putBackDue, removeDue, setDue, trashNote, undoTrash, updateNote, useLabels } from '../../lib/notes';
-import { moveToIndex, neighbors } from '../../lib/order';
+import { neighbors } from '../../lib/order';
 import type { Board, Column, Note, NoteKind } from '../../lib/types';
 import type { MenuItem } from '../ui/Menu';
 import { useToast } from '../ui/Toast';
@@ -52,6 +53,7 @@ type Props = {
   labelNames: Map<string, string>;
   images?: Map<string, BoardImages>;
   boards: { board: Board; columns: Column[] }[]; // every board, for Move to board
+  visibleIds?: Set<string> | null; // the cards a filter shows; null when not filtering
   onOpen: (id: string) => void;
   onAddCard: (columnId: string, kind: NoteKind) => void;
   startAddingColumn?: boolean; // the board menu's "Add column"
@@ -72,6 +74,7 @@ const BoardColumns = ({
   labelNames,
   images,
   boards,
+  visibleIds = null,
   onOpen,
   onAddCard,
   startAddingColumn = false,
@@ -105,6 +108,11 @@ const BoardColumns = ({
   const notesById = new Map([...cards.values()].flat().map((n) => [n.id, n]));
   const columnName = new Map(columns.map((c) => [c.id, c.name]));
   const titleOf = (id: string) => notesById.get(id)?.title || 'Untitled';
+  const filtering = visibleIds !== null;
+  const visible = (columnId: string) => {
+    const ids = shown[columnId] ?? [];
+    return visibleIds ? ids.filter((id) => visibleIds.has(id)) : ids;
+  };
 
   // Back from a card: the board scrolls sideways to where it was.
   useEffect(() => {
@@ -125,8 +133,9 @@ const BoardColumns = ({
 
   const save = async (noteId: string, columnId: string, ids: string[]) => {
     const { beforeId, afterId } = neighbors(ids, noteId);
+    const seen = visibleIds ? ids.filter((id) => visibleIds.has(id) || id === noteId) : ids;
     setAnnouncement(
-      `Moved ${titleOf(noteId)} to ${columnName.get(columnId)}, position ${ids.indexOf(noteId) + 1} of ${ids.length}`,
+      `Moved ${titleOf(noteId)} to ${columnName.get(columnId)}, position ${seen.indexOf(noteId) + 1} of ${seen.length}`,
     );
     setSaving((n) => n + 1);
     let result: PlaceResult | undefined;
@@ -156,12 +165,11 @@ const BoardColumns = ({
     }
   };
 
-  // Menu moves start from the order on screen: an earlier move may not be saved yet.
+  // Menu moves start from the order on screen (an earlier move may not be saved
+  // yet) and pass the next shown card; hidden cards keep their order.
   const moveWithin = (noteId: string, columnId: string, move: CardMove) => {
-    const ids = shown[columnId] ?? [];
-    const index = moveIndex(ids, noteId, move);
-    if (index === null) return;
-    const next = moveToIndex(ids, noteId, index);
+    const next = moveShown(shown[columnId] ?? [], visible(columnId), noteId, move);
+    if (!next) return;
     setPreview({ base: null, order: { ...shown, [columnId]: next } });
     refocusId.current = noteId;
     void save(noteId, columnId, next);
@@ -208,7 +216,7 @@ const BoardColumns = ({
   const otherBoards = boards.filter((b) => b.board.id !== board.id);
 
   const nextFocus = (noteId: string, columnId: string) => {
-    const ids = shown[columnId] ?? [];
+    const ids = visible(columnId);
     const index = ids.indexOf(noteId);
     const other = ids[index + 1] ?? ids[index - 1];
     return other ? `[data-card-move="${CSS.escape(other)}"]` : `[data-add-card="${CSS.escape(columnId)}"]`;
@@ -262,7 +270,6 @@ const BoardColumns = ({
         : [...note.labelIds, labelId],
     });
 
-  const filtering = false;
   const cardsWord = (n: number) => (n === 1 ? '1 card' : `${n} cards`);
 
   // Their toasts announce themselves (Radix), so no board announcement too.
@@ -389,13 +396,14 @@ const BoardColumns = ({
         }}
       >
         {columns.map((column, index) => {
-          const ids = shown[column.id] ?? [];
+          const ids = visible(column.id);
+          const all = shown[column.id] ?? [];
           return (
             <BoardColumn
               key={column.id}
               column={column}
               ids={ids}
-              total={ids.length}
+              total={all.length}
               first={index === 0}
               last={index === columns.length - 1}
               notesById={notesById}
@@ -409,7 +417,7 @@ const BoardColumns = ({
               onRename={(name) => void renameColumn(column.id, name)}
               onMove={(direction) => void moveColumn(column.id, direction)}
               onSetDone={(done) => void setDoneColumn(column.id, done)}
-              onDelete={() => void removeColumn(column.id, column.name, ids.length)}
+              onDelete={() => void removeColumn(column.id, column.name, all.length)}
               onCardMenu={setMenuFor}
               cardMenu={(note) => (
                 <CardMenu
