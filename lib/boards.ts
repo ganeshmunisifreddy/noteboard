@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { v4 as uuid } from 'uuid';
 import { db } from './db';
 import { nextTopPosition, refreshHasNotesMarker } from './notes';
+import { moveToIndex } from './order';
 import { byBoardPosition, byPosition, columnNotes, endOf, sortedColumns } from './places';
 import type { Board, Column, Note } from './types';
 
@@ -39,7 +40,14 @@ export const createBoard = async (name: string, template: BoardTemplate): Promis
   const now = Date.now();
   return db.transaction('rw', db.boards, db.columns, async () => {
     const last = await db.boards.orderBy('position').last();
-    const board: Board = { id: uuid(), name: clean, position: last ? last.position + 1 : 0, createdAt: now, updatedAt: now };
+    const board: Board = {
+      id: uuid(),
+      name: clean,
+      position: last ? last.position + 1 : 0,
+      starred: false,
+      createdAt: now,
+      updatedAt: now,
+    };
     await db.boards.add(board);
     await db.columns.bulkAdd(
       columns.map((c, index) => ({ id: uuid(), boardId: board.id, name: c.name, position: index, done: c.done, updatedAt: now })),
@@ -51,6 +59,40 @@ export const createBoard = async (name: string, template: BoardTemplate): Promis
 export const renameBoard = async (id: string, name: string) => {
   const clean = required(name, BOARD_NAME_MAX);
   await db.boards.update(id, { name: clean, updatedAt: Date.now() });
+};
+
+export const starBoard = async (id: string, starred: boolean) => {
+  await db.boards.update(id, { starred, updatedAt: Date.now() });
+};
+
+// Positions 0, 1, 2, … in the given order, writing only the records that change.
+const renumber = <T extends { id: string; position: number; updatedAt: number }>(records: T[], ids: string[]) => {
+  const byId = new Map(records.map((r) => [r.id, r]));
+  const now = Date.now();
+  return ids.flatMap((id, position) => {
+    const record = byId.get(id);
+    return !record || record.position === position ? [] : [{ ...record, position, updatedAt: now }];
+  });
+};
+
+// The order after moving a board to `index` among the boards in its group
+// (starred or not); the other group's boards keep their slots.
+export const orderInGroup = (boards: Pick<Board, 'id' | 'starred'>[], id: string, index: number): string[] => {
+  const board = boards.find((b) => b.id === id);
+  if (!board) return boards.map((b) => b.id);
+  const group = boards.filter((b) => b.starred === board.starred).map((b) => b.id);
+  const moved = moveToIndex(group, id, Math.max(0, Math.min(index, group.length - 1)));
+  let next = 0;
+  return boards.map((b) => (b.starred === board.starred ? moved[next++] : b.id));
+};
+
+// Moves a board to `index` among the boards in its group.
+export const moveBoardTo = async (id: string, index: number) => {
+  await db.transaction('rw', db.boards, async () => {
+    const boards = (await db.boards.toArray()).sort(byPosition);
+    if (!boards.some((b) => b.id === id)) return;
+    await db.boards.bulkPut(renumber(boards, orderInGroup(boards, id, index)));
+  });
 };
 
 // Notes leaving a board go to the top of the main board, keeping the board's order.
@@ -134,21 +176,27 @@ export const renameColumn = async (id: string, name: string) => {
   await db.columns.update(id, { name: clean, updatedAt: Date.now() });
 };
 
-// Swaps a column with its neighbour; positions are renumbered 0, 1, 2, …
-export const moveColumn = async (id: string, direction: -1 | 1) => {
+export const moveColumnTo = async (id: string, index: number) => {
   await db.transaction('rw', db.columns, async () => {
     const column = await db.columns.get(id);
     if (!column) return;
     const columns = await sortedColumns(column.boardId);
-    const index = columns.findIndex((c) => c.id === id);
-    const target = index + direction;
-    if (target < 0 || target >= columns.length) return;
-    const reordered = [...columns];
-    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
-    const now = Date.now();
-    await db.columns.bulkPut(
-      reordered.map((c, position) => (c.position === position ? c : { ...c, position, updatedAt: now })),
+    const ids = moveToIndex(
+      columns.map((c) => c.id),
+      id,
+      Math.max(0, Math.min(index, columns.length - 1)),
     );
+    await db.columns.bulkPut(renumber(columns, ids));
+  });
+};
+
+// Swaps a column with its neighbour.
+export const moveColumn = async (id: string, direction: -1 | 1) => {
+  await db.transaction('rw', db.columns, async () => {
+    const column = await db.columns.get(id);
+    if (!column) return;
+    const index = (await sortedColumns(column.boardId)).findIndex((c) => c.id === id);
+    if (index + direction >= 0) await moveColumnTo(id, index + direction);
   });
 };
 

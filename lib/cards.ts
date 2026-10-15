@@ -1,6 +1,6 @@
 import { db } from './db';
 import { markDoneChanges, seenIfPast } from './due';
-import { nextTopPosition } from './notes';
+import { createNote, nextTopPosition, refreshHasNotesMarker } from './notes';
 import { needsRenumber, positionBetween } from './order';
 import { columnNotes, endOf, renumberColumn, sortedColumns, topOf } from './places';
 import type { Column, Note } from './types';
@@ -115,6 +115,24 @@ export const moveIndex = (ids: string[], id: string, move: CardMove): number | n
   return target < 0 || target >= ids.length || target === index ? null : target;
 };
 
+// A menu move among the cards on screen (a filter may hide some): the card
+// passes the shown card next to it; hidden cards keep their order.
+export const moveShown = (ids: string[], shown: string[], id: string, move: CardMove): string[] | null => {
+  const index = moveIndex(shown, id, move);
+  if (index === null) return null;
+  const rest = ids.filter((x) => x !== id);
+  const at = rest.indexOf(shown[index]) + (index > shown.indexOf(id) ? 1 : 0);
+  return [...rest.slice(0, at), id, ...rest.slice(at)];
+};
+
+// The column a dragged column is over: its slot, its card list, or one of its cards.
+export const columnOver = (overId: string, columnOf: (cardId: string) => string | undefined): string | null => {
+  if (overId.startsWith('col-slot:')) return overId.slice(9);
+  if (overId.startsWith('column:')) return overId.slice(7);
+  if (overId.startsWith('card:')) return columnOf(overId.slice(5)) ?? null;
+  return null;
+};
+
 export type DropTarget = { type: 'card'; id: string } | { type: 'column'; id: string };
 
 // The board's order while a card is dragged: over a card it takes that
@@ -133,4 +151,54 @@ export const moveInColumns = (
   const index = over.type === 'card' ? order[to].indexOf(over.id) : target.length;
   target.splice(index, 0, activeId);
   return { ...next, [to]: target };
+};
+
+// Quick add: a text card with just a title at the end of its column (or the
+// board's first column if it was deleted). Undefined for a blank title or a missing board.
+export const quickAddCard = async (columnId: string, boardId: string, title: string): Promise<Note | undefined> => {
+  const clean = title.trim();
+  if (!clean) return undefined;
+  const place = await newCardPlace(columnId, 'bottom', boardId);
+  if (!place) return undefined;
+  return createNote({ kind: 'note', title: clean, ...place });
+};
+
+// What a bulk action changed on a card, so Undo puts back just that and keeps other edits.
+export type CardState = { id: string } & Partial<
+  Pick<Note, 'archived' | 'boardId' | 'columnId' | 'boardPosition' | 'due' | 'items'>
+>;
+
+export const archiveCards = async (ids: string[]): Promise<CardState[]> => {
+  const states = await db.transaction('rw', db.notes, async () => {
+    const notes = (await db.notes.bulkGet(ids)).filter((n): n is Note => !!n && !n.archived);
+    const now = Date.now();
+    await Promise.all(notes.map((n) => db.notes.update(n.id, { archived: true, pinned: false, updatedAt: now })));
+    return notes.map(({ id }) => ({ id, archived: false }));
+  });
+  await refreshHasNotesMarker();
+  return states;
+};
+
+// To the end of a column, in the given order; entering or leaving a Done column
+// follows placeNote's rules. Nothing moves if the column is gone.
+export const moveCards = async (ids: string[], columnId: string, now = Date.now()): Promise<CardState[]> =>
+  db.transaction('rw', db.notes, db.columns, async () => {
+    const states: CardState[] = [];
+    for (const id of ids) {
+      const result = await placeAtEnd(id, columnId, now);
+      if (!result) continue;
+      const { boardId, columnId: from, boardPosition, due, items } = result.before;
+      // A date (and a repeat's checklist) changes only when entering or leaving a Done column.
+      states.push({ id, boardId, columnId: from, boardPosition, ...(result.dateChanged ? { due, items } : {}) });
+    }
+    return states;
+  });
+
+// Undo for archiveCards and moveCards.
+export const putBackCards = async (states: CardState[]) => {
+  const now = Date.now();
+  await db.transaction('rw', db.notes, async () => {
+    await Promise.all(states.map(({ id, ...fields }) => db.notes.update(id, { ...fields, updatedAt: now })));
+  });
+  await refreshHasNotesMarker();
 };

@@ -1,10 +1,20 @@
-import { ArrowLeft, EllipsisVertical, Plus } from 'lucide-react';
+import { ArrowLeft, EllipsisVertical, ListFilter, Plus } from 'lucide-react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useBoardImages } from '../../lib/attachments';
-import { BOARD_NAME_MAX, deleteBoard, renameBoard, restoreBoard, type BoardData } from '../../lib/boards';
+import { EMPTY_FILTER, isFiltering, matchesCard, type CardFilter } from '../../lib/boardFilter';
+import {
+  BOARD_NAME_MAX,
+  deleteBoard,
+  renameBoard,
+  restoreBoard,
+  starBoard,
+  useBoardColumns,
+  type BoardData,
+} from '../../lib/boards';
 import { useLabels } from '../../lib/notes';
+import { useNow } from '../../lib/time';
 import { BOARDS_HREF, markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../../lib/routes';
 import type { NoteKind } from '../../lib/types';
 import IconButton from '../ui/IconButton';
@@ -13,6 +23,7 @@ import { useToast } from '../ui/Toast';
 import styles from './Board.module.css';
 import BoardColumns from './BoardColumns';
 import DeleteBoardDialog from './DeleteBoardDialog';
+import FilterBar from './FilterBar';
 import InlineName from './InlineName';
 
 const BoardView = ({ data }: { data: BoardData }) => {
@@ -20,6 +31,7 @@ const BoardView = ({ data }: { data: BoardData }) => {
   const toast = useToast();
   const labels = useLabels();
   const images = useBoardImages();
+  const boards = useBoardColumns();
   const [renaming, setRenaming] = useState(false);
   const [addingColumn, setAddingColumn] = useState(0);
   const [deleting, setDeleting] = useState(false);
@@ -42,6 +54,33 @@ const BoardView = ({ data }: { data: BoardData }) => {
   };
 
   const labelNames = useMemo(() => new Map((labels ?? []).map((l) => [l.id, l.name])), [labels]);
+  const [filter, setFilter] = useState<CardFilter>(EMPTY_FILTER);
+  const [filterOpen, setFilterOpen] = useState(false);
+  // Overdue and Next 7 days move with the clock, as the cards' date chips do.
+  const now = useNow();
+  // Cards added while filtering stay shown until the filter changes.
+  const [kept, setKept] = useState<Set<string>>(() => new Set());
+  const filterButton = useRef<HTMLButtonElement>(null);
+  const filtering = isFiltering(filter);
+
+  const changeFilter = (next: CardFilter) => {
+    setFilter(next);
+    setKept(new Set());
+  };
+
+  // Escape in the filter row clears and closes it; the Filter button only closes
+  // it, so a set filter stays (shown by the button's dot).
+  const closeFilter = (clear: boolean) => {
+    if (clear) changeFilter(EMPTY_FILTER);
+    setFilterOpen(false);
+    requestAnimationFrame(() => filterButton.current?.focus());
+  };
+
+  const allCards = [...cards.values()].flat();
+  const visibleIds = filtering
+    ? new Set(allCards.filter((n) => kept.has(n.id) || matchesCard(n, filter, labelNames, now)).map((n) => n.id))
+    : null;
+  const matchCount = visibleIds?.size ?? 0;
   const noteCount = [...cards.values()].reduce((sum, list) => sum + list.length, 0);
 
   const addCard = (columnId: string, kind: NoteKind, at: 'top' | 'bottom' = 'bottom') =>
@@ -77,6 +116,21 @@ const BoardView = ({ data }: { data: BoardData }) => {
           <h1 className={styles.boardTitle}>{board.name}</h1>
         )}
         <button
+          ref={filterButton}
+          type='button'
+          className={styles.filterButton}
+          aria-expanded={filterOpen}
+          aria-controls='board-filter'
+          aria-label={
+            filtering ? `Filter, ${matchCount} ${matchCount === 1 ? 'card matches' : 'cards match'}` : 'Filter'
+          }
+          onClick={() => (filterOpen ? closeFilter(false) : setFilterOpen(true))}
+        >
+          <ListFilter size={16} aria-hidden />
+          Filter
+          {filtering && <span className={styles.filterDot} aria-hidden />}
+        </button>
+        <button
           type='button'
           className={styles.primary}
           disabled={columns.length === 0}
@@ -89,6 +143,10 @@ const BoardView = ({ data }: { data: BoardData }) => {
           items={[
             { label: 'Rename board', keepFocus: true, onSelect: () => setRenaming(true) },
             { label: 'Add column', keepFocus: true, onSelect: () => setAddingColumn((n) => n + 1) },
+            {
+              label: board.starred ? 'Unstar board' : 'Star board',
+              onSelect: () => void starBoard(board.id, !board.starred),
+            },
             { label: 'Delete board…', danger: true, onSelect: () => setDeleting(true) },
           ]}
           trigger={
@@ -98,12 +156,40 @@ const BoardView = ({ data }: { data: BoardData }) => {
           }
         />
       </header>
+      {filterOpen && (
+        <FilterBar
+          id='board-filter'
+          filter={filter}
+          labels={labels ?? []}
+          onChange={changeFilter}
+          onClose={() => closeFilter(true)}
+        />
+      )}
+      {/* Always mounted, so screen readers hear each change of the filter's results. */}
+      <div role='status' data-testid='filter-status'>
+        {filtering &&
+          (matchCount === 0 ? (
+            <p className={styles.noMatch}>
+              No cards match the filter
+              <button type='button' className={styles.clear} onClick={() => changeFilter(EMPTY_FILTER)}>
+                Clear
+              </button>
+            </p>
+          ) : (
+            <span className={styles.srOnly}>{matchCount === 1 ? '1 card matches' : `${matchCount} cards match`}</span>
+          ))}
+      </div>
       <main className={styles.main}>
         <BoardColumns
           key={addingColumn}
           data={data}
           labelNames={labelNames}
           images={images}
+          boards={boards ?? []}
+          visibleIds={visibleIds}
+          onKeepShown={(id) => {
+            if (filtering) setKept((ids) => new Set(ids).add(id));
+          }}
           onOpen={(id) => openEditor(router, noteHref(id))}
           onAddCard={(columnId, kind) => addCard(columnId, kind)}
           startAddingColumn={addingColumn > 0}

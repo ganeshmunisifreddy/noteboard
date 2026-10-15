@@ -2,12 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBoard } from './boards';
 import { localDate, localMoment } from './calendar';
 import {
+  archiveCards,
+  columnOver,
+  moveCards,
   moveIndex,
   moveInColumns,
+  moveShown,
   newCardPlace,
   placeAtEnd,
   placeNote,
+  putBackCards,
   putBackPlace,
+  quickAddCard,
   removeFromBoard,
 } from './cards';
 import { db } from './db';
@@ -188,5 +194,131 @@ describe('new cards whose column is gone', () => {
       boardPosition: 0,
     });
     expect(await newCardPlace('gone', 'bottom', 'no-board')).toBeNull();
+  });
+});
+
+describe('moveShown', () => {
+  it('moves like moveIndex when nothing is hidden', () => {
+    const ids = ['a', 'b', 'c'];
+    expect(moveShown(ids, ids, 'a', 'down')).toEqual(['b', 'a', 'c']);
+    expect(moveShown(ids, ids, 'c', 'top')).toEqual(['c', 'a', 'b']);
+    expect(moveShown(ids, ids, 'a', 'up')).toBeNull();
+  });
+
+  it('passes the next shown card and keeps hidden cards in order', () => {
+    const ids = ['a', 'h1', 'b', 'h2', 'c'];
+    const shown = ['a', 'b', 'c'];
+    expect(moveShown(ids, shown, 'a', 'down')).toEqual(['h1', 'b', 'a', 'h2', 'c']);
+    expect(moveShown(ids, shown, 'c', 'up')).toEqual(['a', 'h1', 'c', 'b', 'h2']);
+    expect(moveShown(ids, shown, 'b', 'bottom')).toEqual(['a', 'h1', 'h2', 'c', 'b']);
+    expect(moveShown(ids, shown, 'b', 'top')).toEqual(['b', 'a', 'h1', 'h2', 'c']);
+  });
+});
+
+describe('quick add', () => {
+  it('adds a titled card at the end of the column', async () => {
+    const { board, columns } = await setup();
+    await createNote({ id: 'old', kind: 'note', boardId: board.id, columnId: columns[0].id, boardPosition: 4 });
+    const note = await quickAddCard(columns[0].id, board.id, '  Pick fonts ');
+    expect(await db.notes.get(note!.id)).toMatchObject({
+      kind: 'note',
+      title: 'Pick fonts',
+      boardId: board.id,
+      columnId: columns[0].id,
+      boardPosition: 5,
+    });
+  });
+
+  it('adds nothing for a blank title, and uses the first column when its column is gone', async () => {
+    const { board, columns } = await setup();
+    expect(await quickAddCard(columns[0].id, board.id, '   ')).toBeUndefined();
+    expect(await db.notes.count()).toBe(0);
+    await db.columns.delete(columns[1].id);
+    const note = await quickAddCard(columns[1].id, board.id, 'Lost');
+    expect(note?.columnId).toBe(columns[0].id);
+  });
+});
+
+describe('bulk card actions', () => {
+  const put = (id: string, columnId: string, boardId: string, boardPosition: number, extra = {}) =>
+    createNote({ id, kind: 'note', title: id, boardId, columnId, boardPosition, ...extra });
+
+  it('archives cards and Undo puts them back, keeping later edits', async () => {
+    const { board, columns } = await setup();
+    await put('a', columns[0].id, board.id, 0);
+    await put('b', columns[0].id, board.id, 1, { archived: true });
+    const states = await archiveCards(['a', 'b']);
+    expect(states.map((s) => s.id)).toEqual(['a']);
+    expect((await db.notes.get('a'))?.archived).toBe(true);
+    await db.notes.update('a', { title: 'Edited' });
+    await putBackCards(states);
+    expect(await db.notes.get('a')).toMatchObject({ archived: false, title: 'Edited', columnId: columns[0].id });
+  });
+
+  it('moves cards to the end of a column in order, applying the Done rules, and Undo restores them', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(NOON);
+    const { board, columns } = await setup();
+    const today = localDate(NOON);
+    await put('x', columns[2].id, board.id, 0);
+    await put('a', columns[0].id, board.id, 0, { due: newDue(today, null, null) });
+    await put('r', columns[0].id, board.id, 1, { due: newDue(today, null, presetRepeat('weekly', today)) });
+    const states = await moveCards(['a', 'r'], columns[2].id, NOON);
+    const a = await db.notes.get('a');
+    expect(a).toMatchObject({ columnId: columns[2].id });
+    expect(a!.boardPosition).toBeGreaterThan(0);
+    expect(a!.due?.doneAt).not.toBeNull();
+    // The repeat moved on to its next date and went back to the first column.
+    const r = await db.notes.get('r');
+    expect(r?.columnId).toBe(columns[0].id);
+    expect(r?.due?.date).not.toBe(today);
+    await putBackCards(states);
+    expect(await db.notes.get('a')).toMatchObject({ columnId: columns[0].id, boardPosition: 0, due: { doneAt: null } });
+    expect((await db.notes.get('r'))?.due?.date).toBe(today);
+  });
+
+  it('Undo of an archive leaves a later trash and checklist edit alone', async () => {
+    const { board, columns } = await setup();
+    await put('a', columns[0].id, board.id, 0);
+    const states = await archiveCards(['a']);
+    await db.notes.update('a', { trashedAt: 5, items: [{ id: 'i', text: 'New', done: false }] });
+    await putBackCards(states);
+    expect(await db.notes.get('a')).toMatchObject({ archived: false, trashedAt: 5, items: [{ text: 'New' }] });
+  });
+
+  it('Undo of a move leaves a later checklist edit alone when no date changed', async () => {
+    const { board, columns } = await setup();
+    await put('a', columns[0].id, board.id, 0);
+    const states = await moveCards(['a'], columns[1].id);
+    await db.notes.update('a', { items: [{ id: 'i', text: 'New', done: false }] });
+    await putBackCards(states);
+    expect(await db.notes.get('a')).toMatchObject({ columnId: columns[0].id, items: [{ text: 'New' }] });
+  });
+
+  it('moves cards to another board', async () => {
+    const { board, columns } = await setup();
+    const other = await createBoard('Other', 'basic');
+    const [otherTodo] = await sortedColumns(other.id);
+    await put('a', columns[0].id, board.id, 0);
+    await moveCards(['a'], otherTodo.id);
+    expect(await db.notes.get('a')).toMatchObject({ boardId: other.id, columnId: otherTodo.id });
+  });
+
+  it('does nothing when the target column is gone', async () => {
+    const { board, columns } = await setup();
+    await put('a', columns[0].id, board.id, 0);
+    await db.columns.delete(columns[1].id);
+    expect(await moveCards(['a'], columns[1].id)).toEqual([]);
+    expect((await db.notes.get('a'))?.columnId).toBe(columns[0].id);
+  });
+});
+
+describe('columnOver', () => {
+  const columnOf = (id: string) => ({ n1: 'c2' } as Record<string, string>)[id];
+  it('reads the column from any droppable on it', () => {
+    expect(columnOver('col-slot:c1', columnOf)).toBe('c1');
+    expect(columnOver('column:c3', columnOf)).toBe('c3');
+    expect(columnOver('card:n1', columnOf)).toBe('c2');
+    expect(columnOver('card:missing', columnOf)).toBeNull();
+    expect(columnOver('other', columnOf)).toBeNull();
   });
 });

@@ -84,7 +84,7 @@ export type Due = {
 
 // A kanban board. Its columns and cards are separate records, so each can
 // change (and later sync) on its own.
-export type Board = { id: string; name: string; position: number; createdAt: number; updatedAt: number };
+export type Board = { id: string; name: string; position: number; starred: boolean; createdAt: number; updatedAt: number };
 
 export type Column = {
   id: string;

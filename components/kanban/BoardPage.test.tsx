@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBoard } from '../../lib/boards';
@@ -83,11 +83,109 @@ describe('board page', () => {
     await user.click(await screen.findByRole('button', { name: 'Open note: Wireframes' }));
     expect(router.push).toHaveBeenLastCalledWith({ pathname: '/note', query: { id: 'n1' } });
     await user.click(screen.getByRole('button', { name: 'Add card to To do' }));
+    await user.click(screen.getByRole('button', { name: 'Open in editor' }));
     expect(router.push.mock.lastCall?.[0]).toMatchObject({ query: { new: 'note', column: columns[0].id, at: 'bottom' } });
     await user.click(screen.getByRole('button', { name: 'Add a list to To do' }));
     expect(router.push.mock.lastCall?.[0]).toMatchObject({ query: { new: 'list', column: columns[0].id } });
     await user.click(screen.getByRole('button', { name: 'Add card' }));
     expect(router.push.mock.lastCall?.[0]).toMatchObject({ query: { new: 'note', column: columns[0].id, at: 'top' } });
+  });
+
+  it('adds cards quickly, one after another', async () => {
+    const user = userEvent.setup();
+    const { board, columns } = await setup();
+    open(board.id);
+    await user.click(await screen.findByRole('button', { name: 'Add card to To do' }));
+    const box = screen.getByRole('textbox', { name: 'Card title for To do' });
+    expect(box).toHaveFocus();
+    await user.type(box, 'Pick fonts{Enter}');
+    expect(box).toHaveValue('');
+    expect(box).toHaveFocus();
+    await user.type(box, '   {Enter}New logo{Enter}');
+    await waitFor(async () =>
+      expect(
+        (await db.notes.toArray())
+          .filter((n) => n.columnId === columns[0].id)
+          .sort((a, b) => a.boardPosition - b.boardPosition)
+          .map((n) => n.title),
+      ).toEqual(['Pick fonts', 'New logo']),
+    );
+    expect(await screen.findByText('New logo')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('textbox', { name: 'Card title for To do' })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add card to To do' })).toHaveFocus());
+  });
+
+  it('keeps quick add open, with the list button, when the window loses focus', async () => {
+    const user = userEvent.setup();
+    const { board } = await setup();
+    open(board.id);
+    await user.click(await screen.findByRole('button', { name: 'Add card to To do' }));
+    expect(screen.getByRole('button', { name: 'Add a list to To do' })).toBeInTheDocument();
+    const box = screen.getByRole('textbox', { name: 'Card title for To do' });
+    await user.type(box, 'Half typed');
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    fireEvent.blur(box);
+    expect(screen.getByRole('textbox', { name: 'Card title for To do' })).toHaveValue('Half typed');
+  });
+
+  it('opens a typed quick-add card in the editor', async () => {
+    const user = userEvent.setup();
+    const { board } = await setup();
+    open(board.id);
+    await user.click(await screen.findByRole('button', { name: 'Add card to Doing' }));
+    await user.type(screen.getByRole('textbox', { name: 'Card title for Doing' }), 'Copy');
+    await user.click(screen.getByRole('button', { name: 'Open in editor' }));
+    await waitFor(() => expect(router.push.mock.lastCall?.[0]).toMatchObject({ pathname: '/note' }));
+    const note = (await db.notes.toArray()).find((n) => n.title === 'Copy');
+    expect(router.push.mock.lastCall?.[0]).toMatchObject({ query: { id: note?.id } });
+  });
+
+  it('archives all of a column’s cards with one Undo', async () => {
+    const user = userEvent.setup();
+    const { board, columns } = await setup();
+    await createNote({ id: 'n2', kind: 'note', title: 'Copy', boardId: board.id, columnId: columns[1].id, boardPosition: 1 });
+    open(board.id);
+    await user.click(await screen.findByRole('button', { name: 'Column actions for Doing' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Archive all cards' }));
+    await waitFor(async () => expect((await db.notes.toArray()).every((n) => n.archived)).toBe(true));
+    expect(await screen.findByText('Archived 2 cards')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(async () => expect((await db.notes.toArray()).some((n) => n.archived)).toBe(false));
+  });
+
+  it('moves all of a column’s cards to another column', async () => {
+    const user = userEvent.setup();
+    const { board, columns } = await setup();
+    open(board.id);
+    await user.click(await screen.findByRole('button', { name: 'Column actions for Doing' }));
+    (await screen.findByRole('menuitem', { name: 'Move all cards to' })).focus();
+    await user.keyboard('{ArrowRight}');
+    (await screen.findByRole('menuitem', { name: 'To do' })).focus();
+    await user.keyboard('{Enter}');
+    await waitFor(async () => expect((await db.notes.get('n1'))?.columnId).toBe(columns[0].id));
+    expect(await screen.findByText('Moved 1 card to To do')).toBeInTheDocument();
+  });
+
+  it('hides bulk actions for an empty column', async () => {
+    const user = userEvent.setup();
+    const { board } = await setup();
+    open(board.id);
+    await user.click(await screen.findByRole('button', { name: 'Column actions for To do' }));
+    await screen.findByRole('menuitem', { name: 'Rename' });
+    expect(screen.queryByRole('menuitem', { name: 'Archive all cards' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Move all cards to' })).not.toBeInTheDocument();
+  });
+
+  it('stars the board from its menu', async () => {
+    const user = userEvent.setup();
+    const { board } = await setup();
+    open(board.id);
+    await user.click(await screen.findByRole('button', { name: 'Board actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Star board' }));
+    await waitFor(async () => expect((await db.boards.get(board.id))?.starred).toBe(true));
+    await user.click(screen.getByRole('button', { name: 'Board actions' }));
+    expect(await screen.findByRole('menuitem', { name: 'Unstar board' })).toBeInTheDocument();
   });
 
   it('renames, moves, marks Done and deletes columns', async () => {

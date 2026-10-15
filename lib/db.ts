@@ -80,3 +80,22 @@ db.version(5)
         }
       }),
   );
+
+// v6: boards can be starred; existing ones aren't.
+db.version(6)
+  .stores({
+    notes: 'id, updatedAt, trashedAt, position, boardId, *labelIds',
+    labels: 'id, &name',
+    attachments: 'id, noteId',
+    imageFiles: 'id',
+    boards: 'id, position',
+    columns: 'id, boardId',
+  })
+  .upgrade((tx) =>
+    tx
+      .table('boards')
+      .toCollection()
+      .modify((board: { starred?: unknown }) => {
+        if (board.starred === undefined) board.starred = false;
+      }),
+  );

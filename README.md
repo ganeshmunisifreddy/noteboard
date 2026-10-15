@@ -9,6 +9,11 @@ A notes and checklists app by Nine Technology, built with [Next.js](https://next
 - Images in notes and lists (photos, screenshots, pasted or dropped images), shrunk on the device and kept offline
 - Dates on notes and lists (optional time, repeats), reminders while Noteboard is open, Mark done, and an Upcoming view (Overdue, Today, Tomorrow, Next 7 days, Later)
 - Kanban boards from the Boards chip: named boards with columns (templates: Basic, Pipeline, Now / Next / Later), cards are your notes, drag or use each card's Move menu, a Done column marks dates done
+  - Quick add: type a title at the bottom of a column, press Enter, keep typing
+  - Filter a board by text, label, or date (Overdue, Next 7 days, No date)
+  - Each card's menu (or right-click): colour, labels, date, move, move to another board, archive, delete
+  - Archive or move all of a column's cards at once, with Undo
+  - Drag columns by their name; star boards to keep them first and drag boards into any order
 - Drag cards into your own order (mouse, touch, or the grip button with arrow keys)
 - Backup and restore (JSON, merges with what's there) and export as Markdown, from the ⋯ menu
 - Search and filters (All, Notes, Lists, Upcoming, Boards, labels), kept in the URL
@@ -49,7 +54,7 @@ In production the app runs under pm2 via `ecosystem.config.js`.
 - `lib/markdown.ts`: how notes are read as Markdown (cards, search, conversion and the editor share it); `components/editor/RichEditor.tsx`: the Tiptap editor
 - `lib/images.ts`: shrinking images on the device; `lib/attachments.ts`: stored images and thumbnails
 - `lib/calendar.ts`, `lib/repeat.ts`, `lib/due.ts`: dates, repeats and Mark done; `lib/reminders.ts`: the reminder clock (one tab at a time) and notifications. Reminders only fire while Noteboard is open; there's no server.
-- `pages/board.tsx`, `components/kanban/`: kanban boards; `lib/boards.ts` (boards and columns), `lib/cards.ts` (placing notes on them), `lib/places.ts` (column order)
+- `pages/board.tsx`, `components/kanban/`: kanban boards; `lib/boards.ts` (boards and columns), `lib/cards.ts` (placing notes on them), `lib/places.ts` (column order), `lib/boardFilter.ts` (the board filter)
 - `lib/migrate.ts`: one-time move of notes from the old `localStorage` format (the old data is kept as `notes-backup-v1`)
 - `styles/tokens.css`: colours, spacing and type, light and dark
 - `worker/index.js`: serves the board and editor offline, and opens notes from reminder notifications
