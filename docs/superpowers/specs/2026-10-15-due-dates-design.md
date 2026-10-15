@@ -131,7 +131,7 @@ type Repeat = {
 ### Reminder panel (`components/ui/ReminderAlerts.tsx`)
 
 - Lives in `_app` beside the toast provider; shows alerts from the clock in this tab.
-- A panel at the bottom left (full width on screens narrower than 600px), above page content and below dialogs. It does not disappear on its own.
+- A panel at the top right, under the top bar (full width less 16px margins on screens narrower than 600px), so it stays clear of the toasts (bottom centre) and the New button (bottom right on phones). Above page content, below menus and dialogs. It does not disappear on its own.
 - It is a region named "Reminders"; new alerts are announced through a polite live region ("Reminder: Groceries, today 6:00 pm" or "3 reminders").
 - One row per note, newest batch first, at most 3 rows; then "+N more · View in Upcoming" (a link to `/?view=upcoming`).
 - Each row: note title, due text, and buttons **Open** (opens the note, removes the row), **Snooze** (a menu: 10 minutes, 1 hour, Tomorrow 9:00 am), **Mark done**, and **Dismiss** (✕, named "Dismiss reminder for <title>").
