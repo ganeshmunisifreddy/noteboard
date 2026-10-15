@@ -29,6 +29,7 @@ import {
   restoreAttachment,
   useNoteAttachments,
 } from '../../lib/attachments';
+import { putBackPlace } from '../../lib/cards';
 import { formatDue } from '../../lib/due';
 import { leaveEditor, noteHref, openEditor } from '../../lib/routes';
 import { isQuotaError } from '../../lib/storage';
@@ -245,7 +246,7 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
     toast({
       message: movedTo ? `Moved to ${movedTo}` : 'Marked done',
       actionLabel: 'Undo',
-      onAction: () => void putBackDue(noteId, before.due, before.items).then(() => takeItems(before.items)),
+      onAction: () => void putBackPlace(before).then(() => takeItems(before.items)),
     });
   };
 

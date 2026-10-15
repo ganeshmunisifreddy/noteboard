@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createBoard } from './boards';
 import { localDate, localMoment } from './calendar';
+import { putBackPlace } from './cards';
 import { db } from './db';
 import { newDue } from './due';
 import { createNote, duplicateNote, markDone, putBackDue, removeDue, reopenDue, setDue, snooze } from './notes';
+import { sortedColumns } from './places';
 import { presetRepeat } from './repeat';
 
 const TODAY = localDate(Date.now());
@@ -135,5 +138,34 @@ describe('dates on notes', () => {
     expect((await db.notes.get(note.id))?.due?.repeat).toMatchObject({ anchor: '2026-10-20', ends: { done: 1 } });
     await setDue(note.id, '2026-10-20', '07:00', { ...repeat, ends: { type: 'after', count: 6, done: 0 } });
     expect((await db.notes.get(note.id))?.due?.repeat?.ends).toEqual({ type: 'after', count: 6, done: 0 });
+  });
+
+  it('moves a finished card into its board’s Done column', async () => {
+    const board = await createBoard('B', 'basic');
+    const [todo, , done] = await sortedColumns(board.id);
+    const note = await createNote({ kind: 'note', boardId: board.id, columnId: todo.id, boardPosition: 0 });
+    await setDue(note.id, '2999-01-01', null, null);
+    const before = await markDone(note.id);
+    expect(await db.notes.get(note.id)).toMatchObject({ columnId: done.id, due: { doneAt: expect.any(Number) } });
+    await putBackPlace(before!);
+    expect((await db.notes.get(note.id))?.columnId).toBe(todo.id);
+  });
+
+  it('leaves a repeating card where it is when Mark done moves its date on', async () => {
+    const board = await createBoard('B', 'basic');
+    const [todo] = await sortedColumns(board.id);
+    const note = await createNote({ kind: 'note', boardId: board.id, columnId: todo.id, boardPosition: 0 });
+    await setDue(note.id, '2026-10-15', null, presetRepeat('daily', '2026-10-15'));
+    await markDone(note.id, localMoment('2026-10-15', '12:00'));
+    expect((await db.notes.get(note.id))?.columnId).toBe(todo.id);
+  });
+
+  it('places a copy of a card just below the original', async () => {
+    const board = await createBoard('B', 'basic');
+    const [todo] = await sortedColumns(board.id);
+    await createNote({ id: 'a', kind: 'note', boardId: board.id, columnId: todo.id, boardPosition: 0 });
+    await createNote({ id: 'b', kind: 'note', boardId: board.id, columnId: todo.id, boardPosition: 1 });
+    const copy = await duplicateNote('a');
+    expect(copy).toMatchObject({ boardId: board.id, columnId: todo.id, boardPosition: 0.5 });
   });
 });
