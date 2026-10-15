@@ -121,6 +121,13 @@ describe('Home', () => {
     unmount();
   });
 
+  it('shows a small empty state with the section’s message', async () => {
+    router.query = { view: 'archive' };
+    render(<Home />);
+    expect(await screen.findByText('Archive is empty')).toBeInTheDocument();
+    expect(document.querySelector('img')).toBeNull();
+  });
+
   it('says when nothing has a date', async () => {
     router.query = { view: 'upcoming' };
     await createNote({ kind: 'note', title: 'No date' });

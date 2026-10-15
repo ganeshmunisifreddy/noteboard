@@ -7,9 +7,10 @@ import type { CardMode } from '../components/board/NoteCard';
 import NoteGrid from '../components/board/NoteGrid';
 import TopBar from '../components/board/TopBar';
 import UpcomingView from '../components/board/UpcomingView';
+import ViewHeader from '../components/board/ViewHeader';
+import EmptyState from '../components/board/EmptyState';
 import { preloadRichEditor } from '../components/editor/useRichEditor';
 import BoardTiles from '../components/kanban/BoardTiles';
-import NotFound from '../components/NotFound';
 import AppShell from '../components/shell/AppShell';
 import LabelsDialog from '../components/ui/LabelsDialog';
 import ThemeToggle from '../components/ui/ThemeToggle';
@@ -176,14 +177,13 @@ const Home: NextPage = () => {
         )}
       >
         <main className={styles.main}>
-          {mode === 'trash' && total > 0 && (
-            <div className={styles.trashBar}>
-              <p>Notes in Trash are deleted after 30 days.</p>
-              <button type='button' className={styles.textButton} onClick={() => void clearTrash()}>
-                Empty trash
-              </button>
-            </div>
-          )}
+          <ViewHeader
+            filter={filter}
+            labelName={filter.labelId ? labelNames.get(filter.labelId) : undefined}
+            total={total}
+            onView={(view) => showFilter({ view, labelId: null })}
+            onEmptyTrash={() => void clearTrash()}
+          />
           {filter.view === 'boards' ? (
             <BoardTiles onOpen={(id) => void router.push(boardHref(id))} />
           ) : sections ? (
@@ -226,7 +226,7 @@ const Home: NextPage = () => {
               before first paint when notes exist. */}
           {total === 0 && filter.view !== 'boards' && (
             <div className={styles.emptyState}>
-              <NotFound text={emptyMessage(filter)} />
+              <EmptyState filter={filter} text={emptyMessage(filter)} />
             </div>
           )}
         </main>

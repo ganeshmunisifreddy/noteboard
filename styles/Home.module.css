@@ -23,30 +23,6 @@
   color: var(--text-muted);
 }
 
-.trashBar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0 4px 16px;
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-}
-
-.textButton {
-  padding: 8px 12px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: none;
-  font-weight: 700;
-  color: var(--accent);
-}
-
-.textButton:hover {
-  background: var(--accent-soft);
-}
-
 :global(html[data-has-notes]) .emptyState {
   display: none;
 }

@@ -32,6 +32,22 @@ export const sectionOf = (filter: BoardFilter): string => {
   return filter.labelId ? `label:${filter.labelId}` : 'notes';
 };
 
+// The page heading for a view.
+export const viewTitle = (filter: BoardFilter, labelName?: string): string => {
+  switch (filter.view) {
+    case 'upcoming':
+      return 'Upcoming';
+    case 'boards':
+      return 'Boards';
+    case 'archive':
+      return 'Archive';
+    case 'trash':
+      return 'Trash';
+    default:
+      return filter.labelId ? (labelName ?? 'Label') : 'Notes';
+  }
+};
+
 export const matchesView = (note: Note, filter: BoardFilter): boolean => {
   if (filter.view === 'boards') return false; // the Boards view shows boards, not notes
   if (filter.view === 'trash') return note.trashedAt !== null;
