@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight, Trash2, X } from 'lucide-react';
 import { Dialog } from 'radix-ui';
-import type { KeyboardEvent } from 'react';
+import { useEffect, useEffectEvent, useRef, type KeyboardEvent } from 'react';
 import { useImageFile } from '../../lib/attachments';
 import type { Attachment } from '../../lib/types';
 import { useObjectUrl } from '../../lib/useObjectUrl';
@@ -16,6 +16,33 @@ const FullImage = ({ image, label }: { image: Attachment; label: string }) => {
   return url ? <img src={url} alt={image.alt || label} className={styles.image} /> : <div className={styles.loading} />;
 };
 
+type FieldProps = { image: Attachment; onDescribe: (image: Attachment, alt: string) => void };
+
+// Saved when it loses focus and when it goes away (closing the viewer with
+// Esc or moving to another image removes it without a blur).
+const DescriptionField = ({ image, onDescribe }: FieldProps) => {
+  const value = useRef(image.alt);
+  const save = () => {
+    if (value.current.trim() !== image.alt) onDescribe(image, value.current);
+  };
+  const saveOnLeave = useEffectEvent(save);
+  useEffect(() => () => saveOnLeave(), []);
+  return (
+    <label className={styles.describe}>
+      Description
+      <input
+        className={styles.input}
+        defaultValue={image.alt}
+        placeholder='Describe this image'
+        onChange={(e) => {
+          value.current = e.target.value;
+        }}
+        onBlur={save}
+      />
+    </label>
+  );
+};
+
 type Props = {
   images: Attachment[];
   index: number | null; // open when set
@@ -29,6 +56,11 @@ type Props = {
 // gallery button that opened it.
 const ImageViewer = ({ images, index, readOnly, onIndexChange, onRemove, onDescribe }: Props) => {
   const image = index === null ? undefined : images[index];
+  // The image last shown, so focus can go back to its gallery button.
+  const lastIndex = useRef(0);
+  useEffect(() => {
+    if (index !== null) lastIndex.current = index;
+  }, [index]);
   const label = index === null ? '' : `Image ${index + 1} of ${images.length}`;
   const go = (next: number) => {
     if (next >= 0 && next < images.length) onIndexChange(next);
@@ -43,7 +75,20 @@ const ImageViewer = ({ images, index, readOnly, onIndexChange, onRemove, onDescr
     <Dialog.Root open={image !== undefined} onOpenChange={(open) => !open && onIndexChange(null)}>
       <Dialog.Portal>
         <Dialog.Overlay className={styles.overlay} />
-        <Dialog.Content className={styles.content} aria-describedby={undefined} onKeyDown={onKeyDown}>
+        <Dialog.Content
+          className={styles.content}
+          aria-describedby={undefined}
+          onKeyDown={onKeyDown}
+          // Start on the viewer itself, not on its first button (Remove).
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            (event.currentTarget as HTMLElement | null)?.focus();
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            document.querySelector<HTMLElement>(`[data-gallery-index="${lastIndex.current}"]`)?.focus();
+          }}
+        >
           {image && index !== null && (
             <>
               <div className={styles.bar}>
@@ -77,16 +122,7 @@ const ImageViewer = ({ images, index, readOnly, onIndexChange, onRemove, onDescr
               {readOnly ? (
                 image.alt && <p className={styles.alt}>{image.alt}</p>
               ) : (
-                <label className={styles.describe}>
-                  Description
-                  <input
-                    key={image.id}
-                    className={styles.input}
-                    defaultValue={image.alt}
-                    placeholder='Describe this image'
-                    onBlur={(e) => onDescribe(image, e.target.value)}
-                  />
-                </label>
+                <DescriptionField key={image.id} image={image} onDescribe={onDescribe} />
               )}
             </>
           )}

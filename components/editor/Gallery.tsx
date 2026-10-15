@@ -15,6 +15,7 @@ const GalleryItem = ({ image, index, total, single, onOpen }: ItemProps) => {
     <button
       type='button'
       className={styles.item}
+      data-gallery-index={index}
       aria-label={`Open image ${index + 1} of ${total}${image.alt ? `: ${image.alt}` : ''}`}
       onClick={() => onOpen(index)}
     >

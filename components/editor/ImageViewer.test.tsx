@@ -50,6 +50,12 @@ describe('ImageViewer', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
+  it('starts with focus on the viewer, not on Remove', async () => {
+    render(<Harness />);
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() => expect(dialog).toHaveFocus());
+  });
+
   it('saves a description and removes an image', async () => {
     const onDescribe = vi.fn();
     const onRemove = vi.fn();
@@ -60,6 +66,16 @@ describe('ImageViewer', () => {
     expect(onDescribe).toHaveBeenCalledWith(images[0], 'Kitchen');
     await user.click(screen.getByRole('button', { name: 'Remove image' }));
     expect(onRemove).toHaveBeenCalledWith(images[0]);
+  });
+
+  it('saves a description when the viewer is closed with Esc', async () => {
+    const onDescribe = vi.fn();
+    const user = userEvent.setup();
+    render(<Harness onDescribe={onDescribe} />);
+    await user.type(await screen.findByRole('textbox', { name: 'Description' }), 'Receipt');
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(onDescribe).toHaveBeenCalledWith(images[0], 'Receipt');
   });
 
   it('is view-only in Trash', async () => {

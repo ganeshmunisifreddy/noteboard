@@ -16,6 +16,7 @@ import ColorPicker from '../ui/ColorPicker';
 import IconButton from '../ui/IconButton';
 import LabelPicker from '../ui/LabelPicker';
 import Menu from '../ui/Menu';
+import AddImageButton from './AddImageButton';
 import type { Draft } from './NoteEditor';
 import styles from './EditorToolbar.module.css';
 
@@ -31,6 +32,7 @@ type Props = {
   onDelete: () => void;
   onRestore: () => void;
   onDeleteForever: () => void;
+  onAddImages: (files: File[]) => void;
 };
 
 const EditorToolbar = ({
@@ -45,6 +47,7 @@ const EditorToolbar = ({
   onDelete,
   onRestore,
   onDeleteForever,
+  onAddImages,
 }: Props) => (
   <header className={styles.bar}>
     <IconButton label='Back to notes' onClick={onBack}>
@@ -63,6 +66,7 @@ const EditorToolbar = ({
         </>
       ) : (
         <>
+          <AddImageButton onAdd={onAddImages} />
           <IconButton label={draft.pinned ? 'Unpin note' : 'Pin note'} aria-pressed={draft.pinned} onClick={onTogglePin}>
             <Pin size={18} fill={draft.pinned ? 'currentColor' : 'none'} aria-hidden />
           </IconButton>

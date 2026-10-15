@@ -14,14 +14,24 @@ import {
   updateNote,
   useLabels,
 } from '../../lib/notes';
+import {
+  addImages,
+  describeAttachment,
+  failureMessages,
+  removeAttachment,
+  restoreAttachment,
+  useNoteAttachments,
+} from '../../lib/attachments';
 import { leaveEditor, noteHref, openEditor } from '../../lib/routes';
 import { isQuotaError } from '../../lib/storage';
 import { formatEdited, useNow } from '../../lib/time';
-import type { Note, NoteKind } from '../../lib/types';
+import type { Attachment, Note, NoteKind } from '../../lib/types';
 import MarkdownPreview from '../board/MarkdownPreview';
 import { useToast } from '../ui/Toast';
 import ChecklistEditor from './ChecklistEditor';
 import EditorToolbar from './EditorToolbar';
+import Gallery from './Gallery';
+import ImageViewer from './ImageViewer';
 import NoteBody from './NoteBody';
 import styles from './NoteEditor.module.css';
 import { preloadRichEditor, useRichEditor } from './useRichEditor';
@@ -81,6 +91,10 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   const mountedRef = useRef(true);
   const trashed = stored?.trashedAt != null;
+  const images = useNoteAttachments(noteId) ?? [];
+  const [pendingImages, setPendingImages] = useState(0);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [dropping, setDropping] = useState(false);
 
   const save = async () => {
     if (!dirtyRef.current) return;
@@ -109,6 +123,44 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
     return queueRef.current;
   };
 
+  // Images belong to a saved note, so a new note is saved before its first
+  // image (in the save queue, so it can't be created twice).
+  const ensureCreated = () => {
+    clearTimeout(timerRef.current);
+    queueRef.current = queueRef.current.then(save).then(async () => {
+      if (createdRef.current) return;
+      await createNote({ id: noteId, ...draftRef.current });
+      createdRef.current = true;
+      dirtyRef.current = false;
+      if (mountedRef.current) void router.replace(noteHref(noteId), undefined, { shallow: true });
+    });
+    return queueRef.current;
+  };
+
+  const addFiles = async (files: File[]) => {
+    const chosen = files.filter((file) => file.type.startsWith('image/'));
+    if (trashed || chosen.length === 0) return;
+    editedRef.current = true;
+    try {
+      await ensureCreated();
+    } catch (error) {
+      toast({ message: isQuotaError(error) ? 'Couldn’t save: storage is full.' : 'Couldn’t save your changes.' });
+      return;
+    }
+    setPendingImages((n) => n + chosen.length);
+    const failures = await addImages(noteId, chosen);
+    setPendingImages((n) => n - chosen.length);
+    for (const message of failureMessages(failures)) toast({ message });
+  };
+
+  const removeImage = async (image: Attachment) => {
+    setViewerIndex(null);
+    const removed = await removeAttachment(image.id);
+    if (removed) {
+      toast({ message: 'Image removed', actionLabel: 'Undo', onAction: () => void restoreAttachment(removed) });
+    }
+  };
+
   const update = (changes: Partial<Draft>) => {
     const next = { ...draftRef.current, ...changes };
     draftRef.current = next;
@@ -122,7 +174,14 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
   const onLeave = useEffectEvent(() => {
     void flush().then(async () => {
       // A note the user emptied goes to Trash rather than lingering blank.
-      if (!createdRef.current || !editedRef.current || trashed || !isNoteEmpty(draftRef.current)) return;
+      if (
+        !createdRef.current ||
+        !editedRef.current ||
+        trashed ||
+        images.length > 0 ||
+        !isNoteEmpty(draftRef.current)
+      )
+        return;
       await trashNote(noteId);
       toast({ message: 'Empty note moved to trash', actionLabel: 'Undo', onAction: () => void undoTrash(noteId) });
     });
@@ -130,6 +189,15 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
 
   const onHide = useEffectEvent(() => {
     void flush();
+  });
+
+  // Pasted images go to the gallery wherever the cursor is. A paste that also
+  // has text still pastes the text.
+  const onPaste = useEffectEvent((event: ClipboardEvent) => {
+    const files = [...(event.clipboardData?.files ?? [])].filter((file) => file.type.startsWith('image/'));
+    if (trashed || files.length === 0) return;
+    if (!event.clipboardData?.types.includes('text/plain')) event.preventDefault();
+    void addFiles(files);
   });
 
   const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
@@ -148,6 +216,8 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
       if (document.visibilityState === 'hidden') onHide();
     };
     const key = (event: KeyboardEvent) => onKeyDown(event);
+    const paste = (event: ClipboardEvent) => onPaste(event);
+    window.addEventListener('paste', paste);
     window.addEventListener('pagehide', hide);
     document.addEventListener('visibilitychange', visibility);
     document.addEventListener('keydown', key);
@@ -155,6 +225,7 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
       window.removeEventListener('pagehide', hide);
       document.removeEventListener('visibilitychange', visibility);
       document.removeEventListener('keydown', key);
+      window.removeEventListener('paste', paste);
       mountedRef.current = false;
       onLeave();
     };
@@ -215,7 +286,30 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
     .filter((name): name is string => !!name);
 
   return (
-    <div className={styles.page} data-color={draft.color}>
+    <div
+      className={styles.page}
+      data-color={draft.color}
+      // Files only; a dropped file never replaces the page, even in Trash.
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        if (!trashed) setDropping(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false);
+      }}
+      onDrop={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        setDropping(false);
+        void addFiles([...e.dataTransfer.files]);
+      }}
+    >
+      {dropping && (
+        <div className={styles.dropOverlay} aria-hidden>
+          Drop to add images
+        </div>
+      )}
       <Head>
         <title>{`${draft.title || 'Untitled'} | Noteboard`}</title>
       </Head>
@@ -232,11 +326,13 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
           onDelete={() => void remove()}
           onRestore={() => void restore()}
           onDeleteForever={() => void removeForever()}
+          onAddImages={(files) => void addFiles(files)}
         />
         <div ref={setBarSlot} />
       </div>
       <main className={styles.body}>
         {trashed && <p className={styles.notice}>This note is in Trash. Restore it to edit.</p>}
+        <Gallery images={images} pending={pendingImages} onOpen={setViewerIndex} />
         <input
           className={styles.title}
           value={draft.title}
@@ -288,6 +384,14 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
           </ul>
         )}
         {stored && <EditedAt timestamp={stored.updatedAt} />}
+        <ImageViewer
+          images={images}
+          index={viewerIndex}
+          readOnly={trashed}
+          onIndexChange={setViewerIndex}
+          onRemove={(image) => void removeImage(image)}
+          onDescribe={(image, alt) => void describeAttachment(image.id, alt)}
+        />
       </main>
     </div>
   );
