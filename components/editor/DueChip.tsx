@@ -40,7 +40,7 @@ const DueChip = ({ due, readOnly, onEdit, onRemove, onMarkDone, onReopen }: Prop
   }
   return (
     <div className={styles.row}>
-      <button type='button' className={styles.chip} data-state={state} onClick={onEdit}>
+      <button type='button' className={styles.chip} data-state={state} data-due-chip='' onClick={onEdit}>
         <span className={styles.srOnly}>Change date:</span>{' '}
         {content}
       </button>

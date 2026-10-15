@@ -101,6 +101,9 @@ describe('quickPicks', () => {
     expect(quickPicks(localMoment('2026-10-15', '17:00')).map((p) => p.label)).toEqual(['Tomorrow', 'Next week']);
     // On a Monday, next week is the following Monday.
     expect(quickPicks(localMoment('2026-10-19', '08:00'))[2].date).toBe('2026-10-26');
+    // On a Sunday, tomorrow is Monday, so next week is the Monday after.
+    const sunday = quickPicks(localMoment('2026-10-18', '18:00'));
+    expect(sunday.map((p) => p.date)).toEqual(['2026-10-19', '2026-10-26']);
   });
 });
 
@@ -115,5 +118,13 @@ describe('repeatOptions', () => {
       'Yearly on 15 Oct',
       'Custom…',
     ]);
+  });
+
+  it('needs at least one day for a weekly custom repeat', () => {
+    expect(readDueForm(blank({ repeat: 'custom', unit: 'week', weekdays: [] }))).toEqual({
+      ok: false,
+      errors: { weekdays: 'Choose at least one day.' },
+    });
+    expect(readDueForm(blank({ repeat: 'custom', unit: 'day', weekdays: [] })).ok).toBe(true);
   });
 });

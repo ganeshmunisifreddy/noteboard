@@ -31,7 +31,7 @@ const CustomRepeat = ({ form, errors, onChange }: CustomProps) => {
   return (
     <fieldset className={styles.custom}>
       <legend className={styles.srOnly}>Custom repeat</legend>
-      <div className={styles.row}>
+      <div className={`${styles.row} ${styles.centred}`}>
         <label htmlFor={`${id}-every`}>Every</label>
         <input
           id={`${id}-every`}
@@ -59,7 +59,12 @@ const CustomRepeat = ({ form, errors, onChange }: CustomProps) => {
         </p>
       )}
       {form.unit === 'week' && (
-        <div className={styles.weekdays} role='group' aria-label='Days of the week'>
+        <div
+          className={styles.weekdays}
+          role='group'
+          aria-label='Days of the week'
+          aria-describedby={errors.weekdays ? `${id}-days-error` : undefined}
+        >
           {MONDAY_FIRST.map((day) => (
             <button
               key={day}
@@ -73,6 +78,11 @@ const CustomRepeat = ({ form, errors, onChange }: CustomProps) => {
             </button>
           ))}
         </div>
+      )}
+      {errors.weekdays && (
+        <p id={`${id}-days-error`} role='alert' className={styles.error}>
+          {errors.weekdays}
+        </p>
       )}
       <fieldset className={styles.ends}>
         <legend>Ends</legend>
@@ -185,14 +195,16 @@ const DateForm = ({ due, onSave, onCancel, onRemove }: FormProps) => {
           />
         </div>
         <div className={styles.field}>
-          <label htmlFor={`${id}-time`}>Time</label>
+          <div className={styles.labelRow}>
+            <label htmlFor={`${id}-time`}>Time</label>
+            {form.time && (
+              <button type='button' className={styles.link} onClick={() => change({ time: '' })}>
+                No time
+              </button>
+            )}
+          </div>
           <input id={`${id}-time`} type='time' value={form.time} onChange={(e) => change({ time: e.target.value })} />
         </div>
-        {form.time && (
-          <button type='button' className={styles.link} onClick={() => change({ time: '' })}>
-            No time
-          </button>
-        )}
       </div>
       {errors.date && (
         <p id={`${id}-date-error`} role='alert' className={styles.error}>
@@ -241,9 +253,10 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   onSave: Save;
   onRemove: () => void;
+  onCloseAutoFocus?: (event: Event) => void;
 };
 
-const DatePopover = ({ due, open, onOpenChange, onSave, onRemove }: Props) => (
+const DatePopover = ({ due, open, onOpenChange, onSave, onRemove, onCloseAutoFocus }: Props) => (
   <Popover.Root open={open} onOpenChange={onOpenChange}>
     <Popover.Trigger asChild>
       <IconButton label={due ? 'Change date' : 'Add date'} data-date-button=''>
@@ -251,7 +264,14 @@ const DatePopover = ({ due, open, onOpenChange, onSave, onRemove }: Props) => (
       </IconButton>
     </Popover.Trigger>
     <Popover.Portal>
-      <Popover.Content className={styles.content} align='end' sideOffset={6} collisionPadding={8} aria-label='Date'>
+      <Popover.Content
+        className={styles.content}
+        align='end'
+        sideOffset={6}
+        collisionPadding={8}
+        aria-label='Date'
+        onCloseAutoFocus={onCloseAutoFocus}
+      >
         <DateForm
           due={due}
           onSave={(date, time, repeat) => {

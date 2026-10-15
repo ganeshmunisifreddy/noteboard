@@ -22,6 +22,24 @@ export const newDue = (date: string, time: string | null, repeat: Repeat | null)
   snoozedUntil: null,
 });
 
+const endsKey = ({ ends }: Repeat) =>
+  ends.type === 'after' ? `after ${ends.count}` : ends.type === 'on' ? `on ${ends.date}` : 'never';
+
+const sameRule = (a: Repeat, b: Repeat) =>
+  a.every === b.every &&
+  a.unit === b.unit &&
+  [...a.weekdays].sort().join() === [...b.weekdays].sort().join() &&
+  endsKey(a) === endsKey(b);
+
+// Changing only the date or time of a repeat keeps how far it has got
+// ("2 times left" stays 2), and with the same date, the day it counts from.
+export const keepProgress = (next: Due, previous: Due | null): Due => {
+  const before = previous?.repeat;
+  if (!previous || !before || !next.repeat || !sameRule(before, next.repeat)) return next;
+  const anchor = next.date === previous.date ? before.anchor : next.repeat.anchor;
+  return { ...next, repeat: { ...next.repeat, anchor, ends: before.ends } };
+};
+
 export const dueMoment = (due: Pick<Due, 'date' | 'time'>) => localMoment(due.date, due.time ?? DEFAULT_TIME);
 
 export const alertTime = (due: Due) => due.snoozedUntil ?? dueMoment(due);
@@ -53,7 +71,8 @@ export const completeDue = (due: Due, now: number): Due => {
   for (;;) {
     const ended = repeat.ends.type === 'after' && done + 1 >= repeat.ends.count;
     const next = ended ? null : nextDate(repeat, date);
-    if (next === null) return { ...cleared, date, repeat: withDone(repeat, done), doneAt: now };
+    // Once the series ends, the last date counts as used too.
+    if (next === null) return { ...cleared, date, repeat: withDone(repeat, ended ? done + 1 : done), doneAt: now };
     date = next;
     done += 1;
     if (date >= today) return { ...cleared, date, repeat: withDone(repeat, done), doneAt: null };
@@ -94,9 +113,12 @@ export const formatDueLong = (due: Pick<Due, 'date' | 'time'>, locale?: string) 
 
 export const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
 
+// "Today, 6:00 PM" → "today, 6:00 PM" for use inside a sentence; dates keep their capitals.
+export const lowerNearDay = (text: string) => text.replace(/^(Today|Tomorrow|Yesterday)/, (word) => word.toLowerCase());
+
 // e.g. "Due today, 6:00 PM, overdue, repeats weekly"
 export const dueDescription = (due: Due, now: number, locale?: string) => {
-  const when = formatDue(due, now, locale).replace(/^(Today|Tomorrow|Yesterday)/, (word) => word.toLowerCase());
+  const when = lowerNearDay(formatDue(due, now, locale));
   const parts = [isDone(due) ? `Done, was due ${when}` : `Due ${when}`];
   if (isOverdue(due, now)) parts.push('overdue');
   if (due.repeat) parts.push(`repeats ${lowerFirst(repeatText(due.repeat))}`);

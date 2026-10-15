@@ -209,4 +209,15 @@ describe('dates in the editor', () => {
     expect(screen.queryByRole('button', { name: /date/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Mark done' })).not.toBeInTheDocument();
   });
+
+  it('returns focus to the chip after editing from it', async () => {
+    const user = userEvent.setup();
+    await createNote({ id: 'n1', kind: 'note', title: 'Bill' });
+    await setDue('n1', TOMORROW, null, null);
+    open({ id: 'n1' });
+    const chip = await screen.findByRole('button', { name: /^Change date: Tomorrow/ });
+    await user.click(chip);
+    await user.click(within(await dateDialog()).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Change date: Tomorrow/ })).toHaveFocus());
+  });
 });

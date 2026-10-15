@@ -106,7 +106,7 @@ export const repeatText = (repeat: Repeat): string => {
   if (repeat.ends.type === 'on') text += `, until ${shortDate(repeat.ends.date)}`;
   if (repeat.ends.type === 'after') {
     const left = repeat.ends.count - repeat.ends.done;
-    text += `, ${left} ${left === 1 ? 'time' : 'times'} left`;
+    text += left > 0 ? `, ${left} ${left === 1 ? 'time' : 'times'} left` : ', ended';
   }
   return text;
 };

@@ -72,7 +72,7 @@ const toRepeatEnd = (value: unknown): RepeatEnd | null => {
   if (value.type === 'on') return isDateString(value.date) ? { type: 'on', date: value.date } : null;
   if (value.type !== 'after') return null;
   const count = whole(value.count, 1, 999);
-  const done = count === null ? null : whole(value.done, 0, count - 1);
+  const done = count === null ? null : whole(value.done, 0, count);
   return count !== null && done !== null ? { type: 'after', count, done } : null;
 };
 

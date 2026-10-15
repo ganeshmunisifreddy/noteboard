@@ -387,6 +387,8 @@ describe('dates in backups', () => {
       ends: { type: 'after', count: 3, done: 0 },
     });
     expect(parseBackup(dated(ending)).notes[0].due).toEqual(ending);
+    const ended = { ...ending, repeat: { ...ending.repeat!, ends: { type: 'after' as const, count: 3, done: 3 } }, doneAt: 9 };
+    expect(parseBackup(dated(ended)).notes[0].due).toEqual(ended);
   });
 
   it('drops a broken date and keeps the note', () => {

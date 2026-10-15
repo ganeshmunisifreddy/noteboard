@@ -84,5 +84,6 @@ describe('repeatText', () => {
     expect(repeatText(rule({ ends: { type: 'on', date: '2027-03-01' } }))).toBe('Daily, until 1 Mar 2027');
     expect(repeatText(rule({ unit: 'week', ends: { type: 'after', count: 3, done: 1 } }))).toBe('Weekly, 2 times left');
     expect(repeatText(rule({ ends: { type: 'after', count: 3, done: 2 } }))).toBe('Daily, 1 time left');
+    expect(repeatText(rule({ ends: { type: 'after', count: 3, done: 3 } }))).toBe('Daily, ended');
   });
 });

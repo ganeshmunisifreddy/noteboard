@@ -18,7 +18,7 @@ export type DueForm = {
   endCount: string;
 };
 
-export type DueFormErrors = Partial<Record<'date' | 'every' | 'endDate' | 'endCount', string>>;
+export type DueFormErrors = Partial<Record<'date' | 'every' | 'weekdays' | 'endDate' | 'endCount', string>>;
 
 export const formFromDue = (due: Due | null, today: string): DueForm => {
   const repeat = due?.repeat ?? null;
@@ -54,6 +54,7 @@ export const readDueForm = (
   if (form.repeat === 'custom') {
     const every = wholeIn(form.every, 1, 99);
     if (every === null) errors.every = 'Enter a number from 1 to 99.';
+    if (form.unit === 'week' && form.weekdays.length === 0) errors.weekdays = 'Choose at least one day.';
     let ends: RepeatEnd = { type: 'never' };
     if (form.ends === 'on') {
       if (!isDateString(form.endDate)) errors.endDate = 'Choose an end date.';
@@ -65,7 +66,7 @@ export const readDueForm = (
       if (count === null) errors.endCount = 'Enter a number from 1 to 999.';
       else ends = { type: 'after', count, done: 0 };
     }
-    if (every !== null && dateOk) {
+    if (every !== null && dateOk && !errors.weekdays) {
       const weekdays = form.unit === 'week' ? [...new Set(form.weekdays)].sort((a, b) => a - b) : [];
       repeat = { every, unit: form.unit, weekdays, anchor: form.date, ends };
     }
@@ -83,8 +84,9 @@ export const quickPicks = (now: number, locale?: string): QuickPick[] => {
     picks.push({ label: 'Later today', detail: formatTime('18:00', locale), date: today, time: '18:00' });
   }
   picks.push({ label: 'Tomorrow', detail: formatTime('09:00', locale), date: addDays(today, 1), time: '09:00' });
+  // The next Monday that isn't tomorrow.
   const toMonday = (8 - weekdayOf(today)) % 7 || 7;
-  picks.push({ label: 'Next week', detail: `Mon ${formatTime('09:00', locale)}`, date: addDays(today, toMonday), time: '09:00' });
+  picks.push({ label: 'Next week', detail: `Mon ${formatTime('09:00', locale)}`, date: addDays(today, toMonday === 1 ? 8 : toMonday), time: '09:00' });
   return picks;
 };
 

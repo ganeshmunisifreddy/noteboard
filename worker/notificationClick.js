@@ -5,8 +5,9 @@ export const openFromNotification = async (clients, origin, url) => {
   const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
   const open = windows.find((client) => new URL(client.url).origin === origin);
   if (open) {
-    await open.focus();
+    // Ask first: some browsers refuse focus() without a user gesture.
     open.postMessage({ type: 'open-reminder', url });
+    await open.focus().catch(() => {});
     return;
   }
   await clients.openWindow(new URL(url, origin).href);

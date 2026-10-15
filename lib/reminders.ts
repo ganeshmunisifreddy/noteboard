@@ -61,23 +61,29 @@ export const useReminderClock = (onAlert: (notes: DueNote[], fromClock: boolean)
         do {
           again = false;
           clearTimeout(timer);
-          let due: DueNote[];
-          try {
-            due = await claimDueReminders(Date.now());
-          } catch {
-            // Storage full or blocked: try again later rather than at once.
-            if (!stopped) timer = setTimeout(() => void check(), MAX_WAIT_MS);
-            return;
-          }
+          const pending = nextAlertAt(await db.notes.toArray().catch((): Note[] => []));
           if (stopped) return;
-          if (due.length > 0) {
-            alert(due, true);
-            channel?.postMessage({ ids: due.map((note) => note.id) });
+          // Claiming writes, so it only runs when something is due.
+          if (pending !== null && pending <= Date.now()) {
+            let due: DueNote[];
+            try {
+              due = await claimDueReminders(Date.now());
+            } catch {
+              // Storage full or blocked: try again later rather than at once.
+              if (!stopped) timer = setTimeout(() => void check(), MAX_WAIT_MS);
+              return;
+            }
+            if (stopped) return;
+            if (due.length > 0) {
+              alert(due, true);
+              channel?.postMessage({ ids: due.map((note) => note.id) });
+              again = true;
+              continue;
+            }
           }
-          const next = nextAlertAt(await db.notes.toArray().catch((): Note[] => []));
-          if (stopped) return;
-          const wait = next === null ? MAX_WAIT_MS : Math.min(Math.max(next - Date.now(), 0), MAX_WAIT_MS);
-          timer = setTimeout(() => void check(), wait);
+          // Nothing waiting, or due but taken by another tab (its write wakes this clock again).
+          const left = pending === null ? 0 : pending - Date.now();
+          timer = setTimeout(() => void check(), left > 0 ? Math.min(left, MAX_WAIT_MS) : MAX_WAIT_MS);
         } while (again && !stopped);
       } finally {
         running = false;
@@ -115,12 +121,14 @@ export const useReminderClock = (onAlert: (notes: DueNote[], fromClock: boolean)
     let release: (() => void) | undefined;
     if (typeof navigator !== 'undefined' && navigator.locks) {
       navigator.locks
-        .request(REMINDER_LOCK, { signal: controller.signal }, () =>
-          new Promise<void>((resolve) => {
+        .request(REMINDER_LOCK, { signal: controller.signal }, () => {
+          // Granted after this tab stopped: hand it straight back.
+          if (stopped) return Promise.resolve();
+          return new Promise<void>((resolve) => {
             release = resolve;
             start();
-          }),
-        )
+          });
+        })
         .catch(() => {});
     } else {
       start();
@@ -139,7 +147,7 @@ export const useReminderClock = (onAlert: (notes: DueNote[], fromClock: boolean)
   }, []);
 };
 
-const titleOf = (note: Note) => note.title.trim() || 'Untitled note';
+export const titleOf = (note: Note) => note.title.trim() || 'Untitled note';
 
 export const notificationFor = (notes: DueNote[], now: number) => {
   if (notes.length === 1) {

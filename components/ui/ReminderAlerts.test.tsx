@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../../lib/db';
 import { newDue } from '../../lib/due';
-import { trashNote } from '../../lib/notes';
+import { snooze, trashNote } from '../../lib/notes';
 import { makeNote } from '../../lib/testUtils';
 import ReminderAlerts from './ReminderAlerts';
 import { ToastProvider } from './Toast';
@@ -45,7 +45,26 @@ describe('ReminderAlerts', () => {
     await db.notes.add(makeNote({ id: 'n1', title: 'Groceries', due: due() }));
     renderPanel();
     expect(within(await panel()).getByText('Groceries')).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('Reminder: Groceries');
+    expect(screen.getByRole('status')).toHaveTextContent('Reminder: Groceries, today');
+  });
+
+  it('says which note each button is for', async () => {
+    await db.notes.add(makeNote({ id: 'n1', title: 'Groceries', due: due() }));
+    renderPanel();
+    const region = await panel();
+    for (const name of ['Open', 'Snooze', 'Mark done']) {
+      expect(within(region).getByRole('button', { name })).toHaveAccessibleDescription('Groceries');
+    }
+  });
+
+  it('announces a reminder again after a snooze', async () => {
+    await db.notes.add(makeNote({ id: 'n1', title: 'Groceries', due: due() }));
+    renderPanel();
+    await panel();
+    const first = screen.getByRole('status').textContent;
+    await act(() => snooze('n1', Date.now() + 100));
+    await waitFor(() => expect(screen.getByRole('status').textContent).not.toBe(first));
+    expect(screen.getByRole('status').textContent?.trim()).toBe(first?.trim());
   });
 
   it('opens the note', async () => {

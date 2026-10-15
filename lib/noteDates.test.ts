@@ -118,4 +118,22 @@ describe('dates on notes', () => {
     const copy = await duplicateNote(note.id);
     expect(copy?.due?.alertedAt).not.toBeNull();
   });
+
+  it('keeps a repeat’s progress when only the date or time changes', async () => {
+    const note = await createNote({ kind: 'note' });
+    const repeat = { ...presetRepeat('daily', '2026-10-15'), ends: { type: 'after' as const, count: 5, done: 0 } };
+    await setDue(note.id, '2026-10-15', '08:00', repeat);
+    await markDone(note.id, localMoment('2026-10-15', '12:00'));
+    // The popover sends the rule back with done: 0.
+    await setDue(note.id, '2026-10-16', '07:00', repeat);
+    expect((await db.notes.get(note.id))?.due).toMatchObject({
+      date: '2026-10-16',
+      time: '07:00',
+      repeat: { anchor: '2026-10-15', ends: { done: 1 } },
+    });
+    await setDue(note.id, '2026-10-20', '07:00', repeat);
+    expect((await db.notes.get(note.id))?.due?.repeat).toMatchObject({ anchor: '2026-10-20', ends: { done: 1 } });
+    await setDue(note.id, '2026-10-20', '07:00', { ...repeat, ends: { type: 'after', count: 6, done: 0 } });
+    expect((await db.notes.get(note.id))?.due?.repeat?.ends).toEqual({ type: 'after', count: 6, done: 0 });
+  });
 });

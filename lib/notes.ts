@@ -4,7 +4,7 @@ import { v4 as uuid } from 'uuid';
 import { copyAttachments, deleteAttachmentsOf } from './attachments';
 import { toggleItemIn } from './checklist';
 import { db } from './db';
-import { alertTime, markDoneChanges, newDue } from './due';
+import { alertTime, keepProgress, markDoneChanges, newDue } from './due';
 import { selectBoardNotes, type BoardNotes } from './filters';
 import { needsRenumber, positionBetween } from './order';
 import { requestPersistentStorage, setHasNotesMarker } from './storage';
@@ -220,7 +220,7 @@ const changeDue = async (id: string, change: (note: Note) => Partial<Note> | nul
 };
 
 export const setDue = (id: string, date: string, time: string | null, repeat: Repeat | null) =>
-  changeDue(id, () => ({ due: seenIfPast(newDue(date, time, repeat), Date.now()) }));
+  changeDue(id, (note) => ({ due: seenIfPast(keepProgress(newDue(date, time, repeat), note.due), Date.now()) }));
 
 export const removeDue = (id: string) => changeDue(id, () => ({ due: null }));
 

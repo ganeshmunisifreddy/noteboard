@@ -113,6 +113,8 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
   const addingRef = useRef<Promise<unknown>>(Promise.resolve());
   const focusAfterRemove = useRef<{ id: string; index: number } | null>(null);
   const [dateOpen, setDateOpen] = useState(false);
+  // Opened from the date chip: closing returns focus there, not to the ⏰ button.
+  const openedFromChip = useRef(false);
   const due = stored?.due ?? null;
 
   useEffect(() => {
@@ -448,6 +450,13 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
               onOpenChange={setDateOpen}
               onSave={(date, time, repeat) => void saveDue(date, time, repeat)}
               onRemove={() => void removeDate()}
+              onCloseAutoFocus={(event) => {
+                const chip = openedFromChip.current ? document.querySelector<HTMLElement>('[data-due-chip]') : null;
+                openedFromChip.current = false;
+                if (!chip) return;
+                event.preventDefault();
+                chip.focus();
+              }}
             />
           }
         />
@@ -468,7 +477,10 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
           <DueChip
             due={due}
             readOnly={trashed}
-            onEdit={() => setDateOpen(true)}
+            onEdit={() => {
+              openedFromChip.current = true;
+              setDateOpen(true);
+            }}
             onRemove={() =>
               void removeDate().then(() => {
                 // The chip is gone; keep focus nearby on the date button.

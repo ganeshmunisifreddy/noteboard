@@ -97,7 +97,8 @@ describe('completeDue', () => {
     const after = daily({ ends: { type: 'after', count: 3, done: 0 } });
     expect(completeDue(due({ date: '2026-10-10', repeat: after }), NOW)).toMatchObject({
       date: '2026-10-12',
-      repeat: { ends: { done: 2 } },
+      // The last date counts as used too.
+      repeat: { ends: { done: 3 } },
       doneAt: NOW,
     });
     const until = daily({ ends: { type: 'on', date: '2026-10-12' } });

@@ -195,6 +195,36 @@ describe('useReminderClock', () => {
     expect(onAlert).not.toHaveBeenCalled();
   });
 
+  it('doesn’t write when nothing is due', async () => {
+    await db.notes.add(makeNote({ id: 'plain', title: 'a' }));
+    const onAlert = vi.fn();
+    renderHook(() => useReminderClock(onAlert));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const transaction = vi.spyOn(db, 'transaction');
+    for (const title of ['b', 'c', 'd']) await db.notes.update('plain', { title });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it('lets go of a lock granted after it stopped', async () => {
+    let held: Promise<unknown> | undefined;
+    const request = vi.fn(
+      (_name: string, _options: unknown, callback: () => Promise<void>) =>
+        new Promise((resolve) =>
+          setTimeout(() => {
+            held = callback();
+            resolve(undefined);
+          }, 30),
+        ),
+    );
+    vi.stubGlobal('navigator', { ...navigator, locks: { request } });
+    const { unmount } = renderHook(() => useReminderClock(vi.fn()));
+    unmount();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    const settled = await Promise.race([held?.then(() => 'released'), new Promise((r) => setTimeout(() => r('held'), 50))]);
+    expect(settled).toBe('released');
+  });
+
   it('only runs in the tab that holds the lock', async () => {
     const request = vi.fn(() => new Promise(() => {}));
     vi.stubGlobal('navigator', { ...navigator, locks: { request } });

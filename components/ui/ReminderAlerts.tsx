@@ -2,12 +2,12 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { AlarmClock, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { addDays, localDate, localMoment } from '../../lib/calendar';
 import { db } from '../../lib/db';
-import { formatDue, formatTime } from '../../lib/due';
+import { formatDue, formatTime, lowerNearDay } from '../../lib/due';
 import { markDone, putBackDue, snooze } from '../../lib/notes';
-import { showSystemNotification, useReminderClock, type DueNote } from '../../lib/reminders';
+import { showSystemNotification, titleOf, useReminderClock, type DueNote } from '../../lib/reminders';
 import { noteHref, openEditor } from '../../lib/routes';
 import { useNow } from '../../lib/time';
 import type { Note } from '../../lib/types';
@@ -18,8 +18,6 @@ import { useToast } from './Toast';
 
 const MAX_ROWS = 3;
 const MINUTE = 60 * 1000;
-
-const titleOf = (note: Note) => note.title.trim() || 'Untitled note';
 
 // Still alerting: snoozing, Mark done, a new date, Archive or Trash end it.
 const isAlerting = (note: Note | undefined): note is DueNote =>
@@ -44,17 +42,20 @@ type RowProps = {
 };
 
 const ReminderRow = ({ note, now, onOpen, onSnooze, onDone, onDismiss }: RowProps) => {
+  const titleId = useId();
   const title = titleOf(note);
   const tomorrow = () => localMoment(addDays(localDate(Date.now()), 1), '09:00');
   return (
     <li className={styles.row} data-reminder={note.id}>
       <AlarmClock size={18} aria-hidden className={styles.icon} />
       <div className={styles.text}>
-        <p className={styles.title}>{title}</p>
+        <p id={titleId} className={styles.title}>
+          {title}
+        </p>
         <p className={styles.when}>{formatDue(note.due, now)}</p>
       </div>
       <div className={styles.actions}>
-        <button type='button' className={styles.button} onClick={onOpen}>
+        <button type='button' className={styles.button} aria-describedby={titleId} onClick={onOpen}>
           Open
         </button>
         <Menu
@@ -65,12 +66,12 @@ const ReminderRow = ({ note, now, onOpen, onSnooze, onDone, onDismiss }: RowProp
             { label: `Tomorrow, ${formatTime('09:00')}`, onSelect: () => onSnooze(tomorrow()) },
           ]}
           trigger={
-            <button type='button' className={styles.button}>
+            <button type='button' className={styles.button} aria-describedby={titleId}>
               Snooze
             </button>
           }
         />
-        <button type='button' className={styles.button} onClick={onDone}>
+        <button type='button' className={styles.button} aria-describedby={titleId} onClick={onDone}>
           Mark done
         </button>
         <IconButton label={`Dismiss reminder for ${title}`} onClick={onDismiss}>
@@ -96,9 +97,10 @@ const ReminderAlerts = () => {
     if (fromClock) void showSystemNotification(due, at, (url) => void router.push(url));
     const ids = due.map((note) => note.id);
     setRows((current) => [...ids, ...current.filter((id) => !ids.includes(id))]);
-    setAnnouncement(
-      due.length === 1 ? `Reminder: ${titleOf(due[0])}, ${formatDue(due[0].due, at)}` : `${due.length} reminders`,
-    );
+    const text =
+      due.length === 1 ? `Reminder: ${titleOf(due[0])}, ${lowerNearDay(formatDue(due[0].due, at))}` : `${due.length} reminders`;
+    // The same words again (after a snooze) are only read out if the text changes.
+    setAnnouncement((previous) => (previous === text ? `${text}\u00a0` : text));
   });
 
   // A click on a system notification, relayed by the service worker.
