@@ -128,6 +128,42 @@ describe('board page', () => {
     expect(router.push.mock.lastCall?.[0]).toMatchObject({ query: { id: note?.id } });
   });
 
+  it('archives all of a column’s cards with one Undo', async () => {
+    const user = userEvent.setup();
+    const { board, columns } = await setup();
+    await createNote({ id: 'n2', kind: 'note', title: 'Copy', boardId: board.id, columnId: columns[1].id, boardPosition: 1 });
+    open(board.id);
+    await user.click(await screen.findByRole('button', { name: 'Column actions for Doing' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Archive all cards' }));
+    await waitFor(async () => expect((await db.notes.toArray()).every((n) => n.archived)).toBe(true));
+    expect(await screen.findByText('Archived 2 cards')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(async () => expect((await db.notes.toArray()).some((n) => n.archived)).toBe(false));
+  });
+
+  it('moves all of a column’s cards to another column', async () => {
+    const user = userEvent.setup();
+    const { board, columns } = await setup();
+    open(board.id);
+    await user.click(await screen.findByRole('button', { name: 'Column actions for Doing' }));
+    (await screen.findByRole('menuitem', { name: 'Move all cards to' })).focus();
+    await user.keyboard('{ArrowRight}');
+    (await screen.findByRole('menuitem', { name: 'To do' })).focus();
+    await user.keyboard('{Enter}');
+    await waitFor(async () => expect((await db.notes.get('n1'))?.columnId).toBe(columns[0].id));
+    expect(await screen.findByText('Moved 1 card to To do')).toBeInTheDocument();
+  });
+
+  it('hides bulk actions for an empty column', async () => {
+    const user = userEvent.setup();
+    const { board } = await setup();
+    open(board.id);
+    await user.click(await screen.findByRole('button', { name: 'Column actions for To do' }));
+    await screen.findByRole('menuitem', { name: 'Rename' });
+    expect(screen.queryByRole('menuitem', { name: 'Archive all cards' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Move all cards to' })).not.toBeInTheDocument();
+  });
+
   it('renames, moves, marks Done and deletes columns', async () => {
     const user = userEvent.setup();
     const { board, columns } = await setup();

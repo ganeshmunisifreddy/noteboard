@@ -25,6 +25,7 @@ import {
 } from '../../lib/boards';
 import {
   archiveCards,
+  moveCards,
   moveIndex,
   moveInColumns,
   placeAtEnd,
@@ -38,6 +39,7 @@ import {
 import { putBackDue, removeDue, setDue, trashNote, undoTrash, updateNote, useLabels } from '../../lib/notes';
 import { moveToIndex, neighbors } from '../../lib/order';
 import type { Board, Column, Note, NoteKind } from '../../lib/types';
+import type { MenuItem } from '../ui/Menu';
 import { useToast } from '../ui/Toast';
 import styles from './Board.module.css';
 import BoardColumn from './BoardColumn';
@@ -260,6 +262,57 @@ const BoardColumns = ({
         : [...note.labelIds, labelId],
     });
 
+  const filtering = false;
+  const cardsWord = (n: number) => (n === 1 ? '1 card' : `${n} cards`);
+
+  // Their toasts announce themselves (Radix), so no board announcement too.
+  const archiveAll = async (ids: string[]) => {
+    const states = await archiveCards(ids);
+    if (states.length === 0) return;
+    toast({
+      message: `Archived ${cardsWord(states.length)}`,
+      actionLabel: 'Undo',
+      onAction: () => void putBackCards(states),
+    });
+  };
+
+  const moveAll = async (ids: string[], columnId: string, where: string) => {
+    const states = await moveCards(ids, columnId);
+    if (states.length === 0) return;
+    toast({
+      message: `Moved ${cardsWord(states.length)} to ${where}`,
+      actionLabel: 'Undo',
+      onAction: () => void putBackCards(states),
+    });
+  };
+
+  // The column menu's actions on every card it shows; none when it shows none.
+  const bulkItems = (columnId: string, ids: string[]): MenuItem[] => {
+    if (ids.length === 0) return [];
+    const here: MenuItem[] = columns
+      .filter((c) => c.id !== columnId)
+      .map((c) => ({ key: c.id, label: c.name, onSelect: () => void moveAll(ids, c.id, c.name) }));
+    const elsewhere: MenuItem[] = otherBoards
+      .filter((b) => b.columns.length > 0)
+      .map(({ board: other, columns: otherColumns }) => ({
+        key: other.id,
+        label: other.name,
+        items: otherColumns.map((c) => ({
+          key: c.id,
+          label: c.name,
+          onSelect: () => void moveAll(ids, c.id, `${other.name} · ${c.name}`),
+        })),
+      }));
+    const targets = elsewhere.length > 0 ? [...here, { key: 'other-boards', label: 'Other boards', items: elsewhere }] : here;
+    return [
+      {
+        label: filtering ? `Archive ${ids.length} shown ${ids.length === 1 ? 'card' : 'cards'}` : 'Archive all cards',
+        onSelect: () => void archiveAll(ids),
+      },
+      ...(targets.length > 0 ? [{ label: filtering ? 'Move shown cards to' : 'Move all cards to', items: targets }] : []),
+    ];
+  };
+
   const quickAdd = async (columnId: string, title: string) => {
     try {
       const note = await quickAddCard(columnId, board.id, title);
@@ -348,7 +401,7 @@ const BoardColumns = ({
               notesById={notesById}
               labelNames={labelNames}
               images={images}
-              bulkItems={[]}
+              bulkItems={bulkItems(column.id, ids)}
               onOpen={onOpen}
               onAddCard={onAddCard}
               onQuickAdd={(columnId, title) => void quickAdd(columnId, title)}

@@ -1,10 +1,13 @@
+import { ChevronRight } from 'lucide-react';
 import { DropdownMenu } from 'radix-ui';
-import { useRef, type ReactElement, type ReactNode } from 'react';
+import { useRef, type ReactElement, type ReactNode, type RefObject } from 'react';
 import styles from './Menu.module.css';
 
 export type MenuItem = {
   label: string;
-  onSelect: () => void;
+  key?: string; // when labels can repeat (e.g. two columns with one name)
+  onSelect?: () => void;
+  items?: MenuItem[]; // a submenu
   icon?: ReactNode;
   danger?: boolean;
   keepFocus?: boolean; // the item moves focus itself (e.g. opens a name field)
@@ -15,6 +18,36 @@ type Props = {
   items: MenuItem[];
   align?: 'start' | 'end';
 };
+
+const Items = ({ items, keepFocus }: { items: MenuItem[]; keepFocus: RefObject<boolean> }) =>
+  items.map((item) =>
+    item.items ? (
+      <DropdownMenu.Sub key={item.key ?? item.label}>
+        <DropdownMenu.SubTrigger className={styles.item}>
+          {item.icon}
+          {item.label}
+          <ChevronRight size={16} className={styles.indicator} aria-hidden />
+        </DropdownMenu.SubTrigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.SubContent className={styles.content} sideOffset={4}>
+            <Items items={item.items} keepFocus={keepFocus} />
+          </DropdownMenu.SubContent>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Sub>
+    ) : (
+      <DropdownMenu.Item
+        key={item.key ?? item.label}
+        className={item.danger ? `${styles.item} ${styles.danger}` : styles.item}
+        onSelect={() => {
+          keepFocus.current = !!item.keepFocus;
+          item.onSelect?.();
+        }}
+      >
+        {item.icon}
+        {item.label}
+      </DropdownMenu.Item>
+    ),
+  );
 
 const Menu = ({ trigger, items, align = 'end' }: Props) => {
   const keepFocus = useRef(false);
@@ -32,19 +65,7 @@ const Menu = ({ trigger, items, align = 'end' }: Props) => {
             event.preventDefault();
           }}
         >
-          {items.map((item) => (
-            <DropdownMenu.Item
-              key={item.label}
-              className={item.danger ? `${styles.item} ${styles.danger}` : styles.item}
-              onSelect={() => {
-                keepFocus.current = !!item.keepFocus;
-                item.onSelect();
-              }}
-            >
-              {item.icon}
-              {item.label}
-            </DropdownMenu.Item>
-          ))}
+          <Items items={items} keepFocus={keepFocus} />
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
