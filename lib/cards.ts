@@ -1,6 +1,6 @@
 import { db } from './db';
 import { markDoneChanges, seenIfPast } from './due';
-import { nextTopPosition } from './notes';
+import { createNote, nextTopPosition, refreshHasNotesMarker } from './notes';
 import { needsRenumber, positionBetween } from './order';
 import { columnNotes, endOf, renumberColumn, sortedColumns, topOf } from './places';
 import type { Column, Note } from './types';
@@ -143,4 +143,63 @@ export const moveInColumns = (
   const index = over.type === 'card' ? order[to].indexOf(over.id) : target.length;
   target.splice(index, 0, activeId);
   return { ...next, [to]: target };
+};
+
+// Quick add: a text card with just a title at the end of its column (or the
+// board's first column if it was deleted). Undefined for a blank title or a missing board.
+export const quickAddCard = async (columnId: string, boardId: string, title: string): Promise<Note | undefined> => {
+  const clean = title.trim();
+  if (!clean) return undefined;
+  const place = await newCardPlace(columnId, 'bottom', boardId);
+  if (!place) return undefined;
+  return createNote({ kind: 'note', title: clean, ...place });
+};
+
+// What bulk actions change, so Undo can put it back without losing other edits.
+export type CardState = Pick<
+  Note,
+  'id' | 'archived' | 'boardId' | 'columnId' | 'boardPosition' | 'due' | 'items' | 'trashedAt'
+>;
+
+const stateOf = ({ id, archived, boardId, columnId, boardPosition, due, items, trashedAt }: Note): CardState => ({
+  id,
+  archived,
+  boardId,
+  columnId,
+  boardPosition,
+  due,
+  items,
+  trashedAt,
+});
+
+export const archiveCards = async (ids: string[]): Promise<CardState[]> => {
+  const states = await db.transaction('rw', db.notes, async () => {
+    const notes = (await db.notes.bulkGet(ids)).filter((n): n is Note => !!n && !n.archived);
+    const now = Date.now();
+    await Promise.all(notes.map((n) => db.notes.update(n.id, { archived: true, pinned: false, updatedAt: now })));
+    return notes.map(stateOf);
+  });
+  await refreshHasNotesMarker();
+  return states;
+};
+
+// To the end of a column, in the given order; entering or leaving a Done column
+// follows placeNote's rules. Nothing moves if the column is gone.
+export const moveCards = async (ids: string[], columnId: string, now = Date.now()): Promise<CardState[]> =>
+  db.transaction('rw', db.notes, db.columns, async () => {
+    const states: CardState[] = [];
+    for (const id of ids) {
+      const result = await placeAtEnd(id, columnId, now);
+      if (result) states.push(stateOf(result.before));
+    }
+    return states;
+  });
+
+// Undo for archiveCards and moveCards.
+export const putBackCards = async (states: CardState[]) => {
+  const now = Date.now();
+  await db.transaction('rw', db.notes, async () => {
+    await Promise.all(states.map(({ id, ...fields }) => db.notes.update(id, { ...fields, updatedAt: now })));
+  });
+  await refreshHasNotesMarker();
 };
