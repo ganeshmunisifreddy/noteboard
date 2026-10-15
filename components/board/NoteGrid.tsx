@@ -24,7 +24,8 @@ import { flushSync } from 'react-dom';
 import { assignColumns, columnCountFor, gapFor } from '../../lib/masonry';
 import { moveNote } from '../../lib/notes';
 import { moveId, moveToIndex, neighbors } from '../../lib/order';
-import type { Attachment, Note } from '../../lib/types';
+import type { BoardImages } from '../../lib/attachments';
+import type { Note } from '../../lib/types';
 import IconButton from '../ui/IconButton';
 import Menu, { type MenuItem } from '../ui/Menu';
 import { useToast } from '../ui/Toast';
@@ -146,7 +147,7 @@ type Props = {
   mode: CardMode;
   onOpen: (id: string) => void;
   reorderable: boolean;
-  images?: Map<string, Attachment[]>;
+  images?: Map<string, BoardImages>;
 };
 
 // dnd-kit's defaults read out note ids; these use titles. Keyboard moves
@@ -352,7 +353,8 @@ const NoteGrid = ({ notes, labelNames, mode, onOpen, reorderable, images }: Prop
   const card = (note: Note, withHandle: boolean) => (
     <NoteCard
       note={note}
-      images={images?.get(note.id)}
+      images={images?.get(note.id)?.shown}
+      imageCount={images?.get(note.id)?.total}
       mode={mode}
       onOpen={onOpen}
       labelNames={note.labelIds.map((id) => labelNames.get(id)).filter((name): name is string => !!name)}

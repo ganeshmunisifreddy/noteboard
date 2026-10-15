@@ -31,28 +31,31 @@ type Props = { images: Attachment[]; pending: number; onOpen: (index: number) =>
 // The note's images, above the title.
 const Gallery = ({ images, pending, onOpen }: Props) => {
   const count = images.length + pending;
-  if (count === 0) return null;
   return (
-    <div className={styles.gallery} data-count={Math.min(count, 3)}>
-      {images.map((image, index) => (
-        <GalleryItem
-          key={image.id}
-          image={image}
-          index={index}
-          total={images.length}
-          single={count === 1}
-          onOpen={onOpen}
-        />
-      ))}
-      {Array.from({ length: pending }, (_, index) => (
-        <span key={`pending-${index}`} className={styles.pending} aria-hidden />
-      ))}
-      {pending > 0 && (
-        <p role='status' className={styles.srOnly}>
-          {pending === 1 ? 'Adding 1 image…' : `Adding ${pending} images…`}
-        </p>
+    <>
+      {count > 0 && (
+        <div className={styles.gallery} data-count={Math.min(count, 3)}>
+          {images.map((image, index) => (
+            <GalleryItem
+              key={image.id}
+              image={image}
+              index={index}
+              total={images.length}
+              single={count === 1}
+              onOpen={onOpen}
+            />
+          ))}
+          {Array.from({ length: pending }, (_, index) => (
+            <span key={`pending-${index}`} className={styles.pending} aria-hidden />
+          ))}
+        </div>
       )}
-    </div>
+      {/* Always present: screen readers announce a status region's changes,
+          not one that appears with its text already in it. */}
+      <p role='status' className={styles.srOnly}>
+        {pending === 0 ? '' : pending === 1 ? 'Adding 1 image…' : `Adding ${pending} images…`}
+      </p>
+    </>
   );
 };
 

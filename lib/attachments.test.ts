@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   MAX_IMAGES,
   addImages,
+  boardImages,
   describeAttachment,
   failureMessages,
   getAttachments,
@@ -77,6 +78,45 @@ describe('addImages', () => {
     expect(await db.imageFiles.count()).toBe(1);
     expect(failureMessages(failures)).toEqual(['Couldn’t add the image: storage is full.']);
   });
+
+  it('adds nothing to a note that no longer exists', async () => {
+    expect(await addImages('ghost', files('a.jpg'), fake)).toEqual([]);
+    expect(await db.attachments.count()).toBe(0);
+    expect(await db.imageFiles.count()).toBe(0);
+  });
+
+  it('never goes past the limit when two batches overlap', async () => {
+    await createNote({ id: 'n', kind: 'note' });
+    const slow = async (file: File) => {
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      return fake(file);
+    };
+    const batch = (prefix: string) => files(...Array.from({ length: 15 }, (_, i) => `${prefix}${i}.jpg`));
+    await Promise.all([addImages('n', batch('a'), slow), addImages('n', batch('b'), slow)]);
+    expect(await db.attachments.count()).toBe(MAX_IMAGES);
+  });
+
+  it('stops processing the rest of a batch once storage is full', async () => {
+    await createNote({ id: 'n', kind: 'note' });
+    const process = vi.fn(fake);
+    vi.spyOn(db.imageFiles, 'add').mockRejectedValue(Object.assign(new Error('full'), { name: 'QuotaExceededError' }));
+    const failures = await addImages('n', files('a.jpg', 'b.jpg', 'c.jpg'), process);
+    vi.restoreAllMocks();
+    expect(process).toHaveBeenCalledTimes(1);
+    expect(failureMessages(failures)).toEqual(['Couldn’t add the image: storage is full.']);
+  });
+
+  it('reports progress after each file', async () => {
+    await createNote({ id: 'n', kind: 'note' });
+    const onProgress = vi.fn();
+    await addImages('n', files('a.jpg', 'b.jpg'), fake, onProgress);
+    expect(onProgress).toHaveBeenCalledTimes(2);
+  });
+
+  it('sums up many unreadable files in one message', () => {
+    const failures = ['a.heic', 'b.heic', 'c.tif'].map((name) => ({ name, reason: 'unreadable' as const }));
+    expect(failureMessages(failures)).toEqual(['Couldn’t add 3 files: this browser can’t read them.']);
+  });
 });
 
 describe('removing and describing', () => {
@@ -100,6 +140,17 @@ describe('removing and describing', () => {
     await describeAttachment(image.id, '  Receipt  ');
     expect((await db.attachments.get(image.id))?.alt).toBe('Receipt');
     expect((await db.notes.get('n'))?.updatedAt).toBeGreaterThan(1);
+  });
+
+  it('does not bring an image back to a note deleted forever', async () => {
+    await createNote({ id: 'n', kind: 'note' });
+    await addImages('n', files('a.jpg'), fake);
+    const [image] = await getAttachments('n');
+    const removed = await removeAttachment(image.id);
+    await deleteForever('n');
+    await restoreAttachment(removed!);
+    expect(await db.attachments.count()).toBe(0);
+    expect(await db.imageFiles.count()).toBe(0);
   });
 });
 
@@ -129,5 +180,23 @@ describe('images and the note life cycle', () => {
     const left = await db.attachments.toArray();
     expect(left.map((a) => a.noteId)).toEqual(['keep']);
     expect(await db.imageFiles.count()).toBe(1);
+  });
+
+  it('makes a copy with its images or not at all', async () => {
+    await createNote({ id: 'n', kind: 'note', title: 'With photo' });
+    await addImages('n', files('a.jpg'), fake);
+    vi.spyOn(db.imageFiles, 'bulkAdd').mockRejectedValueOnce(new Error('full'));
+    await expect(duplicateNote('n')).rejects.toThrow('full');
+    vi.restoreAllMocks();
+    expect(await db.notes.count()).toBe(1);
+    expect(await db.attachments.count()).toBe(1);
+  });
+
+  it('gives the board up to three thumbnails per note and the total', async () => {
+    await createNote({ id: 'n', kind: 'note' });
+    await addImages('n', files('1.jpg', '2.jpg', '3.jpg', '4.jpg', '5.jpg'), fake);
+    const board = await boardImages();
+    expect(board.get('n')?.total).toBe(5);
+    expect(board.get('n')?.shown.map((a) => text(a.thumb))).toEqual(['thumb-1.jpg', 'thumb-2.jpg', 'thumb-3.jpg']);
   });
 });

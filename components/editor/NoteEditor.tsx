@@ -16,6 +16,7 @@ import {
 } from '../../lib/notes';
 import {
   addImages,
+  type AddFailure,
   countAttachments,
   describeAttachment,
   failureMessages,
@@ -158,12 +159,18 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
   const addFiles = async (files: File[], fromDrop = false) => {
     if (trashed) return;
     const chosen = files.filter((file) => file.type.startsWith('image/'));
-    if (!fromDrop) {
-      for (const file of files.filter((f) => !chosen.includes(f))) {
-        toast({ message: `Couldn’t add ${file.name}: this browser can’t read it.` });
-      }
+    const others: AddFailure[] = fromDrop
+      ? []
+      : files.filter((file) => !chosen.includes(file)).map((file) => ({ name: file.name, reason: 'unreadable' }));
+    // All problems in one message, so none is pushed out of the toast stack.
+    const report = (failures: AddFailure[]) => {
+      const messages = failureMessages(failures);
+      if (messages.length > 0) toast({ message: messages.join(' ') });
+    };
+    if (chosen.length === 0) {
+      report(others);
+      return;
     }
-    if (chosen.length === 0) return;
     editedRef.current = true;
     try {
       await ensureCreated();
@@ -172,11 +179,10 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
       return;
     }
     setPendingImages((n) => n + chosen.length);
-    const adding = addImages(noteId, chosen);
+    // Each placeholder goes as soon as its image is done.
+    const adding = addImages(noteId, chosen, undefined, () => setPendingImages((n) => n - 1));
     addingRef.current = addingRef.current.then(() => adding).catch(() => {});
-    const failures = await adding;
-    setPendingImages((n) => n - chosen.length);
-    for (const message of failureMessages(failures)) toast({ message });
+    report([...others, ...(await adding)]);
   };
 
   const removeImage = async (image: Attachment) => {
@@ -287,7 +293,13 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
   const copy = async () => {
     await flush();
     if (!createdRef.current) return;
-    const duplicate = await duplicateNote(noteId);
+    let duplicate: Note | undefined;
+    try {
+      duplicate = await duplicateNote(noteId);
+    } catch (error) {
+      toast({ message: isQuotaError(error) ? 'Couldn’t make a copy: storage is full.' : 'Couldn’t make a copy.' });
+      return;
+    }
     if (!duplicate) return;
     openEditor(router, noteHref(duplicate.id));
     toast({ message: 'Copy created' });

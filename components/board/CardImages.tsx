@@ -11,9 +11,10 @@ const Thumb = ({ image }: { image: Attachment }) => {
 
 // Up to three thumbnails at the top of a card, with "+N" for the rest. The
 // note's own gallery carries the descriptions, so these are decorative.
-const CardImages = ({ images }: { images: Attachment[] }) => {
+// `total` counts images beyond the ones given (the board passes only three).
+const CardImages = ({ images, total = images.length }: { images: Attachment[]; total?: number }) => {
   const shown = images.slice(0, 3);
-  const more = images.length - shown.length;
+  const more = total - shown.length;
   return (
     <div className={styles.images} data-count={shown.length} aria-hidden>
       {shown.map((image, index) => (

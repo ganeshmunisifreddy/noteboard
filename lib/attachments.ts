@@ -19,70 +19,93 @@ export const countAttachments = (noteId: string) => db.attachments.where('noteId
 export const getAttachments = async (noteId: string) =>
   (await db.attachments.where('noteId').equals(noteId).toArray()).sort(byPosition);
 
+// Thrown inside a save to give up on one image.
+class NoteGone extends Error {}
+class LimitReached extends Error {}
+
 // One image at a time, so a bad file doesn't stop the rest. Each image and
-// the note's edit time are saved together or not at all.
+// the note's edit time are saved together or not at all. `onProgress` is
+// called after each file, whatever happened to it.
 export const addImages = async (
   noteId: string,
   files: File[],
   process: (file: File) => Promise<ProcessedImage> = processImage,
+  onProgress?: () => void,
 ): Promise<AddFailure[]> => {
   const failures: AddFailure[] = [];
+  let storageFull = false;
   for (const file of files) {
-    if ((await db.attachments.where('noteId').equals(noteId).count()) >= MAX_IMAGES) {
-      failures.push({ name: file.name, reason: 'limit' });
-      continue;
-    }
-    let image: ProcessedImage;
     try {
-      image = await process(file);
-    } catch (error) {
-      const tooLarge = error instanceof ImageError && error.kind === 'too-large';
-      failures.push({ name: file.name, reason: tooLarge ? 'too-large' : 'unreadable' });
-      continue;
-    }
-    try {
-      await db.transaction('rw', db.notes, db.attachments, db.imageFiles, async () => {
-        const last = (await getAttachments(noteId)).at(-1);
-        const id = uuid();
-        await db.attachments.add({
-          id,
-          noteId,
-          position: (last?.position ?? -1) + 1,
-          type: image.type,
-          width: image.width,
-          height: image.height,
-          size: image.bytes.byteLength,
-          alt: '',
-          createdAt: Date.now(),
-          thumb: image.thumb,
-          thumbType: image.thumbType,
+      // Once storage is full, the rest would fail the same way.
+      if (storageFull) {
+        failures.push({ name: file.name, reason: 'storage' });
+        continue;
+      }
+      if ((await countAttachments(noteId)) >= MAX_IMAGES) {
+        failures.push({ name: file.name, reason: 'limit' });
+        continue;
+      }
+      let image: ProcessedImage;
+      try {
+        image = await process(file);
+      } catch (error) {
+        const tooLarge = error instanceof ImageError && error.kind === 'too-large';
+        failures.push({ name: file.name, reason: tooLarge ? 'too-large' : 'unreadable' });
+        continue;
+      }
+      try {
+        await db.transaction('rw', db.notes, db.attachments, db.imageFiles, async () => {
+          // Checked again here: the note may be gone, or another batch may
+          // have filled it while this image was processed.
+          if (!(await db.notes.get(noteId))) throw new NoteGone();
+          const existing = await getAttachments(noteId);
+          if (existing.length >= MAX_IMAGES) throw new LimitReached();
+          const id = uuid();
+          await db.attachments.add({
+            id,
+            noteId,
+            position: (existing.at(-1)?.position ?? -1) + 1,
+            type: image.type,
+            width: image.width,
+            height: image.height,
+            size: image.bytes.byteLength,
+            alt: '',
+            createdAt: Date.now(),
+            thumb: image.thumb,
+            thumbType: image.thumbType,
+          });
+          await db.imageFiles.add({ id, bytes: image.bytes });
+          await touch(noteId);
         });
-        await db.imageFiles.add({ id, bytes: image.bytes });
-        await touch(noteId);
-      });
-    } catch (error) {
-      failures.push({ name: file.name, reason: isQuotaError(error) ? 'storage' : 'save' });
+      } catch (error) {
+        if (error instanceof NoteGone) continue;
+        if (error instanceof LimitReached) failures.push({ name: file.name, reason: 'limit' });
+        else if (isQuotaError(error)) {
+          storageFull = true;
+          failures.push({ name: file.name, reason: 'storage' });
+        } else failures.push({ name: file.name, reason: 'save' });
+      }
+    } finally {
+      onProgress?.();
     }
   }
   return failures;
 };
 
+// One message per kind of problem, so a big batch can't flood the toasts.
 export const failureMessages = (failures: AddFailure[]): string[] => {
-  const messages = failures.map((failure) => {
-    switch (failure.reason) {
-      case 'limit':
-        return `Notes can have up to ${MAX_IMAGES} images.`;
-      case 'too-large':
-        return 'That image is too large (over 25 MB).';
-      case 'storage':
-        return 'Couldn’t add the image: storage is full.';
-      case 'save':
-        return `Couldn’t save ${failure.name}.`;
-      default:
-        return `Couldn’t add ${failure.name}: this browser can’t read it.`;
-    }
-  });
-  return [...new Set(messages)];
+  const of = (reason: AddFailure['reason']) => failures.filter((f) => f.reason === reason);
+  const messages: string[] = [];
+  if (of('too-large').length > 0) messages.push('That image is too large (over 25 MB).');
+  const unreadable = of('unreadable');
+  if (unreadable.length === 1) messages.push(`Couldn’t add ${unreadable[0].name}: this browser can’t read it.`);
+  if (unreadable.length > 1) messages.push(`Couldn’t add ${unreadable.length} files: this browser can’t read them.`);
+  if (of('limit').length > 0) messages.push(`Notes can have up to ${MAX_IMAGES} images.`);
+  if (of('storage').length > 0) messages.push('Couldn’t add the image: storage is full.');
+  const unsaved = of('save');
+  if (unsaved.length === 1) messages.push(`Couldn’t save ${unsaved[0].name}.`);
+  if (unsaved.length > 1) messages.push(`Couldn’t save ${unsaved.length} files.`);
+  return messages;
 };
 
 export type RemovedImage = { attachment: Attachment; file: ImageFile | undefined };
@@ -101,6 +124,8 @@ export const removeAttachment = (id: string): Promise<RemovedImage | undefined> 
 // Undo for Remove: the same record comes back.
 export const restoreAttachment = ({ attachment, file }: RemovedImage) =>
   db.transaction('rw', db.notes, db.attachments, db.imageFiles, async () => {
+    // Not to a note deleted in the meantime.
+    if (!(await db.notes.get(attachment.noteId))) return;
     await db.attachments.put(attachment);
     if (file) await db.imageFiles.put(file);
     await touch(attachment.noteId);
@@ -154,13 +179,23 @@ export const useImageFile = (id: string | null): ImageFile | null | undefined =>
     return (await db.imageFiles.get(id).catch(() => undefined)) ?? null;
   }, [id]);
 
-// Thumbnails for every card, loaded with the board.
-export const useBoardImages = (): Map<string, Attachment[]> | undefined =>
-  useLiveQuery(async () => {
-    const all = await db.attachments.toArray().catch((): Attachment[] => []);
-    const byNote = new Map<string, Attachment[]>();
-    for (const attachment of all.sort(byPosition)) {
-      byNote.set(attachment.noteId, [...(byNote.get(attachment.noteId) ?? []), attachment]);
-    }
-    return byNote;
-  }, []);
+export type BoardImages = { shown: Attachment[]; total: number };
+
+const CARD_IMAGES = 3;
+
+// Cards show at most three thumbnails; the rest are only counted, so their
+// bytes aren't kept for the board.
+export const boardImages = async () => {
+  const byNote = new Map<string, BoardImages>();
+  for (const attachment of (await db.attachments.toArray()).sort(byPosition)) {
+    const entry = byNote.get(attachment.noteId) ?? { shown: [], total: 0 };
+    entry.total += 1;
+    if (entry.shown.length < CARD_IMAGES) entry.shown.push(attachment);
+    byNote.set(attachment.noteId, entry);
+  }
+  return byNote;
+};
+
+// Loaded with the board, so cards appear with their images in place.
+export const useBoardImages = (): Map<string, BoardImages> | undefined =>
+  useLiveQuery(() => boardImages().catch(() => new Map<string, BoardImages>()), []);

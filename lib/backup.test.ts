@@ -4,6 +4,7 @@ import {
   NEWER_VERSION,
   NOT_A_BACKUP,
   backupFileName,
+  backupParts,
   collectBackup,
   buildBackup,
   markdownFileName,
@@ -325,6 +326,37 @@ describe('backups with images', () => {
     });
     await restoreBackup(text);
     expect((await db.attachments.toArray()).map((a) => a.id)).toEqual(['ok']);
+  });
+
+  it('writes the backup file in parts, one per image', async () => {
+    await createNote({ id: 'p', kind: 'note' });
+    await addImages('p', [photo('a.jpg'), photo('b.jpg')], fakeImage);
+    const backup = await collectBackup();
+    const parts = backupParts(backup);
+    expect(JSON.parse(parts.join(''))).toEqual(JSON.parse(JSON.stringify(backup)));
+    expect(parts.filter((part) => part.includes('"data"'))).toHaveLength(2);
+  });
+
+  it('keeps another note’s image when a restored image has the same id', async () => {
+    await createNote({ id: 'mine', kind: 'note' });
+    await addImages('mine', [photo('mine.jpg')], fakeImage);
+    const [local] = await getAttachments('mine');
+    const text = JSON.stringify({
+      format: 'noteboard-backup',
+      version: 2,
+      exportedAt: 'x',
+      notes: [{ id: 'theirs', title: 'Theirs', updatedAt: 5 }],
+      labels: [],
+      attachments: [
+        { id: local.id, noteId: 'theirs', position: 0, type: 'image/jpeg', width: 1, height: 1, alt: '', createdAt: 0, thumbType: 'image/jpeg', data: 'aGk=', thumb: 'aGk=' },
+      ],
+    });
+    await restoreBackup(text);
+    expect((await getAttachments('mine')).map((a) => a.id)).toEqual([local.id]);
+    const [theirs] = await getAttachments('theirs');
+    expect(theirs.id).not.toBe(local.id);
+    expect(asText((await db.imageFiles.get(theirs.id))?.bytes)).toBe('hi');
+    expect(asText((await db.imageFiles.get(local.id))?.bytes)).toBe('full-mine.jpg');
   });
 });
 

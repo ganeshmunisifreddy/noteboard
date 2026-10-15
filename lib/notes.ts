@@ -172,18 +172,32 @@ export const getAllData = async () => {
   return { notes, labels };
 };
 
+// The copy and its images are saved together or not at all.
 export const duplicateNote = async (id: string): Promise<Note | undefined> => {
-  const note = await db.notes.get(id);
-  if (!note) return undefined;
-  const copy = await createNote({
-    kind: note.kind,
-    title: note.title,
-    content: note.content,
-    items: note.items.map((item) => ({ ...item, id: uuid() })),
-    color: note.color,
-    labelIds: note.labelIds,
+  const copy = await db.transaction('rw', db.notes, db.attachments, db.imageFiles, async () => {
+    const note = await db.notes.get(id);
+    if (!note) return undefined;
+    const now = Date.now();
+    const created: Note = {
+      id: uuid(),
+      kind: note.kind,
+      title: note.title,
+      content: note.content,
+      items: note.items.map((item) => ({ ...item, id: uuid() })),
+      color: note.color,
+      labelIds: note.labelIds,
+      pinned: false,
+      archived: false,
+      trashedAt: null,
+      createdAt: now,
+      updatedAt: now,
+      position: await nextTopPosition(),
+    };
+    await db.notes.add(created);
+    await copyAttachments(id, created.id);
+    return created;
   });
-  await db.transaction('rw', db.attachments, db.imageFiles, () => copyAttachments(id, copy.id));
+  if (copy) await afterWrite();
   return copy;
 };
 

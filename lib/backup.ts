@@ -225,8 +225,21 @@ export const restoreBackup = async (contents: string): Promise<MergeCounts> => {
     await db.labels.bulkAdd(plan.labels);
     await db.notes.bulkPut(plan.notes);
     await deleteAttachmentsOf(plan.replaceImagesOf);
-    await db.attachments.bulkPut(plan.attachments.map((image) => image.attachment));
-    await db.imageFiles.bulkPut(plan.attachments.map((image) => image.file));
+    // An image id already used by another note's image gets a new id, so the
+    // restore never takes over that image.
+    const owners = new Map(
+      (await db.attachments.bulkGet(plan.attachments.map((image) => image.attachment.id))).flatMap((existing) =>
+        existing ? [[existing.id, existing.noteId] as const] : [],
+      ),
+    );
+    const images = plan.attachments.map(({ attachment, file }) => {
+      const owner = owners.get(attachment.id);
+      if (!owner || owner === attachment.noteId) return { attachment, file };
+      const id = uuid();
+      return { attachment: { ...attachment, id }, file: { ...file, id } };
+    });
+    await db.attachments.bulkPut(images.map((image) => image.attachment));
+    await db.imageFiles.bulkPut(images.map((image) => image.file));
     return plan.counts;
   });
   await refreshHasNotesMarker();
@@ -279,8 +292,19 @@ const dateStamp = (date: Date) =>
 export const backupFileName = (date: Date) => `noteboard-backup-${dateStamp(date)}.json`;
 export const markdownFileName = (date: Date) => `noteboard-notes-${dateStamp(date)}.md`;
 
+// The backup file as JSON in parts, one per image: all images in one string
+// could pass the browser's maximum string length.
+export const backupParts = ({ attachments, ...rest }: Backup): string[] => {
+  const head = JSON.stringify(rest);
+  return [
+    `${head.slice(0, -1)},"attachments":[`,
+    ...attachments.map((attachment, index) => (index > 0 ? ',' : '') + JSON.stringify(attachment)),
+    ']}',
+  ];
+};
+
 export const downloadBackup = async (now = new Date()) => {
-  downloadFile(backupFileName(now), JSON.stringify(await collectBackup(now), null, 2), 'application/json');
+  downloadFile(backupFileName(now), backupParts(await collectBackup(now)), 'application/json');
 };
 
 export const downloadMarkdown = async (now = new Date()) => {

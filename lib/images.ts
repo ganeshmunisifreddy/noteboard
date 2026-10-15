@@ -45,9 +45,23 @@ export type ProcessedImage = {
 
 const MAY_HAVE_ALPHA = /^image\/(png|webp|gif|avif)$/;
 
+// Frees the canvas memory straight away (Safari on iOS caps the total).
+const release = (canvas: HTMLCanvasElement) => {
+  canvas.width = 0;
+  canvas.height = 0;
+};
+
 const toBlob = (canvas: HTMLCanvasElement, type: string, quality?: number) =>
   new Promise<Blob>((resolve, reject) =>
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Could not encode'))), type, quality),
+    canvas.toBlob(
+      (blob) => {
+        release(canvas);
+        if (blob) resolve(blob);
+        else reject(new Error('Could not encode'));
+      },
+      type,
+      quality,
+    ),
   );
 
 // Looks at a small copy for any pixel that isn't fully opaque.
@@ -60,6 +74,7 @@ const hasTransparency = (bitmap: ImageBitmap) => {
   if (!context) return true;
   context.drawImage(bitmap, 0, 0, size.width, size.height);
   const { data } = context.getImageData(0, 0, size.width, size.height);
+  release(canvas);
   for (let i = 3; i < data.length; i += 4) if (data[i] < 255) return true;
   return false;
 };

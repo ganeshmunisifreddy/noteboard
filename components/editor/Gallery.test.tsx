@@ -27,8 +27,15 @@ describe('Gallery', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Adding 2 images…');
   });
 
-  it('shows nothing without images', () => {
-    const { container } = render(<Gallery images={[]} pending={0} onOpen={vi.fn()} />);
-    expect(container).toBeEmptyDOMElement();
+  it('shows no images without images', () => {
+    render(<Gallery images={[]} pending={0} onOpen={vi.fn()} />);
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('keeps its status message in place, so screen readers hear it change', () => {
+    const { rerender } = render(<Gallery images={[makeAttachment()]} pending={0} onOpen={vi.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent('');
+    rerender(<Gallery images={[makeAttachment()]} pending={1} onOpen={vi.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Adding 1 image…');
   });
 });

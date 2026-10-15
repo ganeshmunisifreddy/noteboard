@@ -29,22 +29,23 @@ type Props = {
   onOpen: (id: string) => void;
   dragHandle?: ReactNode;
   images?: Attachment[];
+  imageCount?: number; // all of the note's images; `images` may be only the first few
 };
 
 const PREVIEW_ITEMS = 8;
 
-const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle, images = [] }: Props) => {
+const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle, images = [], imageCount = images.length }: Props) => {
   const toast = useToast();
   const id = useId();
   const openItems = note.items.filter((i) => !i.done);
   const doneCount = note.items.length - openItems.length;
   const isEmpty =
-    images.length === 0 && !note.title && (note.kind === 'note' ? !note.content : note.items.length === 0);
+    imageCount === 0 && !note.title && (note.kind === 'note' ? !note.content : note.items.length === 0);
   const showContent = note.kind === 'note' && !!note.content;
   const showItems = note.kind === 'list' && openItems.length > 0;
   // The open button is named by the title; the preview describes it.
   const describedBy = [
-    images.length > 0 && `${id}-images`,
+    imageCount > 0 && `${id}-images`,
     showContent && `${id}-content`,
     showItems && `${id}-items`,
     labelNames.length > 0 && `${id}-labels`,
@@ -77,11 +78,11 @@ const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle, images = [] }: P
         aria-describedby={describedBy || undefined}
         onClick={() => onOpen(note.id)}
       />
-      {images.length > 0 && (
+      {imageCount > 0 && (
         <>
-          <CardImages images={images} />
+          <CardImages images={images} total={imageCount} />
           <span id={`${id}-images`} className={styles.srOnly}>
-            {images.length === 1 ? '1 image' : `${images.length} images`}
+            {imageCount === 1 ? '1 image' : `${imageCount} images`}
           </span>
         </>
       )}

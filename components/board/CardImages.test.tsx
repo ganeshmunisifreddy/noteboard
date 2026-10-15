@@ -23,4 +23,9 @@ describe('CardImages', () => {
     expect(container.querySelectorAll('img')).toHaveLength(3);
     expect(container.textContent).toBe('+2');
   });
+
+  it('counts images beyond the ones it was given', () => {
+    const { container } = render(<CardImages images={images(3)} total={7} />);
+    expect(container.textContent).toBe('+4');
+  });
 });

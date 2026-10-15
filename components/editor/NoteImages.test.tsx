@@ -208,4 +208,22 @@ describe('images in the note editor', () => {
     expect(await screen.findByText('Couldn’t add scan.pdf: this browser can’t read it.')).toBeInTheDocument();
     expect(await db.attachments.count()).toBe(0);
   });
+
+  it('sums up several unusable files in one message', async () => {
+    await createNote({ id: 'n10', kind: 'note' });
+    open({ id: 'n10' });
+    await screen.findByRole('button', { name: 'Add image' });
+    choose(['a.pdf', 'b.pdf', 'c.pdf', 'd.pdf'].map((name) => new File(['x'], name, { type: 'application/pdf' })));
+    expect(await screen.findByText('Couldn’t add 4 files: this browser can’t read them.')).toBeInTheDocument();
+  });
+
+  it('says when a copy could not be made', async () => {
+    await createNote({ id: 'n11', kind: 'note', title: 'Original' });
+    open({ id: 'n11' });
+    vi.spyOn(db.notes, 'add').mockRejectedValueOnce(Object.assign(new Error('full'), { name: 'QuotaExceededError' }));
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Make a copy' }));
+    expect(await screen.findByText('Couldn’t make a copy: storage is full.')).toBeInTheDocument();
+  });
 });
