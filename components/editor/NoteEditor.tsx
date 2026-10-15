@@ -1,3 +1,4 @@
+import { SquareKanban } from 'lucide-react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
@@ -29,14 +30,18 @@ import {
   restoreAttachment,
   useNoteAttachments,
 } from '../../lib/attachments';
-import { putBackPlace } from '../../lib/cards';
+import { newCardPlace, placeAtEnd, putBackPlace, removeFromBoard } from '../../lib/cards';
+import { usePlaceNames } from '../../lib/boards';
 import { formatDue } from '../../lib/due';
-import { leaveEditor, noteHref, openEditor } from '../../lib/routes';
+import { leaveEditor, noteHref, openEditor, type NewCardPlace } from '../../lib/routes';
 import { isQuotaError } from '../../lib/storage';
 import { formatEdited, useNow } from '../../lib/time';
 import type { Attachment, ChecklistItem, Note, NoteKind, Repeat } from '../../lib/types';
 import MarkdownPreview from '../board/MarkdownPreview';
+import IconButton from '../ui/IconButton';
 import { useToast } from '../ui/Toast';
+import BoardMenu from './BoardPicker';
+import chipStyles from './BoardPicker.module.css';
 import ChecklistEditor from './ChecklistEditor';
 import DatePopover from './DatePopover';
 import DueChip from './DueChip';
@@ -90,9 +95,10 @@ type Props = {
   noteId: string;
   stored: Note | null; // live copy from the database; null for an unsaved draft
   newKind: NoteKind | null;
+  newPlace: NewCardPlace | null; // a new card's column, from a board
 };
 
-const NoteEditor = ({ noteId, stored, newKind }: Props) => {
+const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
   const router = useRouter();
   const toast = useToast();
   const labels = useLabels() ?? [];
@@ -126,6 +132,12 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
     document.querySelector<HTMLElement>(selector)?.focus();
   }, [images]);
 
+  // A new card from a board column is created there, at the top or bottom.
+  const create = async (draft: Draft) => {
+    const place = newPlace ? await newCardPlace(newPlace.columnId, newPlace.at) : null;
+    await createNote({ id: noteId, ...draft, ...place });
+  };
+
   const save = async () => {
     if (!dirtyRef.current) return;
     dirtyRef.current = false;
@@ -134,7 +146,7 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
       if (createdRef.current) {
         await updateNote(noteId, current);
       } else if (!isNoteEmpty(current)) {
-        await createNote({ id: noteId, ...current });
+        await create(current);
         createdRef.current = true;
         // Saved while leaving: the router is already on another page, and
         // rewriting the URL now would navigate back into this note.
@@ -159,7 +171,7 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
     clearTimeout(timerRef.current);
     const run = queueRef.current.then(save).then(async () => {
       if (createdRef.current) return;
-      await createNote({ id: noteId, ...draftRef.current });
+      await create(draftRef.current);
       createdRef.current = true;
       dirtyRef.current = false;
       if (mountedRef.current) void router.replace(noteHref(noteId), undefined, { shallow: true });
@@ -234,6 +246,23 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
     const before = due;
     await removeDue(noteId);
     toast({ message: 'Date removed', actionLabel: 'Undo', onAction: () => void putBackDue(noteId, before) });
+  };
+
+  const placeNames = usePlaceNames();
+  const place = stored?.columnId ? placeNames?.get(stored.columnId) : undefined;
+
+  const pickColumn = async (columnId: string) => {
+    editedRef.current = true;
+    try {
+      await ensureCreated();
+      const result = await placeAtEnd(noteId, columnId);
+      if (result?.dateChanged) {
+        const before = result.before;
+        toast({ message: 'Marked done', actionLabel: 'Undo', onAction: () => void putBackPlace(before) });
+      }
+    } catch (error) {
+      toast({ message: isQuotaError(error) ? 'Couldn’t save: storage is full.' : 'Couldn’t save your changes.' });
+    }
   };
 
   const markDueDone = async () => {
@@ -444,6 +473,18 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
           onRestore={() => void restore()}
           onDeleteForever={() => void removeForever()}
           onAddImages={(files) => void addFiles(files)}
+          boardButton={
+            <BoardMenu
+              columnId={stored?.columnId ?? null}
+              onPick={(columnId) => void pickColumn(columnId)}
+              onRemove={() => void removeFromBoard(noteId)}
+              trigger={
+                <IconButton label='Board'>
+                  <SquareKanban size={18} aria-hidden />
+                </IconButton>
+              }
+            />
+          }
           dateButton={
             <DatePopover
               due={due}
@@ -492,6 +533,22 @@ const NoteEditor = ({ noteId, stored, newKind }: Props) => {
             onReopen={() => void reopenDue(noteId)}
           />
         )}
+        {place &&
+          (trashed ? (
+            <p className={chipStyles.chip}>{place}</p>
+          ) : (
+            <BoardMenu
+              columnId={stored?.columnId ?? null}
+              onPick={(columnId) => void pickColumn(columnId)}
+              onRemove={() => void removeFromBoard(noteId)}
+              trigger={
+                <button type='button' className={chipStyles.chip} aria-label={`Board: ${place}`}>
+                  <SquareKanban size={16} aria-hidden />
+                  {place}
+                </button>
+              }
+            />
+          ))}
         {draft.kind === 'note' ? (
           rich.status === 'ready' ? (
             <rich.Editor
