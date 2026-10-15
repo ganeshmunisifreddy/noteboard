@@ -245,6 +245,32 @@
   border: 0;
 }
 
+.drop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 40px;
+  border-radius: var(--radius-md);
+}
+
+.over {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+}
+
+.dragging {
+  opacity: 0.35;
+}
+
+.overlay {
+  width: 264px;
+  cursor: grabbing;
+}
+
+.cards > li {
+  touch-action: manipulation;
+}
+
 @media (max-width: 600px) {
   .columns {
     scroll-snap-type: x mandatory;
