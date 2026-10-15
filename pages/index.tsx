@@ -12,6 +12,7 @@ import NotFound from '../components/NotFound';
 import LabelsDialog from '../components/ui/LabelsDialog';
 import ThemeToggle from '../components/ui/ThemeToggle';
 import { useToast } from '../components/ui/Toast';
+import { useBoardImages } from '../lib/attachments';
 import { downloadBackup, downloadMarkdown, restoreBackup, restoreErrorMessage, restoredMessage } from '../lib/backup';
 import { emptyMessage, filterToQuery, isReorderable, parseFilter } from '../lib/filters';
 import { emptyTrash, useBoardNotes, useLabels } from '../lib/notes';
@@ -33,7 +34,9 @@ const Home: NextPage = () => {
   // (typing only replaces the URL, so it never triggers this).
   const [historyKey, setHistoryKey] = useState(0);
   const restoreInput = useRef<HTMLInputElement>(null);
-  const loaded = status !== 'pending' && board !== undefined;
+  // Loaded with the notes, so cards appear with their images in place.
+  const images = useBoardImages();
+  const loaded = status !== 'pending' && board !== undefined && images !== undefined;
 
   useEffect(() => {
     markOnBoard();
@@ -170,13 +173,13 @@ const Home: NextPage = () => {
         {pinned.length > 0 && (
           <section className={styles.section} aria-label='Pinned notes'>
             {headings && <h2 className={styles.sectionTitle}>Pinned</h2>}
-            <NoteGrid notes={pinned} labelNames={labelNames} mode={mode} onOpen={openNote} reorderable={reorderable} />
+            <NoteGrid notes={pinned} labelNames={labelNames} mode={mode} onOpen={openNote} reorderable={reorderable} images={images} />
           </section>
         )}
         {others.length > 0 && (
           <section className={styles.section} aria-label={headings ? 'Other notes' : 'Notes'}>
             {headings && <h2 className={styles.sectionTitle}>Others</h2>}
-            <NoteGrid notes={others} labelNames={labelNames} mode={mode} onOpen={openNote} reorderable={reorderable} />
+            <NoteGrid notes={others} labelNames={labelNames} mode={mode} onOpen={openNote} reorderable={reorderable} images={images} />
           </section>
         )}
         {/* Also rendered on the server and while loading; _document hides it

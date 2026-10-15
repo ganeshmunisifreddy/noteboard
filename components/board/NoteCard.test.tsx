@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../../lib/db';
 import { createNote } from '../../lib/notes';
+import { makeAttachment } from '../../lib/testUtils';
 import { ToastProvider } from '../ui/Toast';
 import NoteCard from './NoteCard';
 
@@ -103,5 +104,22 @@ describe('NoteCard', () => {
     expect(container.querySelector('strong')).toHaveTextContent('Buy');
     expect(container.querySelector('li')).toHaveTextContent('glue');
     expect(screen.getByRole('button', { name: 'Open note: Untitled' })).toHaveAccessibleDescription(/Buy stamps/);
+  });
+
+  it('shows its images and says how many there are', async () => {
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:thumb');
+    const note = await createNote({ id: 'c4', kind: 'note', title: 'Trip' });
+    const images = [0, 1, 2].map((position) => makeAttachment({ noteId: 'c4', position }));
+    const { container } = render(<NoteCard note={note} images={images} labelNames={[]} mode='board' onOpen={vi.fn()} />);
+    expect(container.querySelectorAll('img')).toHaveLength(3);
+    expect(screen.getByRole('button', { name: 'Open note: Trip' })).toHaveAccessibleDescription('3 images');
+  });
+
+  it('is not empty when it only has an image', async () => {
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:thumb');
+    const note = await createNote({ id: 'c5', kind: 'note' });
+    render(<NoteCard note={note} images={[makeAttachment({ noteId: 'c5' })]} labelNames={[]} mode='board' onOpen={vi.fn()} />);
+    expect(screen.queryByText('Empty note')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Open note: Untitled' })).toHaveAccessibleDescription('1 image');
   });
 });

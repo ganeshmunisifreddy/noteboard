@@ -1,0 +1,54 @@
+/* Edge to edge at the top of the card (the card has 14px/16px padding). */
+.images {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  margin: -14px -16px 0;
+  overflow: hidden;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  pointer-events: none;
+}
+
+.images[data-count='1'] {
+  height: 200px;
+}
+
+.images[data-count='2'] {
+  grid-template-columns: 1fr 1fr;
+  height: 140px;
+}
+
+.images[data-count='3'] {
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  height: 160px;
+}
+
+.images[data-count='3'] .cell:first-child {
+  grid-row: span 2;
+}
+
+.cell {
+  position: relative;
+  min-height: 0;
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.more {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 50%);
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: #fff;
+}

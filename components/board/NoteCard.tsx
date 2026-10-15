@@ -11,11 +11,12 @@ import {
   undoTrash,
   updateNote,
 } from '../../lib/notes';
-import type { Note } from '../../lib/types';
+import type { Attachment, Note } from '../../lib/types';
 import ColorPicker from '../ui/ColorPicker';
 import IconButton from '../ui/IconButton';
 import Menu from '../ui/Menu';
 import { useToast } from '../ui/Toast';
+import CardImages from './CardImages';
 import MarkdownPreview from './MarkdownPreview';
 import styles from './NoteCard.module.css';
 
@@ -27,20 +28,23 @@ type Props = {
   mode: CardMode;
   onOpen: (id: string) => void;
   dragHandle?: ReactNode;
+  images?: Attachment[];
 };
 
 const PREVIEW_ITEMS = 8;
 
-const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle }: Props) => {
+const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle, images = [] }: Props) => {
   const toast = useToast();
   const id = useId();
   const openItems = note.items.filter((i) => !i.done);
   const doneCount = note.items.length - openItems.length;
-  const isEmpty = !note.title && (note.kind === 'note' ? !note.content : note.items.length === 0);
+  const isEmpty =
+    images.length === 0 && !note.title && (note.kind === 'note' ? !note.content : note.items.length === 0);
   const showContent = note.kind === 'note' && !!note.content;
   const showItems = note.kind === 'list' && openItems.length > 0;
   // The open button is named by the title; the preview describes it.
   const describedBy = [
+    images.length > 0 && `${id}-images`,
     showContent && `${id}-content`,
     showItems && `${id}-items`,
     labelNames.length > 0 && `${id}-labels`,
@@ -73,6 +77,14 @@ const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle }: Props) => {
         aria-describedby={describedBy || undefined}
         onClick={() => onOpen(note.id)}
       />
+      {images.length > 0 && (
+        <>
+          <CardImages images={images} />
+          <span id={`${id}-images`} className={styles.srOnly}>
+            {images.length === 1 ? '1 image' : `${images.length} images`}
+          </span>
+        </>
+      )}
       {note.title && <h3 className={styles.title}>{note.title}</h3>}
       {showContent && (
         <MarkdownPreview id={`${id}-content`} className={styles.content} markdown={note.content} clamp />

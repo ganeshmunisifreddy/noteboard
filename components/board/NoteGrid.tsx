@@ -24,7 +24,7 @@ import { flushSync } from 'react-dom';
 import { assignColumns, columnCountFor, gapFor } from '../../lib/masonry';
 import { moveNote } from '../../lib/notes';
 import { moveId, moveToIndex, neighbors } from '../../lib/order';
-import type { Note } from '../../lib/types';
+import type { Attachment, Note } from '../../lib/types';
 import IconButton from '../ui/IconButton';
 import Menu, { type MenuItem } from '../ui/Menu';
 import { useToast } from '../ui/Toast';
@@ -146,6 +146,7 @@ type Props = {
   mode: CardMode;
   onOpen: (id: string) => void;
   reorderable: boolean;
+  images?: Map<string, Attachment[]>;
 };
 
 // dnd-kit's defaults read out note ids; these use titles. Keyboard moves
@@ -213,7 +214,7 @@ const KEY_TARGETS: Record<string, (index: number, last: number) => number> = {
   End: (_, last) => last,
 };
 
-const NoteGrid = ({ notes, labelNames, mode, onOpen, reorderable }: Props) => {
+const NoteGrid = ({ notes, labelNames, mode, onOpen, reorderable, images }: Props) => {
   const toast = useToast();
   const hintId = useId();
   const [sizes, measure] = useSizes();
@@ -351,6 +352,7 @@ const NoteGrid = ({ notes, labelNames, mode, onOpen, reorderable }: Props) => {
   const card = (note: Note, withHandle: boolean) => (
     <NoteCard
       note={note}
+      images={images?.get(note.id)}
       mode={mode}
       onOpen={onOpen}
       labelNames={note.labelIds.map((id) => labelNames.get(id)).filter((name): name is string => !!name)}
