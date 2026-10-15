@@ -1,4 +1,29 @@
-import { Marked, Tokenizer, type Token } from 'marked';
+import { Lexer, Marked, Tokenizer, type Token } from 'marked';
+
+// Before tick boxes existed the editor saved "- [ ] milk" escaped
+// ("- \\[ \\] milk") to keep it text; those lines are tick boxes now.
+// Fenced code is left as it is.
+export const unescapeTaskMarkers = (markdown: string) => {
+  let fence: string | null = null;
+  return markdown
+    .split('\n')
+    .map((line) => {
+      const opener = /^ {0,3}(```|~~~)/.exec(line)?.[1];
+      if (opener) {
+        if (fence === null) fence = opener;
+        else if (opener === fence) fence = null;
+        return line;
+      }
+      return fence ? line : line.replace(/^(\s*(?:>\s*)*(?:[-*+]|\d+[.)])[ \t]+)\\\[([ xX])\\\]/, '$1[$2]');
+    })
+    .join('\n');
+};
+
+class NoteLexer extends Lexer {
+  lex(src: string) {
+    return super.lex(unescapeTaskMarkers(src));
+  }
+}
 
 // How Noteboard reads Markdown, shared by the editor, cards, search and
 // conversion: GitHub-flavoured, a single line break is a line break,
@@ -24,6 +49,9 @@ export const createMarked = () => {
       },
     },
   );
+  // Tiptap creates lexers from instance.Lexer; marked's own lexer() doesn't.
+  instance.Lexer = NoteLexer as typeof instance.Lexer;
+  instance.lexer = (src, options) => new NoteLexer(options ?? instance.defaults).lex(src);
   return instance;
 };
 

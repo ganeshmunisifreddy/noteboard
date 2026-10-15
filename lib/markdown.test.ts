@@ -75,6 +75,12 @@ describe('markdownLines', () => {
     expect(markdownLines('- [ ] buy milk\n- [x] call mom')).toEqual(['buy milk', 'call mom']);
   });
 
+  it('reads tick boxes the old editor saved escaped ("- \\[ \\]") as tick boxes', () => {
+    const tokens = parseMarkdown('- Groceries\n- \\[ \\] buy milk\n- \\[x\\] call mom');
+    const items = (tokens[0] as { items: { task: boolean; checked?: boolean }[] }).items;
+    expect(items.map((item) => [item.task, item.checked])).toEqual([[false, undefined], [true, false], [true, true]]);
+  });
+
   it('keeps old plain-text lines that look like other Markdown as text', () => {
     // Reference definitions and pipe tables are not Noteboard formatting.
     expect(markdownLines('[Wifi]: hunter2\n[Door]: 4512')).toEqual(['[Wifi]: hunter2', '[Door]: 4512']);

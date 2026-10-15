@@ -25,3 +25,11 @@ describe('toggleTask', () => {
     expect(toggleTask('- [X] done', 0)).toBe('- [ ] done');
   });
 });
+
+describe('tick boxes the old editor escaped', () => {
+  it('finds and ticks them, saving them unescaped', () => {
+    const md = '- Groceries\n- \\[ \\] buy milk\n- \\[x\\] call mom';
+    expect(taskLines(md)).toEqual([1, 2]);
+    expect(toggleTask(md, 0)).toBe('- Groceries\n- [x] buy milk\n- \\[x\\] call mom');
+  });
+});

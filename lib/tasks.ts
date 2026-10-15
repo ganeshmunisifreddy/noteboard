@@ -1,7 +1,8 @@
 // Tick-box lines in a text note's Markdown ("- [ ] milk"), so a card can tick
 // one without opening the editor. Matches what marked treats as a task item:
 // a bullet or number (inside any quotes), then [ ], [x] or [X], then a space.
-const TASK = /^((?:\s*>)*\s*(?:[-+*]|\d+[.)])\s+)\[([ xX])\](?=\s|$)/;
+// Notes saved before tick boxes existed have the brackets escaped ("\[ \]").
+const TASK = /^((?:\s*>)*\s*(?:[-+*]|\d+[.)])\s+)\\?\[([ xX])\\?\](?=\s|$)/;
 const FENCE = /^\s*(```|~~~)/;
 
 export const taskLines = (markdown: string): number[] => {
