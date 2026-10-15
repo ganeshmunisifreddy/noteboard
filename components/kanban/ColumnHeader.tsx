@@ -10,16 +10,30 @@ import InlineName from './InlineName';
 type Props = {
   column: Column;
   headingId: string;
-  count: number;
+  count: number; // cards shown
+  total: number; // cards in the column
   first: boolean;
   last: boolean;
   onRename: (name: string) => void;
   onMove: (direction: -1 | 1) => void;
   onSetDone: (done: boolean) => void;
   onDelete: () => void;
+  bulkItems: MenuItem[]; // actions on every card shown
 };
 
-const ColumnHeader = ({ column, headingId, count, first, last, onRename, onMove, onSetDone, onDelete }: Props) => {
+const ColumnHeader = ({
+  column,
+  headingId,
+  count,
+  total,
+  first,
+  last,
+  onRename,
+  onMove,
+  onSetDone,
+  onDelete,
+  bulkItems,
+}: Props) => {
   const [renaming, setRenaming] = useState(false);
   const actions = useRef<HTMLButtonElement>(null);
   // Back to the column's menu button once the name field closes.
@@ -34,6 +48,7 @@ const ColumnHeader = ({ column, headingId, count, first, last, onRename, onMove,
     column.done
       ? { label: 'Not a Done column', onSelect: () => onSetDone(false) }
       : { label: 'Set as Done column', onSelect: () => onSetDone(true) },
+    ...bulkItems,
     { label: 'Delete column', danger: true, onSelect: onDelete },
   );
   return (
@@ -61,9 +76,11 @@ const ColumnHeader = ({ column, headingId, count, first, last, onRename, onMove,
         </h2>
       )}
       <span className={styles.count} aria-hidden>
-        {count}
+        {count === total ? count : `${count} of ${total}`}
       </span>
-      <span className={styles.srOnly}>{count === 1 ? '1 card' : `${count} cards`}</span>
+      <span className={styles.srOnly}>
+        {count === total ? (count === 1 ? '1 card' : `${count} cards`) : `${count} of ${total} cards shown`}
+      </span>
       <Menu
         items={items}
         trigger={

@@ -286,3 +286,30 @@
     scroll-snap-align: start;
   }
 }
+
+.quickAdd {
+  display: grid;
+  gap: 6px;
+  padding: 4px;
+}
+
+.quickInput {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.quickInput:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.quickActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}

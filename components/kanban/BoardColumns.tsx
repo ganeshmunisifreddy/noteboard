@@ -4,16 +4,14 @@ import {
   MouseSensor,
   TouchSensor,
   closestCorners,
-  useDraggable,
-  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
-import { ListChecks, Plus } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Plus } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import type { BoardImages } from '../../lib/attachments';
 import {
   addColumn,
@@ -25,14 +23,21 @@ import {
   setDoneColumn,
   type BoardData,
 } from '../../lib/boards';
-import { moveIndex, moveInColumns, placeNote, putBackPlace, type CardMove, type PlaceResult } from '../../lib/cards';
+import {
+  moveIndex,
+  moveInColumns,
+  placeNote,
+  putBackPlace,
+  quickAddCard,
+  type CardMove,
+  type PlaceResult,
+} from '../../lib/cards';
 import { moveToIndex, neighbors } from '../../lib/order';
 import type { NoteKind } from '../../lib/types';
-import IconButton from '../ui/IconButton';
 import { useToast } from '../ui/Toast';
 import styles from './Board.module.css';
+import BoardColumn from './BoardColumn';
 import CardMoveMenu from './CardMoveMenu';
-import ColumnHeader from './ColumnHeader';
 import InlineName from './InlineName';
 import KanbanCard from './KanbanCard';
 
@@ -43,40 +48,10 @@ type Props = {
   onOpen: (id: string) => void;
   onAddCard: (columnId: string, kind: NoteKind) => void;
   startAddingColumn?: boolean; // the board menu's "Add column"
+  onCardAdded?: (id: string) => void;
 };
 
 const scrollKey = (boardId: string) => `boardScrollX:${boardId}`;
-
-// A card that can be dragged and dropped on (dnd-kit). The whole card is the
-// drag handle: a mouse drag starts after 5px, a touch drag after a 250ms press.
-const DraggableCard = ({ id, children }: { id: string; children: ReactNode }) => {
-  const { setNodeRef: setDragRef, listeners, isDragging } = useDraggable({ id });
-  const { setNodeRef: setDropRef } = useDroppable({ id: `card:${id}` });
-  const ref = useCallback(
-    (el: HTMLLIElement | null) => {
-      setDragRef(el);
-      setDropRef(el);
-    },
-    [setDragRef, setDropRef],
-  );
-  // Pointer only: the card's own buttons (Open, Move) are the keyboard way in,
-  // so dnd-kit's focusable "button" attributes aren't applied.
-  return (
-    <li ref={ref} className={isDragging ? styles.dragging : undefined} {...listeners}>
-      {children}
-    </li>
-  );
-};
-
-// A column's empty space, so a card can be dropped at its end.
-const ColumnDrop = ({ id, children }: { id: string; children: ReactNode }) => {
-  const { setNodeRef, isOver } = useDroppable({ id: `column:${id}` });
-  return (
-    <div ref={setNodeRef} className={isOver ? `${styles.drop} ${styles.over}` : styles.drop}>
-      {children}
-    </div>
-  );
-};
 
 const targetOf = (id: string | number | undefined) => {
   const key = String(id ?? '');
@@ -85,7 +60,7 @@ const targetOf = (id: string | number | undefined) => {
   return null;
 };
 
-const BoardColumns = ({ data, labelNames, images, onOpen, onAddCard, startAddingColumn = false }: Props) => {
+const BoardColumns = ({ data, labelNames, images, onOpen, onAddCard, startAddingColumn = false, onCardAdded }: Props) => {
   const toast = useToast();
   const [adding, setAdding] = useState(startAddingColumn);
   const scroller = useRef<HTMLDivElement>(null);
@@ -210,6 +185,25 @@ const BoardColumns = ({ data, labelNames, images, onOpen, onAddCard, startAdding
     void save(id, columnId, order[columnId]);
   };
 
+  const quickAdd = async (columnId: string, title: string) => {
+    try {
+      const note = await quickAddCard(columnId, board.id, title);
+      if (note) {
+        onCardAdded?.(note.id);
+        setAnnouncement(`Added ${note.title} to ${columnName.get(note.columnId ?? '') ?? 'the board'}`);
+      }
+    } catch {
+      toast({ message: 'Couldn’t add the card.' });
+    }
+  };
+
+  // With a title, the card is saved first and opened; without, a new card opens.
+  const quickOpen = async (columnId: string, title: string) => {
+    if (!title.trim()) return onAddCard(columnId, 'note');
+    const note = await quickAddCard(columnId, board.id, title).catch(() => undefined);
+    if (note) onOpen(note.id);
+  };
+
   // Its notes go to the column on the left (or right), or back to the main board.
   const removeColumn = async (columnId: string, name: string, count: number) => {
     const index = columns.findIndex((c) => c.id === columnId);
@@ -268,64 +262,37 @@ const BoardColumns = ({ data, labelNames, images, onOpen, onAddCard, startAdding
       >
         {columns.map((column, index) => {
           const ids = shown[column.id] ?? [];
-          const headingId = `column-${column.id}`;
           return (
-            <section key={column.id} className={styles.column} aria-labelledby={headingId}>
-              <ColumnHeader
-                column={column}
-                headingId={headingId}
-                count={ids.length}
-                first={index === 0}
-                last={index === columns.length - 1}
-                onRename={(name) => void renameColumn(column.id, name)}
-                onMove={(direction) => void moveColumn(column.id, direction)}
-                onSetDone={(done) => void setDoneColumn(column.id, done)}
-                onDelete={() => void removeColumn(column.id, column.name, ids.length)}
-              />
-              <ColumnDrop id={column.id}>
-                <ol className={styles.cards}>
-                  {ids.map((noteId) => {
-                    const note = notesById.get(noteId);
-                    if (!note) return null;
-                    return (
-                      <DraggableCard key={noteId} id={noteId}>
-                        <KanbanCard
-                          note={note}
-                          labelNames={note.labelIds.map((id) => labelNames.get(id)).filter((n): n is string => !!n)}
-                          imageCount={images?.get(note.id)?.total ?? 0}
-                          onOpen={onOpen}
-                          moveMenu={
-                            <CardMoveMenu
-                              title={note.title || 'Untitled'}
-                              buttonId={note.id}
-                              columns={columns.filter((c) => c.id !== column.id).map((c) => ({ id: c.id, name: c.name }))}
-                              canMove={(move) => moveIndex(ids, noteId, move) !== null}
-                              onMove={(move) => moveWithin(noteId, column.id, move)}
-                              onMoveTo={(columnId) => moveToColumn(noteId, columnId)}
-                            />
-                          }
-                        />
-                      </DraggableCard>
-                    );
-                  })}
-                </ol>
-                {ids.length === 0 && <p className={styles.noCards}>No cards</p>}
-              </ColumnDrop>
-              <div className={styles.addRow}>
-                <button
-                  type='button'
-                  className={styles.addCard}
-                  aria-label={`Add card to ${column.name}`}
-                  onClick={() => onAddCard(column.id, 'note')}
-                >
-                  <Plus size={16} aria-hidden />
-                  Add card
-                </button>
-                <IconButton label={`Add a list to ${column.name}`} onClick={() => onAddCard(column.id, 'list')}>
-                  <ListChecks size={16} aria-hidden />
-                </IconButton>
-              </div>
-            </section>
+            <BoardColumn
+              key={column.id}
+              column={column}
+              ids={ids}
+              total={ids.length}
+              first={index === 0}
+              last={index === columns.length - 1}
+              notesById={notesById}
+              labelNames={labelNames}
+              images={images}
+              bulkItems={[]}
+              onOpen={onOpen}
+              onAddCard={onAddCard}
+              onQuickAdd={(columnId, title) => void quickAdd(columnId, title)}
+              onQuickOpen={(columnId, title) => void quickOpen(columnId, title)}
+              onRename={(name) => void renameColumn(column.id, name)}
+              onMove={(direction) => void moveColumn(column.id, direction)}
+              onSetDone={(done) => void setDoneColumn(column.id, done)}
+              onDelete={() => void removeColumn(column.id, column.name, ids.length)}
+              cardMenu={(note) => (
+                <CardMoveMenu
+                  title={note.title || 'Untitled'}
+                  buttonId={note.id}
+                  columns={columns.filter((c) => c.id !== column.id).map((c) => ({ id: c.id, name: c.name }))}
+                  canMove={(move) => moveIndex(ids, note.id, move) !== null}
+                  onMove={(move) => moveWithin(note.id, column.id, move)}
+                  onMoveTo={(columnId) => moveToColumn(note.id, columnId)}
+                />
+              )}
+            />
           );
         })}
         <div className={styles.newColumn}>
