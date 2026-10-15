@@ -44,7 +44,7 @@ describe('buildBackup', () => {
     const backup = buildBackup([note], [{ id: 'l', name: 'Work' }], new Date('2026-10-14T12:00:00Z'));
     expect(backup).toEqual({
       format: 'noteboard-backup',
-      version: 4,
+      version: 5,
       exportedAt: '2026-10-14T12:00:00.000Z',
       notes: [note],
       labels: [{ id: 'l', name: 'Work' }],
@@ -63,7 +63,7 @@ describe('parseBackup', () => {
   });
 
   it('rejects backups from a newer version', () => {
-    expect(() => parseBackup(backupOf([], [], 5))).toThrow(new BackupError(NEWER_VERSION));
+    expect(() => parseBackup(backupOf([], [], 6))).toThrow(new BackupError(NEWER_VERSION));
   });
 
   it('skips broken entries and fills defaults', () => {
@@ -445,13 +445,21 @@ describe('dates in backups', () => {
 });
 
 describe('boards in backups', () => {
-  const board: Board = { id: 'b1', name: 'Website', position: 0, createdAt: 1, updatedAt: 1 };
+  const board: Board = { id: 'b1', name: 'Website', position: 0, starred: false, createdAt: 1, updatedAt: 1 };
   const columns: Column[] = [
     { id: 'c1', boardId: 'b1', name: 'To do', position: 0, done: false, updatedAt: 1 },
     { id: 'c2', boardId: 'b1', name: 'Done', position: 1, done: true, updatedAt: 1 },
   ];
   const v4 = (notes: unknown[], boards: unknown[] = [board], cols: unknown[] = columns) =>
     file({ format: 'noteboard-backup', version: 4, exportedAt: 'x', notes, labels: [], attachments: [], boards, columns: cols });
+
+  it('keeps stars, and reads boards from older backups as unstarred', () => {
+    const starred = { ...board, starred: true };
+    const v5 = file({ format: 'noteboard-backup', version: 5, exportedAt: 'x', notes: [], labels: [], attachments: [], boards: [starred], columns });
+    expect(parseBackup(v5).boards).toEqual([starred]);
+    const old = { id: 'b1', name: 'Website', position: 0, createdAt: 1, updatedAt: 1 };
+    expect(parseBackup(v4([], [old])).boards).toEqual([{ ...old, starred: false }]);
+  });
 
   it('keeps one Done column per board after a merge', () => {
     const localDone: Column = { ...columns[0], done: true, updatedAt: 9 };

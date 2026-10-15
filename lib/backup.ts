@@ -29,7 +29,7 @@ import {
 } from './types';
 
 export const BACKUP_FORMAT = 'noteboard-backup';
-export const BACKUP_VERSION = 4;
+export const BACKUP_VERSION = 5;
 export const NOT_A_BACKUP = 'That file isn’t a Noteboard backup.';
 export const NEWER_VERSION = 'This backup is from a newer version of Noteboard.';
 
@@ -130,6 +130,7 @@ const toBoard = (entry: Record<string, unknown>): Board | null => {
     id: boardId,
     name,
     position: finite(entry.position) ?? 0,
+    starred: entry.starred === true,
     createdAt: finite(entry.createdAt) ?? 0,
     updatedAt: finite(entry.updatedAt) ?? 0,
   };

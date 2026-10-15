@@ -73,4 +73,23 @@ describe('schema v2 upgrade', () => {
     expect(await db.boards.count()).toBe(0);
     expect(await db.columns.count()).toBe(0);
   });
+
+  it('leaves existing boards unstarred in v6', async () => {
+    db.close();
+    await Dexie.delete('noteboard');
+    const v5 = new Dexie('noteboard');
+    v5.version(5).stores({
+      notes: 'id, updatedAt, trashedAt, position, boardId, *labelIds',
+      labels: 'id, &name',
+      attachments: 'id, noteId',
+      imageFiles: 'id',
+      boards: 'id, position',
+      columns: 'id, boardId',
+    });
+    await v5.table('boards').add({ id: 'b', name: 'Old', position: 0, createdAt: 1, updatedAt: 1 });
+    v5.close();
+
+    await db.open();
+    expect(await db.boards.get('b')).toMatchObject({ name: 'Old', starred: false });
+  });
 });

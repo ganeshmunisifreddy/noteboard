@@ -5,13 +5,16 @@ import {
   createBoard,
   deleteBoard,
   deleteColumn,
+  moveBoardTo,
   moveColumn,
+  moveColumnTo,
   placeNames,
   renameBoard,
   renameColumn,
   restoreBoard,
   restoreColumn,
   setDoneColumn,
+  starBoard,
   summarizeBoards,
 } from './boards';
 import { db } from './db';
@@ -221,5 +224,50 @@ describe('Undo after deleting', () => {
     await db.notes.update('a', { title: 'Edited after' });
     await restoreBoard(snapshot!);
     expect(await db.notes.get('a')).toMatchObject({ title: 'Edited after', columnId: todo.id, trashedAt: null });
+  });
+});
+
+describe('ordering and stars', () => {
+  const order = async () => (await db.boards.orderBy('position').toArray()).map((b) => b.name);
+
+  it('starts boards unstarred and stars them as an edit', async () => {
+    const board = await createBoard('A', 'empty');
+    expect(board.starred).toBe(false);
+    vi.spyOn(Date, 'now').mockReturnValue(board.updatedAt + 10);
+    await starBoard(board.id, true);
+    expect(await db.boards.get(board.id)).toMatchObject({ starred: true, updatedAt: board.updatedAt + 10 });
+  });
+
+  it('moves a board within its group, leaving the other group in place', async () => {
+    const a = await createBoard('A', 'empty');
+    await createBoard('B', 'empty');
+    const c = await createBoard('C', 'empty');
+    const d = await createBoard('D', 'empty');
+    await starBoard(a.id, true);
+    await starBoard(c.id, true);
+    // Unstarred group is B, D: move D first.
+    await moveBoardTo(d.id, 0);
+    expect(await order()).toEqual(['A', 'D', 'C', 'B']);
+    // Starred group is A, C: move A after C.
+    await moveBoardTo(a.id, 1);
+    expect(await order()).toEqual(['C', 'D', 'A', 'B']);
+  });
+
+  it('clamps the index and ignores missing boards', async () => {
+    await createBoard('A', 'empty');
+    const b = await createBoard('B', 'empty');
+    await moveBoardTo(b.id, -5);
+    expect(await order()).toEqual(['B', 'A']);
+    await moveBoardTo('missing', 0);
+    expect(await order()).toEqual(['B', 'A']);
+  });
+
+  it('moves a column to any index', async () => {
+    const board = await createBoard('P', 'pipeline');
+    const [ideas] = await sortedColumns(board.id);
+    await moveColumnTo(ideas.id, 3);
+    expect(await names(board.id)).toEqual(['Next', 'In progress', 'Review', 'Ideas', 'Done*']);
+    await moveColumnTo(ideas.id, 99);
+    expect(await names(board.id)).toEqual(['Next', 'In progress', 'Review', 'Done*', 'Ideas']);
   });
 });
