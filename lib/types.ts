@@ -52,6 +52,32 @@ export type Attachment = {
 // The full-size image, read only when it is shown.
 export type ImageFile = { id: string; bytes: ArrayBuffer };
 
+export type RepeatUnit = 'day' | 'week' | 'month' | 'year';
+
+export type RepeatEnd =
+  | { type: 'never' }
+  | { type: 'on'; date: string } // last allowed date, inclusive
+  | { type: 'after'; count: number; done: number }; // done = dates already moved past
+
+// Dates are local calendar dates ('YYYY-MM-DD') and times local 24-hour
+// times ('HH:MM'), so 6 pm stays 6 pm across clock changes and time zones.
+export type Repeat = {
+  every: number; // 1–99
+  unit: RepeatUnit;
+  weekdays: number[]; // unit 'week' only; 0 = Sunday; [] = the anchor's weekday
+  anchor: string; // the date the repeat started from
+  ends: RepeatEnd;
+};
+
+export type Due = {
+  date: string;
+  time: string | null; // null: alerts at 09:00, overdue from the next day
+  repeat: Repeat | null;
+  doneAt: number | null; // set by Mark done
+  alertedAt: number | null; // the alert for this date (or snooze) has been shown
+  snoozedUntil: number | null;
+};
+
 // Fields the board and editor change directly.
 export type NoteChanges = Partial<
   Pick<Note, 'kind' | 'title' | 'content' | 'items' | 'color' | 'labelIds' | 'pinned' | 'archived' | 'position'>
