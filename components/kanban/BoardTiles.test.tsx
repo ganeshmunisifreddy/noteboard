@@ -76,6 +76,16 @@ describe('BoardTiles', () => {
     expect(screen.getByText('Moved B first')).toHaveAttribute('role', 'status');
   });
 
+  it('offers templates as option cards that work as radios', async () => {
+    const user = userEvent.setup();
+    render(<BoardTiles onOpen={vi.fn()} />);
+    await user.click(await screen.findByRole('button', { name: 'New board' }));
+    const pipeline = screen.getByRole('radio', { name: 'Pipeline' });
+    await user.click(pipeline);
+    expect(pipeline).toBeChecked();
+    expect(pipeline.closest('[data-option]')).toHaveAttribute('data-checked', 'true');
+  });
+
   it('creates one board even when Create is pressed twice', async () => {
     const user = userEvent.setup();
     const onOpen = vi.fn();

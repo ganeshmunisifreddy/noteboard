@@ -72,7 +72,7 @@ describe('board page', () => {
     expect(within(doing).getByText('Wireframes')).toBeInTheDocument();
     expect(within(doing).getByText('1/2')).toBeInTheDocument();
     expect(within(doing).getByRole('button', { name: 'Open note: Wireframes' })).toHaveAccessibleDescription(/1 of 2 done/);
-    expect(within(screen.getByRole('region', { name: /To do/ })).getByText('No cards')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: /To do/ })).queryByText('No cards')).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: /Done/ })).toHaveAccessibleName(/Done column/);
   });
 
@@ -186,6 +186,14 @@ describe('board page', () => {
     await waitFor(async () => expect((await db.boards.get(board.id))?.starred).toBe(true));
     await user.click(screen.getByRole('button', { name: 'Board actions' }));
     expect(await screen.findByRole('menuitem', { name: 'Unstar board' })).toBeInTheDocument();
+  });
+
+  it('leaves empty columns quiet, and keeps header button names for phones', async () => {
+    const { board } = await setup();
+    open(board.id);
+    await screen.findByText('Wireframes');
+    expect(screen.queryByText('No cards')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add card' })).toHaveAttribute('aria-label', 'Add card');
   });
 
   it('renames, moves, marks Done and deletes columns', async () => {

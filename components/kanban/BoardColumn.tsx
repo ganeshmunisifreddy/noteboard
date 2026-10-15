@@ -148,7 +148,8 @@ const BoardColumn = ({
             );
           })}
         </ol>
-        {ids.length === 0 && <p className={styles.noCards}>{total > 0 ? 'No matching cards' : 'No cards'}</p>}
+        {/* An empty column stays quiet; only a filter hiding its cards is worth saying. */}
+        {ids.length === 0 && total > 0 && <p className={styles.noCards}>No matching cards</p>}
       </ColumnDrop>
       <div className={styles.addRow}>
         {adding ? (
