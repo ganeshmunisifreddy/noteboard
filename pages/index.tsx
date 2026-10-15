@@ -181,6 +181,7 @@ const Home: NextPage = () => {
             filter={filter}
             labelName={filter.labelId ? labelNames.get(filter.labelId) : undefined}
             total={total}
+            loaded={loaded}
             onView={(view) => showFilter({ view, labelId: null })}
             onEmptyTrash={() => void clearTrash()}
           />

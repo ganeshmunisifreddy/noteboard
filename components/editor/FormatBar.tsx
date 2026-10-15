@@ -26,11 +26,12 @@ type Props = {
   linkOpen: boolean;
   onLinkOpenChange: (open: boolean) => void;
   docked?: boolean; // phones: fixed just above the on-screen keyboard
+  onFocusWithin?: (inside: boolean) => void; // keyboard focus entering or leaving the bar
 };
 
 type Action = { label: string; icon: ReactNode; pressed?: boolean; apply: (chain: ChainedCommands) => ChainedCommands };
 
-const FormatBar = ({ editor, linkOpen, onLinkOpenChange, docked = false }: Props) => {
+const FormatBar = ({ editor, linkOpen, onLinkOpenChange, docked = false, onFocusWithin }: Props) => {
   const keyboard = useKeyboardInset();
   const active = useEditorState({
     editor,
@@ -77,6 +78,10 @@ const FormatBar = ({ editor, linkOpen, onLinkOpenChange, docked = false }: Props
       aria-label='Formatting'
       data-docked={docked ? 'true' : undefined}
       style={docked ? { bottom: keyboard } : undefined}
+      onFocus={() => onFocusWithin?.(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onFocusWithin?.(false);
+      }}
     >
       {groups.map((group, index) => (
         <Fragment key={index}>

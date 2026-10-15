@@ -157,18 +157,26 @@
   opacity: 1;
 }
 
-/* With a mouse the actions overlay the bottom of the card on hover, so they
-   don't leave empty space below the content. Touch screens keep them in flow. */
+/* A card of images only: the actions sit over the bottom of the images on
+   hover (nothing there to tick or read), so there's no strip below them.
+   Every other card keeps them in flow, so they never cover a tick box. */
 @media (hover: hover) {
-  .actions {
+  .card[data-only-images] .actions {
     position: absolute;
-    right: 4px;
-    bottom: 4px;
-    left: 4px;
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
     margin: 0;
-    padding-top: 12px;
-    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-    background: linear-gradient(to bottom, transparent, var(--note-bg) 12px);
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+    box-shadow: var(--shadow-card);
+  }
+}
+
+/* Touch screens: 44px buttons wrap rather than spill out of narrow cards. */
+@media (pointer: coarse) {
+  .actions {
+    flex-wrap: wrap;
   }
 }
 
@@ -210,6 +218,6 @@
 
 .mark {
   border-radius: 2px;
-  background: var(--accent-soft);
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
   color: inherit;
 }

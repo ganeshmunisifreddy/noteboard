@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import EditorToolbar from './EditorToolbar';
@@ -76,5 +76,7 @@ describe('EditorToolbar', () => {
     expect(screen.getByRole('menuitem', { name: 'Add image' })).toBeInTheDocument();
     await user.click(screen.getByRole('menuitem', { name: 'Labels…' }));
     expect(await screen.findByRole('dialog', { name: 'Labels' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(within(bar).getByRole('button', { name: 'More actions' })).toHaveFocus());
   });
 });

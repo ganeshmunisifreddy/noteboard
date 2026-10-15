@@ -20,3 +20,9 @@ describe('splitMatches', () => {
     expect(splitMatches('text', '  ')).toEqual([{ text: 'text', match: false }]);
   });
 });
+
+describe('splitMatches with case changes that change length', () => {
+  it('marks the right characters', () => {
+    expect(splitMatches('İstanbul', 'stan').find((part) => part.match)?.text).toBe('stan');
+  });
+});

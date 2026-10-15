@@ -2,7 +2,8 @@
   --sidebar-width: 248px;
 }
 
-.shell[data-sidebar='rail'] {
+.shell[data-sidebar='rail'],
+:global(html[data-sidebar='rail']) .shell {
   --sidebar-width: 72px;
 }
 

@@ -213,3 +213,17 @@ describe('image-only cards', () => {
     expect(screen.getByRole('article')).toHaveAttribute('data-only-images', 'true');
   });
 });
+
+describe('tick box names and numbered lists', () => {
+  it('names a tick box by its plain text, and leaves numbered "[ ]" lines as text', async () => {
+    const note = await createNote({ kind: 'note', title: 'T', content: '- [ ] **milk** &amp; eggs\n\n1. [ ] one' });
+    render(
+      <ToastProvider>
+        <NoteCard note={note} labelNames={[]} mode='board' onOpen={vi.fn()} />
+      </ToastProvider>,
+    );
+    expect(screen.getByRole('checkbox', { name: 'Mark ‘milk & eggs’ done' })).toBeInTheDocument();
+    expect(screen.getAllByRole('checkbox')).toHaveLength(1);
+    expect(screen.getByText(/\[ \] one/)).toBeInTheDocument();
+  });
+});

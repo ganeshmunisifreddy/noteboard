@@ -100,7 +100,7 @@
   pointer-events: auto;
 }
 
+/* Crossed out at full contrast, as ticked list items are. */
 .task[data-checked='true'] > span {
   text-decoration: line-through;
-  opacity: 0.7;
 }

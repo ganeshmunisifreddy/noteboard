@@ -1,4 +1,4 @@
-import { Check, SquareKanban, Tag } from 'lucide-react';
+import { SquareKanban, Tag } from 'lucide-react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
@@ -252,18 +252,22 @@ const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
 
   // ⋮ › Board: each board's columns (the current one ticked), and Remove from board.
   const boardColumns = useBoardColumns() ?? [];
-  const boardItems: MenuItem[] = boardColumns.map(({ board, columns }) => ({
-    key: board.id,
-    label: board.name,
-    items: columns.map((column) => ({
-      key: column.id,
-      label: column.name,
-      icon: column.id === stored?.columnId ? <Check size={16} aria-hidden /> : undefined,
-      onSelect: () => void pickColumn(column.id),
-    })),
-  }));
+  const boardItems: MenuItem[] = boardColumns.map(({ board, columns }) =>
+    columns.length === 0
+      ? { key: board.id, label: board.name, disabled: true }
+      : {
+          key: board.id,
+          label: board.name,
+          items: columns.map((column) => ({
+            key: column.id,
+            label: column.name,
+            checked: column.id === stored?.columnId,
+            onSelect: () => void pickColumn(column.id),
+          })),
+        },
+  );
   if (stored?.columnId) boardItems.push({ label: 'Remove from board', onSelect: () => void removeFromBoard(noteId) });
-  if (boardItems.length === 0) boardItems.push({ label: 'No boards yet', onSelect: () => {} });
+  if (boardItems.length === 0) boardItems.push({ label: 'No boards yet', disabled: true });
 
   const placeNames = usePlaceNames();
   const place = stored?.columnId ? placeNames?.get(stored.columnId) : undefined;

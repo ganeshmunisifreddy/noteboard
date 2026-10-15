@@ -12,9 +12,10 @@ type Props = {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   anchor?: ReactElement;
+  onCloseAutoFocus?: (event: Event) => void; // where focus goes with no trigger to return to
 };
 
-const LabelPicker = ({ selectedIds, onChange, trigger, open, onOpenChange, anchor }: Props) => {
+const LabelPicker = ({ selectedIds, onChange, trigger, open, onOpenChange, anchor, onCloseAutoFocus }: Props) => {
   const labels = useLabels() ?? [];
   const [text, setText] = useState('');
   const needle = text.trim().toLowerCase();
@@ -34,7 +35,7 @@ const LabelPicker = ({ selectedIds, onChange, trigger, open, onOpenChange, ancho
     <Popover.Root open={open} onOpenChange={onOpenChange}>
       {anchor ? <Popover.Anchor asChild>{anchor}</Popover.Anchor> : <Popover.Trigger asChild>{trigger}</Popover.Trigger>}
       <Popover.Portal>
-        <Popover.Content className={styles.content} sideOffset={6} aria-label='Labels'>
+        <Popover.Content className={styles.content} sideOffset={6} aria-label='Labels' onCloseAutoFocus={onCloseAutoFocus}>
           <input
             className={styles.filter}
             value={text}

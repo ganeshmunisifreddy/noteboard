@@ -113,6 +113,8 @@ const RichEditor = ({ value, onChange, readOnly, autoFocus, barSlot }: RichEdito
   // On a phone the formatting bar docks above the keyboard while typing.
   const phone = useMediaQuery('(max-width: 600px)');
   const [focused, setFocused] = useState(false);
+  // Keyboard users tab from the text into the bar; it stays while they're in it.
+  const [barFocused, setBarFocused] = useState(false);
   useEffect(() => {
     const onFocus = () => setFocused(true);
     const onBlur = () => setFocused(false);
@@ -138,7 +140,8 @@ const RichEditor = ({ value, onChange, readOnly, autoFocus, barSlot }: RichEdito
             editor={editor}
             linkOpen={linkOpen}
             onLinkOpenChange={setLinkOpen}
-            docked={phone && (focused || linkOpen)}
+            docked={phone && (focused || barFocused || linkOpen)}
+            onFocusWithin={setBarFocused}
           />,
           barSlot,
         )}

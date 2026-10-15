@@ -1,6 +1,7 @@
 import { Dialog } from 'radix-ui';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import styles from './AppShell.module.css';
+import { useMediaQuery } from '../../lib/useMediaQuery';
 import Sidebar from './Sidebar';
 
 const KEY = 'sidebar';
@@ -21,11 +22,14 @@ const writeRail = (rail: boolean) => {
   } catch {
     // Only a preference.
   }
+  // _document sets this before first paint, so the rail never flashes open.
+  if (rail) document.documentElement.setAttribute('data-sidebar', 'rail');
+  else document.documentElement.removeAttribute('data-sidebar');
   listeners.forEach((listener) => listener());
 };
 
 type Props = {
-  renderTop: (onMenu: () => void) => ReactNode;
+  renderTop: (onMenu: (opener: HTMLElement) => void) => ReactNode;
   onEditLabels: () => void;
   children: ReactNode;
 };
@@ -44,12 +48,14 @@ const AppShell = ({ renderTop, onEditLabels, children }: Props) => {
     readRail,
     () => false,
   );
+  const phone = useMediaQuery('(max-width: 600px)');
   const [drawer, setDrawer] = useState(false);
   // Focus goes back here when the drawer closes.
   const [opener, setOpener] = useState<HTMLElement | null>(null);
 
-  const onMenu = () => {
-    setOpener(document.activeElement as HTMLElement | null);
+  // The ☰ button itself (Safari doesn't focus buttons on click).
+  const onMenu = (button: HTMLElement) => {
+    setOpener(button);
     if (window.matchMedia(DESKTOP).matches) writeRail(!rail);
     else setDrawer(true);
   };
@@ -59,7 +65,8 @@ const AppShell = ({ renderTop, onEditLabels, children }: Props) => {
       {renderTop(onMenu)}
       <div className={styles.body}>
         <aside className={styles.side}>
-          <Sidebar variant='side' onEditLabels={onEditLabels} />
+          {/* Phones use the drawer; CSS hides this before the media query is known. */}
+          {!phone && <Sidebar variant='side' onEditLabels={onEditLabels} />}
         </aside>
         <div className={styles.content}>{children}</div>
       </div>

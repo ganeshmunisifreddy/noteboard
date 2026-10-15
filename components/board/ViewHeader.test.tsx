@@ -48,4 +48,13 @@ describe('ViewHeader', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Empty trash' }));
     expect(onEmptyTrash).toHaveBeenCalled();
   });
+
+  it('keeps the results status mounted, and counts only once loaded', () => {
+    const { rerender } = render(<ViewHeader filter={f({})} total={0} onView={vi.fn()} onEmptyTrash={vi.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent('');
+    rerender(<ViewHeader filter={f({ query: 'qa' })} total={0} loaded={false} onView={vi.fn()} onEmptyTrash={vi.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent('');
+    rerender(<ViewHeader filter={f({ query: 'qa' })} total={1} loaded onView={vi.fn()} onEmptyTrash={vi.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent('1 note');
+  });
 });

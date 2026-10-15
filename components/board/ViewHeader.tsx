@@ -7,6 +7,7 @@ type Props = {
   filter: BoardFilter;
   labelName?: string;
   total: number;
+  loaded?: boolean; // the count shows once the notes are in
   onView: (view: BoardView) => void;
   onEmptyTrash: () => void;
 };
@@ -18,7 +19,7 @@ const KINDS: { view: BoardView; label: string }[] = [
 ];
 
 // The page's heading: the section's name, or the search and its count.
-const ViewHeader = ({ filter, labelName, total, onView, onEmptyTrash }: Props) => {
+const ViewHeader = ({ filter, labelName, total, loaded = true, onView, onEmptyTrash }: Props) => {
   const query = filter.query.trim();
   const onNotes =
     !query && filter.labelId === null && (filter.view === 'all' || filter.view === 'notes' || filter.view === 'lists');
@@ -26,11 +27,10 @@ const ViewHeader = ({ filter, labelName, total, onView, onEmptyTrash }: Props) =
     <div className={styles.header}>
       <div className={styles.row}>
         <h1 className={styles.title}>{query ? `Results for “${query}”` : viewTitle(filter, labelName)}</h1>
-        {query && (
-          <p role='status' className={styles.count}>
-            {total === 1 ? '1 note' : `${total} notes`}
-          </p>
-        )}
+        {/* Always there (empty when not searching), so each new count is announced. */}
+        <p role='status' className={styles.count}>
+          {query && loaded ? (total === 1 ? '1 note' : `${total} notes`) : ''}
+        </p>
         {onNotes && (
           <RadioGroup.Root
             className={styles.switch}

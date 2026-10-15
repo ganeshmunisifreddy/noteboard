@@ -52,7 +52,7 @@
 .item[aria-current='page'] {
   background: var(--accent-soft);
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-hover); /* --accent is under 4.5:1 on --accent-soft */
 }
 
 .text {

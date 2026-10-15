@@ -11,7 +11,7 @@ type Props = {
   searchKey: string; // remounts the input once the URL is known
   onQueryChange: (query: string) => void;
   onNew: (kind: NoteKind) => void;
-  onMenu: () => void; // ☰: collapse the sidebar, or open it as a drawer
+  onMenu: (button: HTMLElement) => void; // ☰: collapse the sidebar, or open it as a drawer
   // App-wide options, after the New button (the theme button and the ⋯ menu).
   children?: ReactNode;
 };
@@ -26,7 +26,7 @@ const TopBar = ({ initialQuery, searchKey, onQueryChange, onNew, onMenu, childre
     <header className={styles.bar}>
       {/* As wide as the sidebar, so the search box lines up with the notes. */}
       <div className={styles.brand}>
-        <IconButton label='Main menu' onClick={onMenu}>
+        <IconButton label='Main menu' onClick={(e) => onMenu(e.currentTarget)}>
           <MenuIcon size={20} aria-hidden />
         </IconButton>
         <span className={styles.logo}>Noteboard</span>

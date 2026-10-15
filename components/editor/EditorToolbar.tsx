@@ -94,7 +94,7 @@ const EditorToolbar = ({
     <Menu
       items={more}
       trigger={
-        <IconButton label='More actions'>
+        <IconButton label='More actions' data-more-actions=''>
           <EllipsisVertical size={18} aria-hidden />
         </IconButton>
       }
@@ -143,6 +143,11 @@ const EditorToolbar = ({
                 onChange={(labelIds) => onChange({ labelIds })}
                 open={labelsOpen}
                 onOpenChange={setLabelsOpen}
+                onCloseAutoFocus={(event) => {
+                  // Opened from ⋮, so focus goes back there.
+                  event.preventDefault();
+                  document.querySelector<HTMLElement>('[data-more-actions]')?.focus();
+                }}
                 anchor={<span className={styles.anchor}>{moreMenu}</span>}
               />
             ) : (

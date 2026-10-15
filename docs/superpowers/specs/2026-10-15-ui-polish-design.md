@@ -39,7 +39,7 @@ What changes is look, layout and flow. Data, URLs, backups and features stay as 
 
 - **Desktop (≥ 1024 px):** a 248 px sidebar shows by default. ☰ in the header collapses it to a 72 px icon rail (each icon has a tooltip and an accessible name). The choice is remembered (`localStorage`, key `sidebar`: `open` / `rail`).
 - **Tablet (600–1023 px):** the icon rail shows by default. ☰ opens the full sidebar as an overlay (closes on Escape, on picking an item, or on clicking outside).
-- **Phone (< 600 px):** no sidebar. ☰ opens a drawer (a modal side sheet) with the same items; picking an item closes it; focus returns to ☰.
+- **Phone (≤ 600 px, the app's existing breakpoint):** no sidebar. ☰ opens a drawer (a modal side sheet) with the same items; picking an item closes it; focus returns to ☰.
 - Items, top to bottom:
   1. **Notes** → `/` (all notes and lists).
   2. **Upcoming** → `/?view=upcoming`, with a badge counting notes that are overdue or due today (hidden at 0; accessible name e.g. "Upcoming, 2 due").
@@ -54,7 +54,7 @@ What changes is look, layout and flow. Data, URLs, backups and features stay as 
 - `☰ · Noteboard · [Search notes] · + New · theme · ⋮`
 - The search box's left edge lines up with the content column; it grows up to 640 px.
 - ⋮ keeps: Back up notes, Restore from backup…, Export as Markdown, Use device theme. (Archive, Trash and Manage labels move to the sidebar.)
-- On a phone: ☰ · search · ⋮, with + New as the existing floating button.
+- On a phone: ☰ · search · theme · ⋮, with + New as the existing floating button.
 
 ### Page headings
 
@@ -94,7 +94,7 @@ What changes is look, layout and flow. Data, URLs, backups and features stay as 
 
 ### Colour picker
 
-- All 7 swatches on one row (the popover sizes to fit; swatches 32 px).
+- All 7 swatches on one row (the popover sizes to fit; swatches 32 px, also on touch: 7 × 44 px wouldn't fit a 360 px phone, and 32 px meets WCAG 2.5.8).
 
 ### Dark theme
 

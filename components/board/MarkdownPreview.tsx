@@ -1,6 +1,6 @@
 import type { Token, Tokens } from 'marked';
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
-import { decodeEntities, parseMarkdown } from '../../lib/markdown';
+import { decodeEntities, parseMarkdown, toPlainText } from '../../lib/markdown';
 import Highlight from './Highlight';
 import styles from './MarkdownPreview.module.css';
 
@@ -41,12 +41,21 @@ const renderer = ({ onToggleTask, highlight }: RenderOptions) => {
   const blocks = (tokens: Token[]): ReactNode =>
     tokens.map((token, index) => <Fragment key={index}>{block(token)}</Fragment>);
 
-  const listItem = (item: Tokens.ListItem, index: number) => {
+  const listItem = (item: Tokens.ListItem, index: number, ordered: boolean) => {
     if (!item.task) return <li key={index}>{blocks(item.tokens)}</li>;
-    const number = task++;
-    const label = item.text.replace(/^\s*\[[ xX]\]\s*/, '').split('\n')[0] || 'item';
-    // marked puts a checkbox token first in the item; draw a real one instead.
+    // marked puts a checkbox token first in the item; draw our own instead.
     const rest = item.tokens.filter((token) => token.type !== 'checkbox');
+    // Numbered lists have no tick boxes in the editor, so none here either.
+    if (ordered) {
+      return (
+        <li key={index}>
+          {`[${item.checked ? 'x' : ' '}] `}
+          {blocks(rest)}
+        </li>
+      );
+    }
+    const number = task++;
+    const label = toPlainText(item.text.replace(/^\s*\[[ xX]\]\s*/, '')).split('\n')[0] || 'item';
     return (
       <li key={index} className={styles.task} data-checked={item.checked ? 'true' : undefined}>
         <input
@@ -79,7 +88,7 @@ const renderer = ({ onToggleTask, highlight }: RenderOptions) => {
         return 'tokens' in token && token.tokens ? inline(token.tokens) : text(textOf(token));
       case 'list': {
         const list = token as Tokens.List;
-        const items = list.items.map(listItem);
+        const items = list.items.map((item, index) => listItem(item, index, list.ordered));
         return list.ordered ? (
           <ol start={typeof list.start === 'number' ? list.start : undefined}>{items}</ol>
         ) : (

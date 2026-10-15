@@ -170,6 +170,10 @@ describe('the formatting bar on a phone', () => {
     expect(bar).not.toHaveAttribute('data-docked');
     screen.getByRole('textbox', { name: 'Note' }).focus();
     await waitFor(() => expect(bar).toHaveAttribute('data-docked', 'true'));
+    // Keyboard users move from the text into the bar: it stays.
+    screen.getByRole('button', { name: 'Bold' }).focus();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(bar).toHaveAttribute('data-docked', 'true');
     slot.remove();
   });
 });

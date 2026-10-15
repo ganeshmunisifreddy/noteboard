@@ -119,6 +119,5 @@
 }
 
 .prose :global(li[data-checked='true'] > div) {
-  color: color-mix(in srgb, currentColor 60%, transparent);
   text-decoration: line-through;
 }

@@ -22,6 +22,10 @@
   color: var(--text-muted);
 }
 
+.count:empty {
+  display: none;
+}
+
 .switch {
   display: inline-flex;
   margin-left: auto;

@@ -14,7 +14,7 @@ class MyDocument extends Document {
               flash while they load. Keep in sync with lib/theme.ts. */}
           <script
             dangerouslySetInnerHTML={{
-              __html: `try{var s=localStorage,d=document.documentElement,t=s.getItem("theme");d.dataset.theme=t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";var l=JSON.parse(s.getItem("notes")||"[]");if(s.getItem("hasNotes")||(Array.isArray(l)&&l.length))d.setAttribute("data-has-notes","")}catch(e){}`,
+              __html: `try{var s=localStorage,d=document.documentElement,t=s.getItem("theme");d.dataset.theme=t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";var l=JSON.parse(s.getItem("notes")||"[]");if(s.getItem("hasNotes")||(Array.isArray(l)&&l.length))d.setAttribute("data-has-notes","");if(s.getItem("sidebar")==="rail")d.setAttribute("data-sidebar","rail")}catch(e){}`,
             }}
           />
         </Head>

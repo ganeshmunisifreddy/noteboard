@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addDays, localDate } from '../../lib/calendar';
@@ -81,9 +81,9 @@ describe('Sidebar', () => {
 });
 
 describe('AppShell', () => {
-  const top = (onMenu: () => void) => (
+  const top = (onMenu: (opener: HTMLElement) => void) => (
     <header>
-      <button type='button' onClick={onMenu}>
+      <button type='button' onClick={(e) => onMenu(e.currentTarget)}>
         Main menu
       </button>
     </header>
@@ -121,5 +121,39 @@ describe('AppShell', () => {
     await user.click(within(drawer).getByRole('link', { name: 'Trash' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     await waitFor(() => expect(menu).toHaveFocus());
+  });
+
+  it('returns focus to ☰ even when the click didn’t focus it (Safari)', async () => {
+    desktop(false);
+    render(
+      <AppShell renderTop={top} onEditLabels={vi.fn()}>
+        body
+      </AppShell>,
+    );
+    const menu = screen.getByRole('button', { name: 'Main menu' });
+    fireEvent.click(menu); // a click that doesn't move focus
+    const drawer = await screen.findByRole('dialog', { name: 'Sections' });
+    fireEvent.keyDown(drawer, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(menu).toHaveFocus());
+  });
+
+  it('doesn’t keep a hidden sidebar on phones', () => {
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('max-width: 600px'),
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
+    render(
+      <AppShell renderTop={top} onEditLabels={vi.fn()}>
+        body
+      </AppShell>,
+    );
+    expect(screen.queryByRole('navigation', { name: 'Sections' })).not.toBeInTheDocument();
   });
 });
