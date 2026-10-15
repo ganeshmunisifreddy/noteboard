@@ -82,7 +82,7 @@ Rules:
 
 - **Colour ›**: the note colours; a tick on the current one. Changing it is an edit (updates `updatedAt`).
 - **Labels ›**: a checkbox per label; selecting toggles it and keeps the menu open. With no labels, the submenu shows "No labels yet".
-- **Date…**: opens `DatePopover` anchored to the card's ⋮ button, with the same save, remove and Mark done behaviour as the editor.
+- **Date…**: opens `DatePopover` anchored to the card's ⋮ button, with the same save and remove behaviour as the editor (Remove has Undo).
 - **Move ›**: Move up, Move down, Move to top, Move to bottom (items that do not apply are left out), then "Move to <column>" for each other column. Same behaviour as today's Move menu.
 - **Move to board ›**: one submenu per other board, listing its columns; the card goes to the bottom of the chosen column (`placeAtEnd`), with the Done rules (entering a Done column marks an open date done; leaving one reopens a done date). Toast "Moved to <board> · <column>" with Undo (`putBackPlace`). Hidden when there are no other boards.
 - **Archive**: sets `archived`; the card leaves the board and appears in the Archive view with its place tag; Unarchive puts it back in its place. Toast with Undo.
@@ -100,8 +100,8 @@ Rules:
 
 ### Ordering
 
-- **Columns**: drag a column by its header (name area). Same activation as cards: mouse after 5 px, touch after a 250 ms press. The new position is between its neighbours; only the moved column is written (columns are renumbered when the gaps run out). The menu's Move left / Move right stay.
-- **Boards**: the Boards page shows "Starred" (when any board is starred), then "All boards". Tiles drag within their group; a drop in the other group is ignored. Each tile has a ⋮ with Move earlier / Move later (left out when not applicable) and a ☆/★ button ("Star board X" / "Unstar board X"). Starring or unstarring keeps the board's `position`, so it joins the other group at its relative place. The board page menu has Star board / Unstar board.
+- **Columns**: drag a column by its header (name area). Same activation as cards: mouse after 5 px, touch after a 250 ms press. Columns are renumbered 0, 1, 2, … in the new order, writing only the columns whose position changed (as Move left / Move right do). The menu's Move left / Move right stay.
+- **Boards**: the Boards page shows "Starred" (when any board is starred), then "All boards". Tiles drag within their group; a drop in the other group is ignored. Each tile has a ⋮ with Move earlier / Move later (left out when not applicable) and a ☆/★ toggle button ("Star X", `aria-pressed`). Starring or unstarring keeps the board's `position`, so it joins the other group at its relative place. The board page menu has Star board / Unstar board.
 - Board order and star are edits (`updatedAt`), so the newest wins on merge.
 
 ### Integrity
