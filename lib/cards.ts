@@ -115,6 +115,16 @@ export const moveIndex = (ids: string[], id: string, move: CardMove): number | n
   return target < 0 || target >= ids.length || target === index ? null : target;
 };
 
+// A menu move among the cards on screen (a filter may hide some): the card
+// passes the shown card next to it; hidden cards keep their order.
+export const moveShown = (ids: string[], shown: string[], id: string, move: CardMove): string[] | null => {
+  const index = moveIndex(shown, id, move);
+  if (index === null) return null;
+  const rest = ids.filter((x) => x !== id);
+  const at = rest.indexOf(shown[index]) + (index > shown.indexOf(id) ? 1 : 0);
+  return [...rest.slice(0, at), id, ...rest.slice(at)];
+};
+
 export type DropTarget = { type: 'card'; id: string } | { type: 'column'; id: string };
 
 // The board's order while a card is dragged: over a card it takes that

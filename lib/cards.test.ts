@@ -4,6 +4,7 @@ import { localDate, localMoment } from './calendar';
 import {
   moveIndex,
   moveInColumns,
+  moveShown,
   newCardPlace,
   placeAtEnd,
   placeNote,
@@ -188,5 +189,23 @@ describe('new cards whose column is gone', () => {
       boardPosition: 0,
     });
     expect(await newCardPlace('gone', 'bottom', 'no-board')).toBeNull();
+  });
+});
+
+describe('moveShown', () => {
+  it('moves like moveIndex when nothing is hidden', () => {
+    const ids = ['a', 'b', 'c'];
+    expect(moveShown(ids, ids, 'a', 'down')).toEqual(['b', 'a', 'c']);
+    expect(moveShown(ids, ids, 'c', 'top')).toEqual(['c', 'a', 'b']);
+    expect(moveShown(ids, ids, 'a', 'up')).toBeNull();
+  });
+
+  it('passes the next shown card and keeps hidden cards in order', () => {
+    const ids = ['a', 'h1', 'b', 'h2', 'c'];
+    const shown = ['a', 'b', 'c'];
+    expect(moveShown(ids, shown, 'a', 'down')).toEqual(['h1', 'b', 'a', 'h2', 'c']);
+    expect(moveShown(ids, shown, 'c', 'up')).toEqual(['a', 'h1', 'c', 'b', 'h2']);
+    expect(moveShown(ids, shown, 'b', 'bottom')).toEqual(['a', 'h1', 'h2', 'c', 'b']);
+    expect(moveShown(ids, shown, 'b', 'top')).toEqual(['b', 'a', 'h1', 'h2', 'c']);
   });
 });
