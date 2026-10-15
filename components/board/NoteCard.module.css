@@ -2,8 +2,8 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 14px 16px 6px;
+  gap: 6px;
+  padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--note-bg);
@@ -58,7 +58,7 @@
 }
 
 .title {
-  font-size: var(--text-md);
+  font-size: 15px;
   font-weight: 700;
   color: var(--text);
   overflow-wrap: anywhere;
@@ -157,10 +157,35 @@
   opacity: 1;
 }
 
+/* With a mouse the actions overlay the bottom of the card on hover, so they
+   don't leave empty space below the content. Touch screens keep them in flow. */
+@media (hover: hover) {
+  .actions {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    left: 4px;
+    margin: 0;
+    padding-top: 12px;
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    background: linear-gradient(to bottom, transparent, var(--note-bg) 12px);
+  }
+}
+
 @media (hover: none) {
   .actions {
     opacity: 1;
   }
+}
+
+.card[data-only-images] {
+  padding-bottom: 0;
+}
+
+/* The image grid (after the open button) takes the bottom corners too. Not
+   overflow: hidden on the card, which would clip its focus ring. */
+.card[data-only-images] > :nth-child(2) {
+  border-radius: var(--radius-lg);
 }
 
 .srOnly {

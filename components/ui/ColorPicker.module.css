@@ -1,9 +1,7 @@
 .content {
   z-index: 50;
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
-  max-width: 280px;
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);

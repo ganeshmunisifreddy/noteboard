@@ -193,3 +193,23 @@ describe('search matches on cards', () => {
     expect([...marks].map((m) => m.textContent)).toEqual(['Milk', 'milk']);
   });
 });
+
+describe('image-only cards', () => {
+  it('shows only the images (no empty body, no "Empty note")', async () => {
+    const note = await createNote({ kind: 'note' });
+    render(
+      <ToastProvider>
+        <NoteCard
+          note={note}
+          labelNames={[]}
+          mode='board'
+          onOpen={vi.fn()}
+          images={[makeAttachment({ noteId: note.id })]}
+          imageCount={1}
+        />
+      </ToastProvider>,
+    );
+    expect(screen.queryByText('Empty note')).not.toBeInTheDocument();
+    expect(screen.getByRole('article')).toHaveAttribute('data-only-images', 'true');
+  });
+});

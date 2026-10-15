@@ -85,7 +85,16 @@ const NoteCard = ({
   };
 
   return (
-    <article className={styles.card} data-color={note.color}>
+    <article
+      className={styles.card}
+      data-color={note.color}
+      // Images and nothing else: they reach the card's edges.
+      data-only-images={
+        imageCount > 0 && !note.title && !showContent && !showItems && labelNames.length === 0 && !place && !note.due
+          ? 'true'
+          : undefined
+      }
+    >
       {/* Covers the card so a click anywhere opens it; checkboxes and
           actions sit above it and don't bubble into it. */}
       <button

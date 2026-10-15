@@ -84,8 +84,8 @@
 }
 
 [data-theme='dark'] [data-color='yellow'] {
-  --note-bg: #3b3418;
-  --note-ink: #f1e2a8;
+  --note-bg: #4d3a10;
+  --note-ink: #f8e2a0;
 }
 [data-theme='dark'] [data-color='green'] {
   --note-bg: #1e3a2a;

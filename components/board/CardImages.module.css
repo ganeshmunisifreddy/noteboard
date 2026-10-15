@@ -1,9 +1,9 @@
-/* Edge to edge at the top of the card (the card has 14px/16px padding). */
+/* Edge to edge at the top of the card (the card has 12px/14px padding). */
 .images {
   position: relative;
   display: grid;
   gap: 2px;
-  margin: -14px -16px 0;
+  margin: -12px -14px 0;
   overflow: hidden;
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   pointer-events: none;
