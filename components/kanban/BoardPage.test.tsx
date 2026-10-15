@@ -153,6 +153,9 @@ describe('board page', () => {
     await waitFor(async () => expect(await db.boards.count()).toBe(0));
     expect((await db.notes.get('n1'))?.trashedAt).not.toBeNull();
     expect(router.push).toHaveBeenLastCalledWith({ pathname: '/', query: { view: 'boards' } });
+    // The modal blocks pointer events on the page until it has fully closed.
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(document.body.style.pointerEvents).not.toBe('none'));
     await act(async () => {
       await user.click(await screen.findByRole('button', { name: 'Undo' }));
     });
