@@ -7,6 +7,7 @@ import {
   Heading2,
   Italic,
   List,
+  ListChecks,
   ListOrdered,
   Minus,
   Quote,
@@ -35,6 +36,7 @@ const FormatBar = ({ editor, linkOpen, onLinkOpenChange }: Props) => {
       code: current.isActive('code'),
       bulletList: current.isActive('bulletList'),
       orderedList: current.isActive('orderedList'),
+      taskList: current.isActive('taskList'),
       blockquote: current.isActive('blockquote'),
       codeBlock: current.isActive('codeBlock'),
       link: current.isActive('link'),
@@ -55,6 +57,7 @@ const FormatBar = ({ editor, linkOpen, onLinkOpenChange }: Props) => {
     [
       { label: 'Bullet list', icon: <List size={18} aria-hidden />, pressed: active.bulletList, apply: (c) => c.toggleBulletList() },
       { label: 'Numbered list', icon: <ListOrdered size={18} aria-hidden />, pressed: active.orderedList, apply: (c) => c.toggleOrderedList() },
+      { label: 'Tick boxes', icon: <ListChecks size={18} aria-hidden />, pressed: active.taskList, apply: (c) => c.toggleTaskList() },
       { label: 'Quote', icon: <Quote size={18} aria-hidden />, pressed: active.blockquote, apply: (c) => c.toggleBlockquote() },
       { label: 'Code block', icon: <SquareCode size={18} aria-hidden />, pressed: active.codeBlock, apply: (c) => c.toggleCodeBlock() },
       { label: 'Divider', icon: <Minus size={18} aria-hidden />, apply: (c) => c.setHorizontalRule() },

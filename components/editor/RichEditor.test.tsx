@@ -126,3 +126,22 @@ describe('openLinkOnModClick', () => {
     open.mockRestore();
   });
 });
+
+describe('tick boxes in text notes', () => {
+  it('saves tick boxes as Markdown task items', async () => {
+    const onChange = vi.fn();
+    render(<RichEditor {...props} onChange={onChange} value='- [ ] milk' />);
+    const box = await screen.findByRole('checkbox', { name: /milk/ });
+    expect(box).not.toBeChecked();
+    await userEvent.setup().click(box);
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith('- [x] milk'));
+  });
+
+  it('offers Tick boxes in the formatting bar', async () => {
+    const slot = document.createElement('div');
+    document.body.append(slot);
+    render(<RichEditor {...props} value='' barSlot={slot} />);
+    expect(await screen.findByRole('button', { name: 'Tick boxes' })).toBeInTheDocument();
+    slot.remove();
+  });
+});

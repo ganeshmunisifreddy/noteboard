@@ -11,6 +11,7 @@ import {
   undoTrash,
   updateNote,
 } from '../../lib/notes';
+import { toggleTask } from '../../lib/tasks';
 import type { Attachment, Note } from '../../lib/types';
 import ColorPicker from '../ui/ColorPicker';
 import IconButton from '../ui/IconButton';
@@ -92,7 +93,17 @@ const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle, images = [], ima
       )}
       {note.title && <h3 className={styles.title}>{note.title}</h3>}
       {showContent && (
-        <MarkdownPreview id={`${id}-content`} className={styles.content} markdown={note.content} clamp />
+        <MarkdownPreview
+          id={`${id}-content`}
+          className={styles.content}
+          markdown={note.content}
+          clamp
+          onToggleTask={
+            mode === 'trash'
+              ? undefined
+              : (index) => void updateNote(note.id, { content: toggleTask(note.content, index) })
+          }
+        />
       )}
       {showItems && (
         <ul id={`${id}-items`} className={styles.items}>

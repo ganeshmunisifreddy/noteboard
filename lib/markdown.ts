@@ -1,33 +1,10 @@
-import { Lexer, Marked, Tokenizer, type Token } from 'marked';
-
-// Task-list markers ("- [ ] milk") stay text: the editor has no task items.
-// Escaping the bracket keeps the line a plain list item. Fenced code is left
-// as it is.
-export const normalizeMarkdown = (markdown: string) => {
-  let inFence = false;
-  return markdown
-    .split('\n')
-    .map((line) => {
-      if (/^ {0,3}(```|~~~)/.test(line)) {
-        inFence = !inFence;
-        return line;
-      }
-      return inFence ? line : line.replace(/^(\s*(?:[-*+]|\d+[.)])[ \t]+)\[([ xX])\]/, '$1\\[$2]');
-    })
-    .join('\n');
-};
-
-class NoteLexer extends Lexer {
-  lex(src: string) {
-    return super.lex(normalizeMarkdown(src));
-  }
-}
+import { Marked, Tokenizer, type Token } from 'marked';
 
 // How Noteboard reads Markdown, shared by the editor, cards, search and
-// conversion: GitHub-flavoured, a single line break is a line break, and
-// indented text, raw HTML, reference definitions, pipe tables and task
-// markers stay plain text (old notes are full of such lines). Returning
-// undefined (not false) from a tokenizer switches that rule off.
+// conversion: GitHub-flavoured, a single line break is a line break,
+// "- [ ]" lines are tick boxes, and indented text, raw HTML, reference
+// definitions and pipe tables stay plain text (old notes are full of such
+// lines). Returning undefined (not false) from a tokenizer switches that rule off.
 export const createMarked = () => {
   const instance = new Marked(
     { gfm: true, breaks: true },
@@ -47,9 +24,6 @@ export const createMarked = () => {
       },
     },
   );
-  // Tiptap creates lexers from instance.Lexer; marked's own lexer() doesn't.
-  instance.Lexer = NoteLexer as typeof instance.Lexer;
-  instance.lexer = (src, options) => new NoteLexer(options ?? instance.defaults).lex(src);
   return instance;
 };
 
@@ -117,6 +91,7 @@ const blockLines = (tokens: Token[]): string[] =>
       case 'space':
       case 'hr':
       case 'def':
+      case 'checkbox': // a tick box's marker; its text follows
         return [];
       case 'code':
         return token.text.split('\n');

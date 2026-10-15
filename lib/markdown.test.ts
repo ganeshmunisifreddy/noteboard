@@ -71,9 +71,12 @@ describe('markdownLines', () => {
     ]);
   });
 
+  it('reads tick-box lines as their text', () => {
+    expect(markdownLines('- [ ] buy milk\n- [x] call mom')).toEqual(['buy milk', 'call mom']);
+  });
+
   it('keeps old plain-text lines that look like other Markdown as text', () => {
-    // Task lists, reference definitions and pipe tables are not Noteboard formatting.
-    expect(markdownLines('- [ ] buy milk\n- [x] call mom')).toEqual(['[ ] buy milk', '[x] call mom']);
+    // Reference definitions and pipe tables are not Noteboard formatting.
     expect(markdownLines('[Wifi]: hunter2\n[Door]: 4512')).toEqual(['[Wifi]: hunter2', '[Door]: 4512']);
     expect(markdownLines('Name | Qty\n--- | ---\nmilk | 2')).toEqual(['Name | Qty', '--- | ---', 'milk | 2']);
     expect(isMarkdownEmpty('[Wifi]: hunter2')).toBe(false);

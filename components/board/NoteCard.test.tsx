@@ -162,3 +162,21 @@ describe('NoteCard', () => {
     expect(screen.getByRole('button', { name: 'Open note: Logo' })).toHaveAccessibleDescription(/Website · Doing/);
   });
 });
+
+describe('tick boxes on cards', () => {
+  it('ticks a tick box in a text note from the card', async () => {
+    const user = userEvent.setup();
+    const note = await createNote({ kind: 'note', title: 'Shop', content: '```\n- [ ] code\n```\n- [ ] milk\n- [x] eggs' });
+    render(
+      <ToastProvider>
+        <NoteCard note={note} labelNames={[]} mode='board' onOpen={vi.fn()} />
+      </ToastProvider>,
+    );
+    const milk = screen.getByRole('checkbox', { name: 'Mark ‘milk’ done' });
+    expect(screen.getByRole('checkbox', { name: 'Mark ‘eggs’ not done' })).toBeChecked();
+    await user.click(milk);
+    await waitFor(async () =>
+      expect((await db.notes.get(note.id))?.content).toBe('```\n- [ ] code\n```\n- [x] milk\n- [x] eggs'),
+    );
+  });
+});

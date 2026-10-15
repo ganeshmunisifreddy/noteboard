@@ -79,3 +79,26 @@
 .link {
   text-decoration: underline;
 }
+
+.preview ul.tasks {
+  padding-left: 0;
+  list-style: none;
+}
+
+.task {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+/* Only the checkbox takes clicks; the text still opens the card. */
+.task > input {
+  flex: none;
+  margin-top: 0.2lh;
+  pointer-events: auto;
+}
+
+.task[data-checked='true'] > span {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
