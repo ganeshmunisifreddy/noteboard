@@ -21,6 +21,9 @@ const taskStarts = (tokens: Token[]): string[] =>
     ]);
   });
 
+// Whether a text note has any tick boxes, so it shows with the lists.
+export const hasTasks = (markdown: string): boolean => taskStarts(parseMarkdown(markdown)).length > 0;
+
 export const taskLines = (markdown: string): number[] => {
   const lines = unescapeTaskMarkers(markdown).split('\n');
   const found: number[] = [];

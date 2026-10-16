@@ -102,22 +102,24 @@
   list-style: none;
 }
 
-.prose :global(li[data-type='taskItem']) {
+/* Tiptap's tick-box node view doesn't put data-type on the item, so select it
+   through its list. */
+.prose :global(ul[data-type='taskList'] > li) {
   display: flex;
   align-items: flex-start;
   gap: 0.5em;
 }
 
-.prose :global(li[data-type='taskItem'] > label) {
+.prose :global(ul[data-type='taskList'] > li > label) {
   flex: none;
   margin-top: 0.3em;
 }
 
-.prose :global(li[data-type='taskItem'] > div) {
+.prose :global(ul[data-type='taskList'] > li > div) {
   flex: 1;
   min-width: 0;
 }
 
-.prose :global(li[data-checked='true'] > div) {
+.prose :global(ul[data-type='taskList'] > li[data-checked='true'] > div) {
   text-decoration: line-through;
 }
