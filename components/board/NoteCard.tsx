@@ -52,8 +52,8 @@ const NoteCard = ({
 }: Props) => {
   const toast = useToast();
   const id = useId();
-  // Open items first, then ticked ones (ticked and crossed out), as in the editor.
-  const items = [...note.items.filter((i) => !i.done), ...note.items.filter((i) => i.done)];
+  // In list order, ticked ones crossed out: ticking never moves the row under the pointer.
+  const items = note.items;
   const isEmpty =
     imageCount === 0 && !note.title && (note.kind === 'note' ? !note.content : note.items.length === 0);
   const showContent = note.kind === 'note' && !!note.content;
