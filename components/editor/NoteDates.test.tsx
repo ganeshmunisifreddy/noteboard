@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { addDays, localDate } from '../../lib/calendar';
+import { addDays, localDate, weekdayOf } from '../../lib/calendar';
 import { db } from '../../lib/db';
 import { createNote, markDone, setDue, trashNote } from '../../lib/notes';
 import { presetRepeat } from '../../lib/repeat';
@@ -66,25 +66,33 @@ describe('dates in the editor', () => {
 
   it('saves a custom repeat', async () => {
     const user = userEvent.setup();
+    // Today's weekday starts chosen; add another one.
+    const extra = weekdayOf(TODAY) === 1 ? 2 : 1;
     await createNote({ id: 'n1', kind: 'note', title: 'Gym' });
     open({ id: 'n1' });
     await user.click(await screen.findByRole('button', { name: 'Add date' }));
     const dialog = await dateDialog();
-    fireEvent.change(within(dialog).getByLabelText('Date'), { target: { value: '2026-10-15' } });
+    fireEvent.change(within(dialog).getByLabelText('Date'), { target: { value: TODAY } });
     fireEvent.change(within(dialog).getByLabelText('Time'), { target: { value: '07:00' } });
     await user.selectOptions(within(dialog).getByLabelText('Repeat'), 'custom');
     await user.clear(within(dialog).getByLabelText('Every'));
     await user.type(within(dialog).getByLabelText('Every'), '2');
-    await user.click(within(dialog).getByRole('button', { name: 'Monday' }));
+    await user.click(within(dialog).getByRole('button', { name: extra === 1 ? 'Monday' : 'Tuesday' }));
     await user.click(within(dialog).getByRole('radio', { name: 'After' }));
     await user.clear(within(dialog).getByLabelText('Number of times'));
     await user.type(within(dialog).getByLabelText('Number of times'), '6');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
     await waitFor(async () =>
       expect((await db.notes.get('n1'))?.due).toMatchObject({
-        date: '2026-10-15',
+        date: TODAY,
         time: '07:00',
-        repeat: { every: 2, unit: 'week', weekdays: [1, 4], anchor: '2026-10-15', ends: { type: 'after', count: 6, done: 0 } },
+        repeat: {
+          every: 2,
+          unit: 'week',
+          weekdays: [extra, weekdayOf(TODAY)].sort((a, b) => a - b),
+          anchor: TODAY,
+          ends: { type: 'after', count: 6, done: 0 },
+        },
       }),
     );
   });

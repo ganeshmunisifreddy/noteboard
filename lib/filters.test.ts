@@ -81,6 +81,14 @@ describe('matchesView', () => {
     expect(matchesView(plain, { ...all, labelId: 'l1' })).toBe(false);
     expect(matchesView(labelled, { ...all, labelId: 'l1' })).toBe(true);
   });
+  it('counts a text note with tick boxes as a list', () => {
+    const ticks = makeNote({ content: 'Shopping\n\n- [ ] milk\n- [x] eggs' });
+    const bullets = makeNote({ content: '- milk\n- eggs' });
+    expect(matchesView(ticks, { ...all, view: 'lists' })).toBe(true);
+    expect(matchesView(ticks, { ...all, view: 'notes' })).toBe(false);
+    expect(matchesView(bullets, { ...all, view: 'lists' })).toBe(false);
+    expect(matchesView(bullets, { ...all, view: 'notes' })).toBe(true);
+  });
 });
 
 describe('matchesQuery', () => {
