@@ -1,4 +1,5 @@
 import { toPlainText } from './markdown';
+import { hasTasks } from './tasks';
 import type { BoardFilter, BoardView, Label, Note } from './types';
 
 const VIEWS: BoardView[] = ['all', 'notes', 'lists', 'upcoming', 'boards', 'archive', 'trash'];
@@ -55,8 +56,11 @@ export const matchesView = (note: Note, filter: BoardFilter): boolean => {
   if (filter.view === 'archive') return note.archived;
   if (note.archived) return false;
   if (filter.view === 'upcoming') return note.due !== null;
-  if (filter.view === 'notes' && note.kind !== 'note') return false;
-  if (filter.view === 'lists' && note.kind !== 'list') return false;
+  if (filter.view === 'notes' || filter.view === 'lists') {
+    // A text note with tick boxes is a list too (New starts every note as text).
+    const isList = note.kind === 'list' || hasTasks(note.content);
+    if (isList !== (filter.view === 'lists')) return false;
+  }
   return filter.labelId === null || note.labelIds.includes(filter.labelId);
 };
 

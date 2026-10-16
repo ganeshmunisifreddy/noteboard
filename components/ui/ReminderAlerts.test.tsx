@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { localDate } from '../../lib/calendar';
 import { db } from '../../lib/db';
 import { newDue } from '../../lib/due';
 import { snooze, trashNote } from '../../lib/notes';
@@ -18,7 +19,7 @@ const router = vi.hoisted(() => ({
 }));
 vi.mock('next/router', () => ({ useRouter: () => router }));
 
-const due = () => ({ ...newDue('2026-10-15', '09:00', null), snoozedUntil: Date.now() - 1000 });
+const due = () => ({ ...newDue(localDate(Date.now()), '09:00', null), snoozedUntil: Date.now() - 1000 });
 
 beforeEach(async () => {
   await db.delete();
