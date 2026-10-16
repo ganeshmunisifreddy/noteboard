@@ -44,6 +44,26 @@ const LiteralParagraph = Paragraph.extend({
 
 // A fresh set per editor: the Markdown extension registers itself on the
 // marked instance it is given.
+// Tiptap's tick box, minus one trap: extensions (autofill, password managers)
+// stamp attributes on every input. ProseMirror reads that as an edit and
+// redraws the item, the stamp goes, the extension adds it back, and so on, so
+// clicks land on a box that's already gone. Only changes inside the item's
+// text are the editor's business.
+const StableTaskItem = TaskItem.extend({
+  addNodeView() {
+    const nodeView = this.parent?.();
+    if (!nodeView) return null;
+    return (props) => {
+      const view = nodeView(props);
+      return {
+        ...view,
+        ignoreMutation: (mutation) =>
+          mutation.type !== 'selection' && !(view.contentDOM?.contains(mutation.target) ?? false),
+      };
+    };
+  },
+});
+
 export const editorExtensions = () => [
   StarterKit.configure({
     heading: { levels: [1, 2, 3] },
@@ -60,7 +80,7 @@ export const editorExtensions = () => [
   }),
   // Tick boxes, saved as "- [ ]" / "- [x]".
   TaskList,
-  TaskItem.configure({
+  StableTaskItem.configure({
     nested: true,
     a11y: { checkboxLabel: (node, checked) => `${checked ? 'Untick' : 'Tick'} ${node.textContent || 'empty item'}` },
   }),

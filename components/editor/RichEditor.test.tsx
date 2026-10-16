@@ -137,6 +137,18 @@ describe('tick boxes in text notes', () => {
     await waitFor(() => expect(onChange).toHaveBeenLastCalledWith('- [x] milk'));
   });
 
+  it('keeps a tick box when an extension marks it', async () => {
+    // Autofill and password-manager extensions stamp attributes on inputs.
+    // Redrawing the box drops the stamp, the extension adds it back, and a
+    // click that spans a redraw is lost.
+    render(<RichEditor {...props} value='- [ ] milk' />);
+    const box = await screen.findByRole('checkbox', { name: /milk/ });
+    box.setAttribute('data-autofill-id', '1');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(box.isConnected).toBe(true);
+    expect(screen.getByRole('checkbox', { name: /milk/ })).toBe(box);
+  });
+
   it('offers Tick boxes in the formatting bar', async () => {
     const slot = document.createElement('div');
     document.body.append(slot);
