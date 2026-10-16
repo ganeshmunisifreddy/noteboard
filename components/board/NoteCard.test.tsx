@@ -31,6 +31,7 @@ describe('NoteCard', () => {
     const user = userEvent.setup();
     render(<NoteCard note={note} labelNames={['Home']} mode='board' onOpen={onOpen} />);
     expect(screen.getByText('Home')).toBeInTheDocument();
+    expect(screen.getByText('+1 completed')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Open note: Groceries' }));
     expect(onOpen).toHaveBeenCalledWith('c1');
   });
@@ -50,27 +51,6 @@ describe('NoteCard', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Mark “Milk” done' }));
     await waitFor(async () => expect((await db.notes.get('c1'))?.items[0].done).toBe(true));
     expect(onOpen).not.toHaveBeenCalled();
-  });
-
-  it('shows ticked items ticked, in the list order, and unticks them', async () => {
-    const note = await createNote({
-      id: 'c1',
-      kind: 'list',
-      title: 'Groceries',
-      items: [
-        { id: 'i2', text: 'Bread', done: true },
-        { id: 'i1', text: 'Milk', done: false },
-      ],
-    });
-    const user = userEvent.setup();
-    render(<NoteCard note={note} labelNames={[]} mode='board' onOpen={vi.fn()} />);
-    const boxes = screen.getAllByRole('checkbox');
-    // A ticked item keeps its row, so the next click lands on the item you see.
-    expect(boxes.map((box) => box.getAttribute('aria-label'))).toEqual(['Mark “Bread” not done', 'Mark “Milk” done']);
-    expect(boxes[0]).toBeChecked();
-    expect(screen.queryByText('+1 completed')).toBeNull();
-    await user.click(boxes[0]);
-    await waitFor(async () => expect((await db.notes.get('c1'))?.items[0]).toMatchObject({ id: 'i2', done: false }));
   });
 
   it('does not tick an item when its text is clicked', async () => {

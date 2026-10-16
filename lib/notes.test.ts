@@ -83,15 +83,6 @@ describe('toggleItem', () => {
     await toggleItem(note.id, 'i1');
     expect((await db.notes.get(note.id))?.items[0].done).toBe(true);
   });
-  it('unticks an item where it is, so the card under the pointer does not shift', async () => {
-    const items = [
-      { id: 'i1', text: 'Milk', done: true },
-      { id: 'i2', text: 'Bread', done: false },
-    ];
-    const note = await createNote({ kind: 'list', items });
-    await toggleItem(note.id, 'i1');
-    expect((await db.notes.get(note.id))?.items).toEqual([{ ...items[0], done: false }, items[1]]);
-  });
 });
 
 describe('trash', () => {

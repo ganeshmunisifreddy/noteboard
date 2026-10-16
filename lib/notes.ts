@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { v4 as uuid } from 'uuid';
 import { copyAttachments, deleteAttachmentsOf } from './attachments';
+import { toggleItemIn } from './checklist';
 import { db } from './db';
 import { keepProgress, markDoneChanges, newDue, seenIfPast } from './due';
 import { selectBoardNotes, type BoardNotes } from './filters';
@@ -93,12 +94,9 @@ export const togglePin = async (id: string) => {
 
 export const setArchived = (id: string, archived: boolean) => updateNote(id, { archived });
 
-// Ticks or unticks a card's item where it is (the editor regroups them itself).
 export const toggleItem = async (noteId: string, itemId: string) => {
   const note = await db.notes.get(noteId);
-  if (note) {
-    await updateNote(noteId, { items: note.items.map((i) => (i.id === itemId ? { ...i, done: !i.done } : i)) });
-  }
+  if (note) await updateNote(noteId, { items: toggleItemIn(note.items, itemId) });
 };
 
 // Moving to and from Trash counts as an edit, so it wins in a backup merge.

@@ -52,12 +52,12 @@ const NoteCard = ({
 }: Props) => {
   const toast = useToast();
   const id = useId();
-  // In list order, ticked ones crossed out: ticking never moves the row under the pointer.
-  const items = note.items;
+  const openItems = note.items.filter((i) => !i.done);
+  const doneCount = note.items.length - openItems.length;
   const isEmpty =
     imageCount === 0 && !note.title && (note.kind === 'note' ? !note.content : note.items.length === 0);
   const showContent = note.kind === 'note' && !!note.content;
-  const showItems = note.kind === 'list' && items.length > 0;
+  const showItems = note.kind === 'list' && openItems.length > 0;
   // The open button is named by the title; the preview describes it.
   const describedBy = [
     imageCount > 0 && `${id}-images`,
@@ -133,13 +133,13 @@ const NoteCard = ({
       )}
       {showItems && (
         <ul id={`${id}-items`} className={styles.items}>
-          {items.slice(0, PREVIEW_ITEMS).map((item) => (
-            <li key={item.id} className={styles.item} data-checked={item.done ? 'true' : undefined}>
+          {openItems.slice(0, PREVIEW_ITEMS).map((item) => (
+            <li key={item.id} className={styles.item}>
               <input
                 type='checkbox'
-                checked={item.done}
+                checked={false}
                 disabled={mode === 'trash'}
-                aria-label={`Mark “${item.text || 'item'}” ${item.done ? 'not done' : 'done'}`}
+                aria-label={`Mark “${item.text || 'item'}” done`}
                 onChange={() => void toggleItem(note.id, item.id)}
               />
               <span>
@@ -149,7 +149,8 @@ const NoteCard = ({
           ))}
         </ul>
       )}
-      {items.length > PREVIEW_ITEMS && <p className={styles.more}>+{items.length - PREVIEW_ITEMS} more</p>}
+      {openItems.length > PREVIEW_ITEMS && <p className={styles.more}>+{openItems.length - PREVIEW_ITEMS} more</p>}
+      {doneCount > 0 && <p className={styles.more}>+{doneCount} completed</p>}
       {isEmpty && <p className={styles.more}>Empty note</p>}
       {labelNames.length > 0 && (
         <ul id={`${id}-labels`} className={styles.labels} aria-label='Labels'>
