@@ -1,7 +1,8 @@
-import { ListTodo, Plus, Search, StickyNote } from 'lucide-react';
+import { Menu as MenuIcon, Plus, Search } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { SEARCH_INPUT_ID } from '../../lib/shortcuts';
 import type { NoteKind } from '../../lib/types';
-import Menu, { type MenuItem } from '../ui/Menu';
+import IconButton from '../ui/IconButton';
 import styles from './TopBar.module.css';
 
 type Props = {
@@ -9,17 +10,21 @@ type Props = {
   searchKey: string; // remounts the input once the URL is known
   onQueryChange: (query: string) => void;
   onNew: (kind: NoteKind) => void;
+  onMenu: (button: HTMLElement) => void; // ☰: collapse the sidebar, or open it as a drawer
+  // App-wide options, after the New button (the theme button and the ⋯ menu).
+  children?: ReactNode;
 };
 
-const TopBar = ({ initialQuery, searchKey, onQueryChange, onNew }: Props) => {
-  const newItems: MenuItem[] = [
-    { label: 'Note', icon: <StickyNote size={16} aria-hidden />, onSelect: () => onNew('note') },
-    { label: 'List', icon: <ListTodo size={16} aria-hidden />, onSelect: () => onNew('list') },
-  ];
-
+const TopBar = ({ initialQuery, searchKey, onQueryChange, onNew, onMenu, children }: Props) => {
   return (
     <header className={styles.bar}>
-      <span className={styles.logo}>Noteboard</span>
+      {/* As wide as the sidebar, so the search box lines up with the notes. */}
+      <div className={styles.brand}>
+        <IconButton label='Main menu' onClick={(e) => onMenu(e.currentTarget)}>
+          <MenuIcon size={20} aria-hidden />
+        </IconButton>
+        <span className={styles.logo}>Noteboard</span>
+      </div>
       <label className={styles.search}>
         <Search size={16} aria-hidden />
         <input
@@ -32,23 +37,17 @@ const TopBar = ({ initialQuery, searchKey, onQueryChange, onNew }: Props) => {
           onChange={(e) => onQueryChange(e.target.value)}
         />
       </label>
-      <Menu
-        items={newItems}
-        trigger={
-          <button type='button' className={styles.newButton}>
-            <Plus size={16} aria-hidden />
-            New
-          </button>
-        }
-      />
-      <Menu
-        items={newItems}
-        trigger={
-          <button type='button' className={styles.fab} aria-label='New note or list'>
-            <Plus size={24} aria-hidden />
-          </button>
-        }
-      />
+      <div className={styles.actions}>
+        {/* A note; tick boxes are in its formatting bar, and ⋮ turns it into a list. */}
+        <button type='button' className={styles.newButton} onClick={() => onNew('note')}>
+          <Plus size={16} aria-hidden />
+          New
+        </button>
+        {children}
+      </div>
+      <button type='button' className={styles.fab} aria-label='New note' onClick={() => onNew('note')}>
+        <Plus size={24} aria-hidden />
+      </button>
     </header>
   );
 };

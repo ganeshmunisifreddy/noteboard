@@ -23,4 +23,73 @@ describe('schema v2 upgrade', () => {
       ['old', 2],
     ]);
   });
+
+  it('adds image tables and keeps notes', async () => {
+    db.close();
+    await Dexie.delete('noteboard');
+    const v2 = new Dexie('noteboard');
+    v2.version(2).stores({ notes: 'id, updatedAt, trashedAt, position, *labelIds', labels: 'id, &name' });
+    await v2.table('notes').add({ id: 'kept', updatedAt: 1, position: 0 });
+    v2.close();
+
+    await db.open();
+    expect((await db.notes.get('kept'))?.position).toBe(0);
+    expect(await db.attachments.count()).toBe(0);
+    expect(await db.imageFiles.count()).toBe(0);
+  });
+
+  it('gives every note an empty date in v4', async () => {
+    db.close();
+    await Dexie.delete('noteboard');
+    const v3 = new Dexie('noteboard');
+    v3.version(3).stores({
+      notes: 'id, updatedAt, trashedAt, position, *labelIds',
+      labels: 'id, &name',
+      attachments: 'id, noteId',
+      imageFiles: 'id',
+    });
+    await v3.table('notes').add({ id: 'kept', title: 'Old', updatedAt: 1, position: 0 });
+    v3.close();
+
+    await db.open();
+    expect(await db.notes.get('kept')).toMatchObject({ title: 'Old', due: null });
+  });
+
+  it('adds boards and columns and puts every note on the main board in v5', async () => {
+    db.close();
+    await Dexie.delete('noteboard');
+    const v4 = new Dexie('noteboard');
+    v4.version(4).stores({
+      notes: 'id, updatedAt, trashedAt, position, *labelIds',
+      labels: 'id, &name',
+      attachments: 'id, noteId',
+      imageFiles: 'id',
+    });
+    await v4.table('notes').add({ id: 'kept', title: 'Old', updatedAt: 1, position: 0, due: null });
+    v4.close();
+
+    await db.open();
+    expect(await db.notes.get('kept')).toMatchObject({ title: 'Old', boardId: null, columnId: null, boardPosition: 0 });
+    expect(await db.boards.count()).toBe(0);
+    expect(await db.columns.count()).toBe(0);
+  });
+
+  it('leaves existing boards unstarred in v6', async () => {
+    db.close();
+    await Dexie.delete('noteboard');
+    const v5 = new Dexie('noteboard');
+    v5.version(5).stores({
+      notes: 'id, updatedAt, trashedAt, position, boardId, *labelIds',
+      labels: 'id, &name',
+      attachments: 'id, noteId',
+      imageFiles: 'id',
+      boards: 'id, position',
+      columns: 'id, boardId',
+    });
+    await v5.table('boards').add({ id: 'b', name: 'Old', position: 0, createdAt: 1, updatedAt: 1 });
+    v5.close();
+
+    await db.open();
+    expect(await db.boards.get('b')).toMatchObject({ name: 'Old', starred: false });
+  });
 });

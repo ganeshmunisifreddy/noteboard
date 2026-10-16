@@ -1,12 +1,15 @@
 import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { v4 as uuid } from 'uuid';
+import { copyAttachments, deleteAttachmentsOf } from './attachments';
 import { toggleItemIn } from './checklist';
 import { db } from './db';
+import { keepProgress, markDoneChanges, newDue, seenIfPast } from './due';
 import { selectBoardNotes, type BoardNotes } from './filters';
 import { needsRenumber, positionBetween } from './order';
+import { columnNotes, endOf, renumberColumn, sortedColumns } from './places';
 import { requestPersistentStorage, setHasNotesMarker } from './storage';
-import type { BoardFilter, Label, Note, NoteChanges, NoteKind } from './types';
+import type { BoardFilter, ChecklistItem, Due, Label, Note, NoteChanges, NoteKind, Repeat } from './types';
 
 export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -23,7 +26,7 @@ const afterWrite = async () => {
 };
 
 // A position above every note, so it lands at the top of its section.
-const nextTopPosition = async () => {
+export const nextTopPosition = async () => {
   const first = await db.notes.orderBy('position').first();
   return first ? first.position - 1 : 0;
 };
@@ -52,6 +55,10 @@ export const createNote = async (input: NewNote): Promise<Note> => {
     createdAt: now,
     updatedAt: now,
     position: input.position ?? 0,
+    due: input.due ?? null,
+    boardId: input.boardId ?? null,
+    columnId: input.columnId ?? null,
+    boardPosition: input.boardPosition ?? 0,
   };
   // Reading the top position and writing in one transaction keeps two quick
   // writes from landing on the same place.
@@ -112,18 +119,31 @@ export const undoTrash = async (id: string) => {
   await afterWrite();
 };
 
+// A note's images go with it, in the same transaction.
 export const deleteForever = async (id: string) => {
-  await db.notes.delete(id);
+  await db.transaction('rw', db.notes, db.attachments, db.imageFiles, async () => {
+    await db.notes.delete(id);
+    await deleteAttachmentsOf([id]);
+  });
   await afterWrite();
 };
 
 export const emptyTrash = async () => {
-  await db.notes.where('trashedAt').aboveOrEqual(0).delete();
+  await db.transaction('rw', db.notes, db.attachments, db.imageFiles, async () => {
+    const ids = await db.notes.where('trashedAt').aboveOrEqual(0).primaryKeys();
+    await db.notes.bulkDelete(ids);
+    await deleteAttachmentsOf(ids);
+  });
   await afterWrite();
 };
 
 export const purgeOldTrash = async (now = Date.now()) => {
-  const removed = await db.notes.where('trashedAt').below(now - TRASH_RETENTION_MS).delete();
+  const removed = await db.transaction('rw', db.notes, db.attachments, db.imageFiles, async () => {
+    const ids = await db.notes.where('trashedAt').below(now - TRASH_RETENTION_MS).primaryKeys();
+    await db.notes.bulkDelete(ids);
+    await deleteAttachmentsOf(ids);
+    return ids.length;
+  });
   if (removed > 0) await afterWrite();
   return removed;
 };
@@ -158,18 +178,106 @@ export const getAllData = async () => {
   return { notes, labels };
 };
 
+const placeBelow = async (note: Note) => {
+  const column = note.columnId ? await db.columns.get(note.columnId) : undefined;
+  if (!column) return { boardId: null, columnId: null, boardPosition: 0 };
+  const neighbours = async () => {
+    const notes = await columnNotes(column);
+    const index = notes.findIndex((other) => other.id === note.id);
+    return { own: notes[index]?.boardPosition ?? note.boardPosition, next: notes[index + 1]?.boardPosition ?? null };
+  };
+  let { own, next } = await neighbours();
+  if (needsRenumber(own, next)) {
+    await renumberColumn(column);
+    ({ own, next } = await neighbours());
+  }
+  return { boardId: column.boardId, columnId: column.id, boardPosition: positionBetween(own, next) };
+};
+
+// The copy and its images are saved together or not at all.
 export const duplicateNote = async (id: string): Promise<Note | undefined> => {
-  const note = await db.notes.get(id);
-  if (!note) return undefined;
-  return createNote({
-    kind: note.kind,
-    title: note.title,
-    content: note.content,
-    items: note.items.map((item) => ({ ...item, id: uuid() })),
-    color: note.color,
-    labelIds: note.labelIds,
+  const copy = await db.transaction('rw', db.notes, db.columns, db.attachments, db.imageFiles, async () => {
+    const note = await db.notes.get(id);
+    if (!note) return undefined;
+    const now = Date.now();
+    const created: Note = {
+      id: uuid(),
+      kind: note.kind,
+      title: note.title,
+      content: note.content,
+      items: note.items.map((item) => ({ ...item, id: uuid() })),
+      color: note.color,
+      labelIds: note.labelIds,
+      pinned: false,
+      archived: false,
+      trashedAt: null,
+      createdAt: now,
+      updatedAt: now,
+      position: await nextTopPosition(),
+      // The date comes along; whether it was done, alerted or snoozed doesn’t.
+      due: note.due && seenIfPast({ ...note.due, doneAt: null, alertedAt: null, snoozedUntil: null }, now),
+      // A card's copy sits just below it in the same column.
+      ...(note.columnId && note.boardId ? await placeBelow(note) : { boardId: null, columnId: null, boardPosition: 0 }),
+    };
+    await db.notes.add(created);
+    await copyAttachments(id, created.id);
+    return created;
+  });
+  if (copy) await afterWrite();
+  return copy;
+};
+
+// Dates change here, not through the editor's draft (the draft doesn't hold
+// `due`, so a draft save never overwrites them). Each change is an edit.
+const changeDue = async (id: string, change: (note: Note) => Partial<Note> | null) => {
+  await db.transaction('rw', db.notes, async () => {
+    const note = await db.notes.get(id);
+    const patch = note ? change(note) : null;
+    if (patch) await db.notes.update(id, { ...patch, updatedAt: Date.now() });
   });
 };
+
+export const setDue = (id: string, date: string, time: string | null, repeat: Repeat | null) =>
+  changeDue(id, (note) => ({ due: seenIfPast(keepProgress(newDue(date, time, repeat), note.due), Date.now()) }));
+
+export const removeDue = (id: string) => changeDue(id, () => ({ due: null }));
+
+// Undo for removing a date or Mark done: the date (and a list's items) as they were.
+export const putBackDue = (id: string, due: Due | null, items?: ChecklistItem[]) =>
+  changeDue(id, () => (items ? { due, items } : { due }));
+
+// Resolves to the note as it was, for Undo; undefined when there was nothing to mark.
+// On a board with a Done column, a finished card moves to its end.
+export const markDone = async (id: string, now = Date.now()): Promise<Note | undefined> => {
+  let before: Note | undefined;
+  await db.transaction('rw', db.notes, db.columns, async () => {
+    const note = await db.notes.get(id);
+    if (!note || !note.due || note.due.doneAt !== null) return;
+    before = note;
+    const patch: Partial<Note> = { ...markDoneChanges({ ...note, due: note.due }, now), updatedAt: Date.now() };
+    if (patch.due?.doneAt !== null && note.boardId && note.columnId) {
+      const done = (await sortedColumns(note.boardId)).find((column) => column.done);
+      if (done && done.id !== note.columnId) {
+        patch.columnId = done.id;
+        patch.boardPosition = await endOf(done);
+      }
+    }
+    await db.notes.update(id, patch);
+  });
+  return before;
+};
+
+// "Undo" on a done date. A time already past counts as alerted, so it doesn't alert again.
+export const reopenDue = (id: string, now = Date.now()) =>
+  changeDue(id, (note) => {
+    if (!note.due || note.due.doneAt === null) return null;
+    return { due: seenIfPast({ ...note.due, doneAt: null, alertedAt: null }, now) };
+  });
+
+export const snooze = (id: string, until: number) =>
+  changeDue(id, (note) =>
+    note.due && note.due.doneAt === null ? { due: { ...note.due, snoozedUntil: until, alertedAt: null } } : null,
+  );
 
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
@@ -217,11 +325,18 @@ export const useLabels = (): Label[] | undefined =>
 
 export const useBoardNotes = (filter: BoardFilter): BoardNotes | undefined => {
   const notes = useLiveQuery(() => db.notes.toArray().catch((): Note[] => []), []);
+  const columnIds = useLiveQuery(
+    () => db.columns.toCollection().primaryKeys().catch((): string[] => []),
+    [],
+  );
   const labels = useLabels();
   const { view, labelId, query } = filter;
   return useMemo(
-    () => (notes && labels ? selectBoardNotes(notes, labels, { view, labelId, query }) : undefined),
-    [notes, labels, view, labelId, query],
+    () =>
+      notes && labels && columnIds
+        ? selectBoardNotes(notes, labels, { view, labelId, query }, new Set(columnIds))
+        : undefined,
+    [notes, labels, columnIds, view, labelId, query],
   );
 };
 

@@ -44,6 +44,21 @@ const subscribe = (listener: () => void) => {
 export const useTheme = (): ThemePref =>
   useSyncExternalStore(subscribe, readTheme, () => 'system');
 
+const subscribeDevice = (listener: () => void) => {
+  const media = window.matchMedia(DARK_QUERY);
+  media.addEventListener('change', listener);
+  return () => media.removeEventListener('change', listener);
+};
+
+const prefersDark = () => window.matchMedia(DARK_QUERY).matches;
+
+// The colours in use: the chosen theme, or the device's while following it.
+export const useAppearance = (): 'light' | 'dark' => {
+  const pref = useTheme();
+  const dark = useSyncExternalStore(subscribeDevice, prefersDark, () => false);
+  return resolveTheme(pref, dark);
+};
+
 // Follows the device when the preference is "system".
 export const useSystemThemeSync = () => {
   useEffect(() => {

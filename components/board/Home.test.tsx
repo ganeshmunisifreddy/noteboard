@@ -1,8 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createBoard } from '../../lib/boards';
 import { db } from '../../lib/db';
-import { createNote } from '../../lib/notes';
+import { addDays, localDate } from '../../lib/calendar';
+import { createNote, setDue } from '../../lib/notes';
+import { sortedColumns } from '../../lib/places';
 import Home from '../../pages/index';
 
 const router = vi.hoisted(() => {
@@ -90,8 +93,94 @@ describe('Home', () => {
     expect(await screen.findByText('From backup')).toBeInTheDocument();
   });
 
+  it('starts a new note straight away from New and the phone + button', async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+    await user.click(await screen.findByRole('button', { name: 'New' }));
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(router.push.mock.lastCall?.[0]).toMatchObject({ pathname: '/note', query: { new: 'note' } });
+    router.push.mockClear();
+    await user.click(screen.getByRole('button', { name: 'New note' }));
+    expect(router.push.mock.lastCall?.[0]).toMatchObject({ pathname: '/note', query: { new: 'note' } });
+  });
+
   it('loads the note editor in the background', async () => {
     render(<Home />);
     await waitFor(() => expect(editorLoad.preload).toHaveBeenCalled(), { timeout: 3000 });
+  });
+
+  it('keeps app options in the header and sections in the sidebar', async () => {
+    render(<Home />);
+    const header = await screen.findByRole('banner');
+    expect(within(header).getByRole('button', { name: 'More options' })).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: /Switch to (dark|light) theme/ })).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: 'Main menu' })).toBeInTheDocument();
+    expect(within(screen.getAllByRole('navigation', { name: 'Sections' })[0]).getByRole('link', { name: 'Trash' })).toBeInTheDocument();
+  });
+
+  it('links to Upcoming from the sidebar', async () => {
+    const bill = await createNote({ kind: 'note', title: 'Pay bill' });
+    await setDue(bill.id, addDays(localDate(Date.now()), -1), null, null);
+    await createNote({ kind: 'note', title: 'No date' });
+    render(<Home />);
+    await screen.findByText('Pay bill');
+    expect(screen.getAllByRole('link', { name: /^Upcoming/ })[0]).toHaveAttribute('href', '/?view=upcoming');
+
+    router.query = { view: 'upcoming' };
+    const { unmount } = render(<Home />);
+    expect(await screen.findByRole('heading', { name: 'Overdue' })).toBeInTheDocument();
+    unmount();
+  });
+
+  it('shows a small empty state with the section’s message', async () => {
+    router.query = { view: 'archive' };
+    render(<Home />);
+    expect(await screen.findByText('Archive is empty')).toBeInTheDocument();
+    expect(document.querySelector('img')).toBeNull();
+  });
+
+  it('says when nothing has a date', async () => {
+    router.query = { view: 'upcoming' };
+    await createNote({ kind: 'note', title: 'No date' });
+    render(<Home />);
+    expect(await screen.findByText('No upcoming dates. Add one from a note’s ⏰ button.')).toBeInTheDocument();
+  });
+
+  it('hides board notes from the main board but finds them with their place', async () => {
+    const board = await createBoard('Website', 'basic');
+    const [todo] = await sortedColumns(board.id);
+    await createNote({ kind: 'note', title: 'Logo idea', boardId: board.id, columnId: todo.id, boardPosition: 0 });
+    await createNote({ kind: 'note', title: 'Groceries' });
+    const { unmount } = render(<Home />);
+    await screen.findByText('Groceries');
+    expect(screen.queryByText('Logo idea')).not.toBeInTheDocument();
+    unmount();
+
+    router.query = { q: 'logo' };
+    render(<Home />);
+    // The title's match is marked, so the heading's text is split.
+    expect(await screen.findByRole('heading', { name: 'Logo idea' })).toBeInTheDocument();
+    expect(screen.getByText('Website · To do')).toBeInTheDocument();
+  });
+
+  it('links to Boards from the sidebar', async () => {
+    render(<Home />);
+    expect((await screen.findAllByRole('link', { name: 'Boards' }))[0]).toHaveAttribute('href', '/?view=boards');
+  });
+
+  it('shows board tiles in the Boards view', async () => {
+    await createBoard('House move', 'basic');
+    router.query = { view: 'boards' };
+    render(<Home />);
+    expect(await screen.findByRole('link', { name: /House move/ })).toBeInTheDocument();
+    expect(screen.queryByText('Notes you add appear here')).not.toBeInTheDocument();
+  });
+
+  it('searches all notes from the Boards view', async () => {
+    const user = userEvent.setup();
+    router.query = { view: 'boards' };
+    render(<Home />);
+    await user.type(await screen.findByRole('searchbox', { name: 'Search notes' }), 'x');
+    expect(router.replace).toHaveBeenLastCalledWith({ pathname: '/', query: { q: 'x' } }, undefined, { shallow: true });
   });
 });

@@ -25,3 +25,11 @@
   opacity: 0.5;
   cursor: default;
 }
+
+/* Touch screens: 44px targets. */
+@media (pointer: coarse) {
+  .button {
+    width: 44px;
+    height: 44px;
+  }
+}

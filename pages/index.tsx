@@ -2,20 +2,29 @@ import type { NextPage } from 'next';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import FilterChips from '../components/board/FilterChips';
+import MoreMenu from '../components/board/MoreMenu';
 import type { CardMode } from '../components/board/NoteCard';
 import NoteGrid from '../components/board/NoteGrid';
 import TopBar from '../components/board/TopBar';
+import UpcomingView from '../components/board/UpcomingView';
+import ViewHeader from '../components/board/ViewHeader';
+import EmptyState from '../components/board/EmptyState';
 import { preloadRichEditor } from '../components/editor/useRichEditor';
-import NotFound from '../components/NotFound';
+import BoardTiles from '../components/kanban/BoardTiles';
+import AppShell from '../components/shell/AppShell';
 import LabelsDialog from '../components/ui/LabelsDialog';
+import ThemeToggle from '../components/ui/ThemeToggle';
 import { useToast } from '../components/ui/Toast';
+import { useBoardImages } from '../lib/attachments';
+import { usePlaceNames } from '../lib/boards';
 import { downloadBackup, downloadMarkdown, restoreBackup, restoreErrorMessage, restoredMessage } from '../lib/backup';
+import { upcomingSections } from '../lib/due';
 import { emptyMessage, filterToQuery, isReorderable, parseFilter } from '../lib/filters';
 import { emptyTrash, useBoardNotes, useLabels } from '../lib/notes';
-import { markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../lib/routes';
+import { boardHref, markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../lib/routes';
 import { useStartup } from '../lib/startup';
 import { hasNotesMarker } from '../lib/storage';
+import { useNow } from '../lib/time';
 import type { BoardFilter, NoteKind } from '../lib/types';
 import styles from '../styles/Home.module.css';
 
@@ -26,12 +35,16 @@ const Home: NextPage = () => {
   const filter = parseFilter(router.query);
   const board = useBoardNotes(filter);
   const labels = useLabels();
+  const placeNames = usePlaceNames();
   const [labelsOpen, setLabelsOpen] = useState(false);
   // Bumped after Back/Forward so the search box picks up the URL's query
   // (typing only replaces the URL, so it never triggers this).
   const [historyKey, setHistoryKey] = useState(0);
   const restoreInput = useRef<HTMLInputElement>(null);
-  const loaded = status !== 'pending' && board !== undefined;
+  // Loaded with the notes, so cards appear with their images in place.
+  const images = useBoardImages();
+  const now = useNow();
+  const loaded = status !== 'pending' && board !== undefined && images !== undefined;
 
   useEffect(() => {
     markOnBoard();
@@ -88,8 +101,10 @@ const Home: NextPage = () => {
   const showFilter = (next: Pick<BoardFilter, 'view' | 'labelId'>) =>
     void router.push({ pathname: '/', query: filterToQuery({ ...filter, ...next }) }, undefined, { shallow: true });
 
-  const search = (query: string) =>
-    void router.replace({ pathname: '/', query: filterToQuery({ ...filter, query }) }, undefined, { shallow: true });
+  const search = (query: string) => {
+    const view = filter.view === 'boards' && query ? 'all' : filter.view;
+    void router.replace({ pathname: '/', query: filterToQuery({ ...filter, view, query }) }, undefined, { shallow: true });
+  };
 
   const openNote = (id: string) => openEditor(router, noteHref(id));
   const newNote = (kind: NoteKind) => openEditor(router, newNoteHref(kind));
@@ -129,7 +144,10 @@ const Home: NextPage = () => {
   const mode: CardMode = filter.view === 'trash' ? 'trash' : filter.view === 'archive' ? 'archive' : 'board';
   const pinned = loaded && board ? board.pinned : [];
   const others = loaded && board ? board.others : [];
-  const total = pinned.length + others.length;
+  const sections = filter.view === 'upcoming' ? upcomingSections(others, now) : null;
+  const total = sections
+    ? sections.reduce((count, section) => count + section.notes.length, 0)
+    : pinned.length + others.length;
   const headings = pinned.length > 0 && others.length > 0;
   const reorderable = isReorderable(filter);
 
@@ -139,50 +157,81 @@ const Home: NextPage = () => {
         <title>Noteboard</title>
         <meta name='description' content='Notes and lists by Nine Technology' />
       </Head>
-      <TopBar
-        initialQuery={filter.query}
-        searchKey={router.isReady ? `ready-${historyKey}` : 'loading'}
-        onQueryChange={search}
-        onNew={newNote}
-      />
-      <FilterChips
-        filter={filter}
-        labels={labels ?? []}
-        onSelect={showFilter}
-        onManageLabels={() => setLabelsOpen(true)}
-        onBackup={() => void backUp()}
-        onRestore={() => restoreInput.current?.click()}
-        onExport={() => void exportMarkdown()}
-      />
-      <main className={styles.main}>
-        {mode === 'trash' && total > 0 && (
-          <div className={styles.trashBar}>
-            <p>Notes in Trash are deleted after 30 days.</p>
-            <button type='button' className={styles.textButton} onClick={() => void clearTrash()}>
-              Empty trash
-            </button>
-          </div>
+      <AppShell
+        onEditLabels={() => setLabelsOpen(true)}
+        renderTop={(onMenu) => (
+          <TopBar
+            initialQuery={filter.query}
+            searchKey={router.isReady ? `ready-${historyKey}` : 'loading'}
+            onQueryChange={search}
+            onNew={newNote}
+            onMenu={onMenu}
+          >
+            <ThemeToggle />
+            <MoreMenu
+              onBackup={() => void backUp()}
+              onRestore={() => restoreInput.current?.click()}
+              onExport={() => void exportMarkdown()}
+            />
+          </TopBar>
         )}
-        {pinned.length > 0 && (
-          <section className={styles.section} aria-label='Pinned notes'>
-            {headings && <h2 className={styles.sectionTitle}>Pinned</h2>}
-            <NoteGrid notes={pinned} labelNames={labelNames} mode={mode} onOpen={openNote} reorderable={reorderable} />
-          </section>
-        )}
-        {others.length > 0 && (
-          <section className={styles.section} aria-label={headings ? 'Other notes' : 'Notes'}>
-            {headings && <h2 className={styles.sectionTitle}>Others</h2>}
-            <NoteGrid notes={others} labelNames={labelNames} mode={mode} onOpen={openNote} reorderable={reorderable} />
-          </section>
-        )}
-        {/* Also rendered on the server and while loading; _document hides it
-            before first paint when notes exist. */}
-        {total === 0 && (
-          <div className={styles.emptyState}>
-            <NotFound text={emptyMessage(filter)} />
-          </div>
-        )}
-      </main>
+      >
+        <main className={styles.main}>
+          <ViewHeader
+            filter={filter}
+            labelName={filter.labelId ? labelNames.get(filter.labelId) : undefined}
+            total={total}
+            loaded={loaded}
+            onView={(view) => showFilter({ view, labelId: null })}
+            onEmptyTrash={() => void clearTrash()}
+          />
+          {filter.view === 'boards' ? (
+            <BoardTiles onOpen={(id) => void router.push(boardHref(id))} />
+          ) : sections ? (
+            <UpcomingView sections={sections} labelNames={labelNames} onOpen={openNote} images={images} placeNames={placeNames} />
+          ) : (
+            <>
+              {pinned.length > 0 && (
+                <section className={styles.section} aria-label='Pinned notes'>
+                  {headings && <h2 className={styles.sectionTitle}>Pinned</h2>}
+                  <NoteGrid
+                    notes={pinned}
+                    labelNames={labelNames}
+                    mode={mode}
+                    onOpen={openNote}
+                    reorderable={reorderable}
+                    images={images}
+                    placeNames={placeNames}
+                    highlight={filter.query}
+                  />
+                </section>
+              )}
+              {others.length > 0 && (
+                <section className={styles.section} aria-label={headings ? 'Other notes' : 'Notes'}>
+                  {headings && <h2 className={styles.sectionTitle}>Others</h2>}
+                  <NoteGrid
+                    notes={others}
+                    labelNames={labelNames}
+                    mode={mode}
+                    onOpen={openNote}
+                    reorderable={reorderable}
+                    images={images}
+                    placeNames={placeNames}
+                    highlight={filter.query}
+                  />
+                </section>
+              )}
+            </>
+          )}
+          {/* Also rendered on the server and while loading; _document hides it
+              before first paint when notes exist. */}
+          {total === 0 && filter.view !== 'boards' && (
+            <div className={styles.emptyState}>
+              <EmptyState filter={filter} text={emptyMessage(filter)} />
+            </div>
+          )}
+        </main>
+      </AppShell>
       <input
         ref={restoreInput}
         type='file'

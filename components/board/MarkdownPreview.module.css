@@ -79,3 +79,28 @@
 .link {
   text-decoration: underline;
 }
+
+.preview ul.tasks {
+  padding-left: 0;
+  list-style: none;
+}
+
+/* A tick box replaces the bullet (lists that mix both keep their bullets). */
+.task {
+  display: flex;
+  list-style: none;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+/* Only the checkbox takes clicks; the text still opens the card. */
+.task > input {
+  flex: none;
+  margin-top: 0.2lh;
+  pointer-events: auto;
+}
+
+/* Crossed out at full contrast, as ticked list items are. */
+.task[data-checked='true'] > span {
+  text-decoration: line-through;
+}

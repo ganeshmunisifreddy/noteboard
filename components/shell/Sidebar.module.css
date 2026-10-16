@@ -1,0 +1,128 @@
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px 16px 0;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.end {
+  margin-top: 12px;
+}
+
+.heading {
+  margin: 16px 0 4px 24px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 16px 0 24px;
+  border: none;
+  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--text);
+  text-align: left;
+  text-decoration: none;
+}
+
+.item:hover {
+  background: var(--surface-2);
+}
+
+.item[aria-current='page'] {
+  background: var(--accent-soft);
+  font-weight: 700;
+  color: var(--accent-hover); /* --accent is under 4.5:1 on --accent-soft */
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--on-accent);
+  text-align: center;
+}
+
+/* The rail: icons only; names stay for screen readers and tooltips. */
+:global([data-sidebar='rail']) .nav[data-variant='side'] .heading,
+:global([data-sidebar='rail']) .nav[data-variant='side'] .text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+:global([data-sidebar='rail']) .nav[data-variant='side'] .item {
+  justify-content: center;
+  width: 48px;
+  margin-left: 12px;
+  padding: 0;
+  border-radius: var(--radius-pill);
+}
+
+:global([data-sidebar='rail']) .nav[data-variant='side'] .badge {
+  position: absolute;
+  top: 2px;
+  right: -2px;
+  min-width: 18px;
+  padding: 0 5px;
+}
+
+@media (min-width: 601px) and (max-width: 1023px) {
+  .nav[data-variant='side'] .heading,
+  .nav[data-variant='side'] .text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .nav[data-variant='side'] .item {
+    justify-content: center;
+    width: 48px;
+    margin-left: 12px;
+    padding: 0;
+    border-radius: var(--radius-pill);
+  }
+  .nav[data-variant='side'] .badge {
+    position: absolute;
+    top: 2px;
+    right: -2px;
+    min-width: 18px;
+    padding: 0 5px;
+  }
+}

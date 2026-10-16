@@ -11,11 +11,15 @@ import {
   undoTrash,
   updateNote,
 } from '../../lib/notes';
-import type { Note } from '../../lib/types';
+import { toggleTask } from '../../lib/tasks';
+import type { Attachment, Note } from '../../lib/types';
 import ColorPicker from '../ui/ColorPicker';
 import IconButton from '../ui/IconButton';
 import Menu from '../ui/Menu';
 import { useToast } from '../ui/Toast';
+import CardDue from './CardDue';
+import CardImages from './CardImages';
+import Highlight from './Highlight';
 import MarkdownPreview from './MarkdownPreview';
 import styles from './NoteCard.module.css';
 
@@ -27,23 +31,41 @@ type Props = {
   mode: CardMode;
   onOpen: (id: string) => void;
   dragHandle?: ReactNode;
+  images?: Attachment[];
+  imageCount?: number; // all of the note's images; `images` may be only the first few
+  place?: string; // "Board · Column" for a board note shown outside its board
+  highlight?: string; // the search, marked in the title and text
 };
 
 const PREVIEW_ITEMS = 8;
 
-const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle }: Props) => {
+const NoteCard = ({
+  note,
+  labelNames,
+  mode,
+  onOpen,
+  dragHandle,
+  images = [],
+  imageCount = images.length,
+  place,
+  highlight,
+}: Props) => {
   const toast = useToast();
   const id = useId();
   const openItems = note.items.filter((i) => !i.done);
   const doneCount = note.items.length - openItems.length;
-  const isEmpty = !note.title && (note.kind === 'note' ? !note.content : note.items.length === 0);
+  const isEmpty =
+    imageCount === 0 && !note.title && (note.kind === 'note' ? !note.content : note.items.length === 0);
   const showContent = note.kind === 'note' && !!note.content;
   const showItems = note.kind === 'list' && openItems.length > 0;
   // The open button is named by the title; the preview describes it.
   const describedBy = [
+    imageCount > 0 && `${id}-images`,
     showContent && `${id}-content`,
     showItems && `${id}-items`,
     labelNames.length > 0 && `${id}-labels`,
+    place && `${id}-place`,
+    note.due && `${id}-due`,
   ]
     .filter(Boolean)
     .join(' ');
@@ -63,7 +85,16 @@ const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle }: Props) => {
   };
 
   return (
-    <article className={styles.card} data-color={note.color}>
+    <article
+      className={styles.card}
+      data-color={note.color}
+      // Images and nothing else: they reach the card's edges.
+      data-only-images={
+        imageCount > 0 && !note.title && !showContent && !showItems && labelNames.length === 0 && !place && !note.due
+          ? 'true'
+          : undefined
+      }
+    >
       {/* Covers the card so a click anywhere opens it; checkboxes and
           actions sit above it and don't bubble into it. */}
       <button
@@ -73,9 +104,32 @@ const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle }: Props) => {
         aria-describedby={describedBy || undefined}
         onClick={() => onOpen(note.id)}
       />
-      {note.title && <h3 className={styles.title}>{note.title}</h3>}
+      {imageCount > 0 && (
+        <>
+          <CardImages images={images} total={imageCount} />
+          <span id={`${id}-images`} className={styles.srOnly}>
+            {imageCount === 1 ? '1 image' : `${imageCount} images`}
+          </span>
+        </>
+      )}
+      {note.title && (
+        <h3 className={styles.title}>
+          <Highlight text={note.title} query={highlight} />
+        </h3>
+      )}
       {showContent && (
-        <MarkdownPreview id={`${id}-content`} className={styles.content} markdown={note.content} clamp />
+        <MarkdownPreview
+          id={`${id}-content`}
+          className={styles.content}
+          markdown={note.content}
+          clamp
+          highlight={highlight}
+          onToggleTask={
+            mode === 'trash'
+              ? undefined
+              : (index) => void updateNote(note.id, { content: toggleTask(note.content, index) })
+          }
+        />
       )}
       {showItems && (
         <ul id={`${id}-items`} className={styles.items}>
@@ -88,7 +142,9 @@ const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle }: Props) => {
                 aria-label={`Mark “${item.text || 'item'}” done`}
                 onChange={() => void toggleItem(note.id, item.id)}
               />
-              <span>{item.text}</span>
+              <span>
+                <Highlight text={item.text} query={highlight} />
+              </span>
             </li>
           ))}
         </ul>
@@ -105,6 +161,12 @@ const NoteCard = ({ note, labelNames, mode, onOpen, dragHandle }: Props) => {
           ))}
         </ul>
       )}
+      {place && (
+        <p id={`${id}-place`} className={styles.place}>
+          {place}
+        </p>
+      )}
+      {note.due && <CardDue due={note.due} id={`${id}-due`} />}
       <div className={styles.actions}>
         {dragHandle}
         {mode === 'trash' ? (

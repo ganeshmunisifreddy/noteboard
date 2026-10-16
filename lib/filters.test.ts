@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   emptyMessage,
+  isOnBoard,
   filterToQuery,
   isReorderable,
   matchesQuery,
@@ -8,6 +9,7 @@ import {
   parseFilter,
   selectBoardNotes,
 } from './filters';
+import { newDue } from './due';
 import { makeNote } from './testUtils';
 import type { BoardFilter } from './types';
 
@@ -165,5 +167,64 @@ describe('isReorderable', () => {
     expect(isReorderable({ ...all, view: 'trash' })).toBe(false);
     expect(isReorderable({ ...all, query: 'milk' })).toBe(false);
     expect(isReorderable({ ...all, query: '  ' })).toBe(true);
+  });
+});
+
+describe('the Upcoming view', () => {
+  const dated = newDue('2026-10-20', null, null);
+
+  it('is read from the URL without a label', () => {
+    expect(parseFilter({ view: 'upcoming', label: 'l1' })).toEqual({ view: 'upcoming', labelId: null, query: '' });
+    expect(filterToQuery({ view: 'upcoming', labelId: null, query: '' })).toEqual({ view: 'upcoming' });
+  });
+
+  it('shows dated notes not in Archive or Trash', () => {
+    const filter = { view: 'upcoming' as const, labelId: null, query: '' };
+    expect(matchesView(makeNote({ due: dated }), filter)).toBe(true);
+    expect(matchesView(makeNote(), filter)).toBe(false);
+    expect(matchesView(makeNote({ due: dated, archived: true }), filter)).toBe(false);
+    expect(matchesView(makeNote({ due: dated, trashedAt: 1 }), filter)).toBe(false);
+  });
+
+  it('is not reorderable and has its own empty message', () => {
+    const filter = { view: 'upcoming' as const, labelId: null, query: '' };
+    expect(isReorderable(filter)).toBe(false);
+    expect(emptyMessage(filter)).toBe('No upcoming dates. Add one from a note’s ⏰ button.');
+  });
+});
+
+describe('board notes', () => {
+  const columnIds = new Set(['c1']);
+  const all = { view: 'all' as const, labelId: null, query: '' };
+
+  it('keeps board notes off the main board', () => {
+    const notes = [makeNote({ id: 'main' }), makeNote({ id: 'card', boardId: 'b1', columnId: 'c1' })];
+    const { others } = selectBoardNotes(notes, [], all, columnIds);
+    expect(others.map((n) => n.id)).toEqual(['main']);
+  });
+
+  it('finds board notes when searching', () => {
+    const notes = [makeNote({ id: 'card', title: 'Logo', boardId: 'b1', columnId: 'c1' })];
+    const { others } = selectBoardNotes(notes, [], { ...all, query: 'logo' }, columnIds);
+    expect(others.map((n) => n.id)).toEqual(['card']);
+  });
+
+  it('treats a note whose column is gone as on the main board', () => {
+    expect(isOnBoard(makeNote({ boardId: 'b1', columnId: 'gone' }), columnIds)).toBe(false);
+    const notes = [makeNote({ id: 'stray', boardId: 'b1', columnId: 'gone' })];
+    expect(selectBoardNotes(notes, [], all, columnIds).others.map((n) => n.id)).toEqual(['stray']);
+  });
+
+  it('shows board notes in Upcoming, Archive and Trash', () => {
+    const due = newDue('2026-10-20', null, null);
+    const card = makeNote({ id: 'card', boardId: 'b1', columnId: 'c1', due });
+    expect(selectBoardNotes([card], [], { ...all, view: 'upcoming' }, columnIds).others).toHaveLength(1);
+    const archived = { ...card, archived: true };
+    expect(selectBoardNotes([archived], [], { ...all, view: 'archive' }, columnIds).others).toHaveLength(1);
+  });
+
+  it('reads the Boards view without labels', () => {
+    expect(parseFilter({ view: 'boards', label: 'l1' })).toEqual({ view: 'boards', labelId: null, query: '' });
+    expect(matchesView(makeNote(), { ...all, view: 'boards' })).toBe(false);
   });
 });

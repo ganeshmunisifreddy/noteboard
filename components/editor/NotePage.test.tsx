@@ -139,7 +139,10 @@ describe('NotePage', () => {
       </ToastProvider>,
     );
     await screen.findByRole('textbox', { name: 'Title' });
-    await user.click(screen.getByRole('button', { name: 'Archive' }));
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Archive' }));
+    // Leaving the editor can leave pointer events blocked for a moment.
+    await waitFor(() => expect(document.body.style.pointerEvents).not.toBe('none'));
     await user.click(await screen.findByRole('button', { name: 'Undo' }));
     await waitFor(async () =>
       expect(await db.notes.get('n10')).toMatchObject({ archived: false, pinned: true, updatedAt: 1000 }),

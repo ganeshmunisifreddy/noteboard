@@ -25,4 +25,13 @@ describe('downloadFile', () => {
     vi.runAllTimers();
     expect(revoke).toHaveBeenCalledWith('blob:file');
   });
+
+  it('accepts the contents in parts', async () => {
+    vi.useFakeTimers();
+    const create = vi.fn((_blob: Blob) => 'blob:file');
+    Object.assign(URL, { createObjectURL: create, revokeObjectURL: vi.fn() });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    downloadFile('b.json', ['{"a":', '1}'], 'application/json');
+    expect(await (create.mock.calls[0][0] as Blob).text()).toBe('{"a":1}');
+  });
 });

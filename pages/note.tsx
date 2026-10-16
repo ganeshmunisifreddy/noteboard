@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import NoteEditor from '../components/editor/NoteEditor';
 import NotFound from '../components/NotFound';
 import { useNote } from '../lib/notes';
-import { newNoteHref } from '../lib/routes';
+import { newNoteHref, type NewCardPlace } from '../lib/routes';
 import { useStartup } from '../lib/startup';
 import type { NoteKind } from '../lib/types';
 import styles from '../styles/NotePage.module.css';
@@ -26,14 +26,18 @@ const Missing = () => (
   </div>
 );
 
-const EditorLoader = ({ id, newKind }: { id: string; newKind: NoteKind | null }) => {
+type LoaderProps = { id: string; newKind: NoteKind | null; newPlace: NewCardPlace | null };
+
+const EditorLoader = ({ id, newKind, newPlace }: LoaderProps) => {
   const stored = useNote(id);
   const [editing, setEditing] = useState(false);
   const canEdit = stored !== undefined && (stored !== null || newKind !== null);
   // Once open, stay open: right after a new note's first save the URL drops
   // `new` before the live query has caught up, and remounting would lose focus.
   if (canEdit && !editing) setEditing(true);
-  if (editing || canEdit) return <NoteEditor key={id} noteId={id} stored={stored ?? null} newKind={newKind} />;
+  if (editing || canEdit) {
+    return <NoteEditor key={id} noteId={id} stored={stored ?? null} newKind={newKind} newPlace={newPlace} />;
+  }
   if (stored === undefined) return <Loading />;
   return <Missing />;
 };
@@ -43,6 +47,12 @@ const NotePage: NextPage = () => {
   const status = useStartup();
   const id = single(router.query.id);
   const newKind = parseKind(router.query.new);
+  // A new card from a board column carries its place.
+  const column = single(router.query.column);
+  const newPlace: NewCardPlace | null =
+    newKind && column
+      ? { columnId: column, boardId: single(router.query.board) ?? undefined, at: router.query.at === 'top' ? 'top' : 'bottom' }
+      : null;
 
   // `/note?new=list` without an id: give the draft its id up front.
   useEffect(() => {
@@ -50,7 +60,7 @@ const NotePage: NextPage = () => {
   }, [router, newKind, id]);
 
   if (!router.isReady || status === 'pending') return <Loading />;
-  if (id) return <EditorLoader key={id} id={id} newKind={newKind} />;
+  if (id) return <EditorLoader key={id} id={id} newKind={newKind} newPlace={newPlace} />;
   if (newKind) return <Loading />;
   return <Missing />;
 };

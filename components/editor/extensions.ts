@@ -1,4 +1,5 @@
 import { Extension } from '@tiptap/core';
+import { TaskItem, TaskList } from '@tiptap/extension-list';
 import Paragraph from '@tiptap/extension-paragraph';
 import { Placeholder } from '@tiptap/extensions';
 import { Markdown } from '@tiptap/markdown';
@@ -56,6 +57,12 @@ export const editorExtensions = () => [
       defaultProtocol: 'https',
       isAllowedUri: (url) => safeUrl(url) !== null,
     },
+  }),
+  // Tick boxes, saved as "- [ ]" / "- [x]".
+  TaskList,
+  TaskItem.configure({
+    nested: true,
+    a11y: { checkboxLabel: (node, checked) => `${checked ? 'Untick' : 'Tick'} ${node.textContent || 'empty item'}` },
   }),
   // Typed as the default marked export; a Marked instance has the same API.
   LiteralParagraph,

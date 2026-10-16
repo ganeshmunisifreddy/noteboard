@@ -7,10 +7,15 @@ import styles from './LabelPicker.module.css';
 type Props = {
   selectedIds: string[];
   onChange: (ids: string[]) => void;
-  trigger: ReactElement;
+  trigger?: ReactElement;
+  // Opened from elsewhere (a menu item): controlled, anchored to `anchor`.
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  anchor?: ReactElement;
+  onCloseAutoFocus?: (event: Event) => void; // where focus goes with no trigger to return to
 };
 
-const LabelPicker = ({ selectedIds, onChange, trigger }: Props) => {
+const LabelPicker = ({ selectedIds, onChange, trigger, open, onOpenChange, anchor, onCloseAutoFocus }: Props) => {
   const labels = useLabels() ?? [];
   const [text, setText] = useState('');
   const needle = text.trim().toLowerCase();
@@ -27,10 +32,10 @@ const LabelPicker = ({ selectedIds, onChange, trigger }: Props) => {
   };
 
   return (
-    <Popover.Root>
-      <Popover.Trigger asChild>{trigger}</Popover.Trigger>
+    <Popover.Root open={open} onOpenChange={onOpenChange}>
+      {anchor ? <Popover.Anchor asChild>{anchor}</Popover.Anchor> : <Popover.Trigger asChild>{trigger}</Popover.Trigger>}
       <Popover.Portal>
-        <Popover.Content className={styles.content} sideOffset={6} aria-label='Labels'>
+        <Popover.Content className={styles.content} sideOffset={6} aria-label='Labels' onCloseAutoFocus={onCloseAutoFocus}>
           <input
             className={styles.filter}
             value={text}

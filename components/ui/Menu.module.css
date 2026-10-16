@@ -46,3 +46,8 @@
   display: inline-flex;
   margin-left: auto;
 }
+
+.item[data-disabled] {
+  color: var(--text-muted);
+  cursor: default;
+}

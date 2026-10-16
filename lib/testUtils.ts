@@ -1,4 +1,4 @@
-import type { Note } from './types';
+import type { Attachment, Note } from './types';
 
 let counter = 0;
 
@@ -18,6 +18,30 @@ export const makeNote = (overrides: Partial<Note> = {}): Note => {
     createdAt: 0,
     updatedAt: 0,
     position: 0,
+    due: null,
+    boardId: null,
+    columnId: null,
+    boardPosition: 0,
+    ...overrides,
+  };
+};
+
+export const bytesOf = (text: string) => new TextEncoder().encode(text).buffer as ArrayBuffer;
+
+export const makeAttachment = (overrides: Partial<Attachment> = {}): Attachment => {
+  counter += 1;
+  return {
+    id: `image-${counter}`,
+    noteId: 'note-1',
+    position: 0,
+    type: 'image/jpeg',
+    width: 100,
+    height: 50,
+    size: 3,
+    alt: '',
+    createdAt: 0,
+    thumb: bytesOf('thumb'),
+    thumbType: 'image/jpeg',
     ...overrides,
   };
 };

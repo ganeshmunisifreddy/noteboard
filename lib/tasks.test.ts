@@ -1,0 +1,57 @@
+import { describe, expect, it } from 'vitest';
+import { taskLines, toggleTask } from './tasks';
+
+describe('taskLines', () => {
+  it('finds tick boxes with any bullet or quote prefix (numbered lists have none)', () => {
+    const md = ['- [ ] a', '* [x] b', '+ [X] c', '1. [ ] d', '> - [ ] e', '- plain', '- [ ]x not a box'].join('\n');
+    expect(taskLines(md)).toEqual([0, 1, 2, 4]);
+  });
+
+  it('ignores fenced code and finds nested items', () => {
+    const md = ['```', '- [ ] in code', '```', '- [ ] top', '  - [x] nested', '~~~', '- [ ] tilde code', '~~~'].join('\n');
+    expect(taskLines(md)).toEqual([3, 4]);
+  });
+});
+
+describe('toggleTask', () => {
+  it('flips only the n-th box and leaves the rest byte for byte', () => {
+    const md = 'Intro  \n- [ ] milk\n- [x] eggs\n\n```\n- [ ] code\n```';
+    expect(toggleTask(md, 0)).toBe('Intro  \n- [x] milk\n- [x] eggs\n\n```\n- [ ] code\n```');
+    expect(toggleTask(md, 1)).toBe('Intro  \n- [ ] milk\n- [ ] eggs\n\n```\n- [ ] code\n```');
+    expect(toggleTask(md, 2)).toBe(md);
+  });
+
+  it('unticks a capital X too', () => {
+    expect(toggleTask('- [X] done', 0)).toBe('- [ ] done');
+  });
+});
+
+describe('tick boxes the old editor escaped', () => {
+  it('finds and ticks them, saving them unescaped', () => {
+    const md = '- Groceries\n- \\[ \\] buy milk\n- \\[x\\] call mom';
+    expect(taskLines(md)).toEqual([1, 2]);
+    expect(toggleTask(md, 0)).toBe('- Groceries\n- [x] buy milk\n- \\[x\\] call mom');
+  });
+});
+
+// Ticking the n-th box must flip the line marked shows as the n-th tick box.
+describe('tick boxes as marked reads them', () => {
+  const lastBox = (md: string) => toggleTask(md, taskLines(md).length - 1);
+
+  it('skips empty markers, which marked shows as text', () => {
+    // marked shows two tick boxes, a and b; the second is b.
+    expect(toggleTask('- [ ] a\n- [ ] \n- [ ] b', 1)).toBe('- [ ] a\n- [ ] \n- [x] b');
+  });
+
+  it('skips old indented text, a number that can’t start a list, and numbered lists', () => {
+    expect(lastBox('Shopping:\n\n    - [ ] eggs\n- [ ] milk')).toBe('Shopping:\n\n    - [ ] eggs\n- [x] milk');
+    expect(lastBox('Steps\n2. [ ] second\n- [ ] milk')).toBe('Steps\n2. [ ] second\n- [x] milk');
+    expect(taskLines('1. [ ] one\n2. [x] two')).toEqual([]);
+  });
+
+  it('follows fences the way marked does', () => {
+    expect(lastBox('> ```\n> - [ ] in code\n> ```\n- [ ] milk')).toBe('> ```\n> - [ ] in code\n> ```\n- [x] milk');
+    expect(lastBox('````\n```\n- [ ] in code\n```\n````\n- [ ] milk')).toBe('````\n```\n- [ ] in code\n```\n````\n- [x] milk');
+    expect(lastBox('    ```\n- [ ] a\n- [ ] milk')).toBe('    ```\n- [ ] a\n- [x] milk');
+  });
+});

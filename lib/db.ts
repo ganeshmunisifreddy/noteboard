@@ -1,9 +1,13 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { Label, Note } from './types';
+import type { Attachment, Board, Column, ImageFile, Label, Note } from './types';
 
 export type NoteboardDB = Dexie & {
   notes: EntityTable<Note, 'id'>;
   labels: EntityTable<Label, 'id'>;
+  attachments: EntityTable<Attachment, 'id'>;
+  imageFiles: EntityTable<ImageFile, 'id'>;
+  boards: EntityTable<Board, 'id'>;
+  columns: EntityTable<Column, 'id'>;
 };
 
 export const db = new Dexie('noteboard') as NoteboardDB;
@@ -25,3 +29,73 @@ db.version(2)
     const notes = await tx.table('notes').orderBy('updatedAt').reverse().toArray();
     await Promise.all(notes.map((note, index) => tx.table('notes').update(note.id, { position: index })));
   });
+
+// v3: images. Details and thumbnails in `attachments`; full images in
+// `imageFiles`, read only when shown.
+db.version(3).stores({
+  notes: 'id, updatedAt, trashedAt, position, *labelIds',
+  labels: 'id, &name',
+  attachments: 'id, noteId',
+  imageFiles: 'id',
+});
+
+// v4: dates. Every note gets `due: null`; nothing new is indexed (dates are
+// filtered in memory, like the board).
+db.version(4)
+  .stores({
+    notes: 'id, updatedAt, trashedAt, position, *labelIds',
+    labels: 'id, &name',
+    attachments: 'id, noteId',
+    imageFiles: 'id',
+  })
+  .upgrade((tx) =>
+    tx
+      .table('notes')
+      .toCollection()
+      .modify((note: { due?: unknown }) => {
+        if (note.due === undefined) note.due = null;
+      }),
+  );
+
+// v5: kanban boards. Notes gain their place on a board (indexed by board);
+// every existing note starts on the main board.
+db.version(5)
+  .stores({
+    notes: 'id, updatedAt, trashedAt, position, boardId, *labelIds',
+    labels: 'id, &name',
+    attachments: 'id, noteId',
+    imageFiles: 'id',
+    boards: 'id, position',
+    columns: 'id, boardId',
+  })
+  .upgrade((tx) =>
+    tx
+      .table('notes')
+      .toCollection()
+      .modify((note: { boardId?: unknown; columnId?: unknown; boardPosition?: unknown }) => {
+        if (note.boardId === undefined) {
+          note.boardId = null;
+          note.columnId = null;
+          note.boardPosition = 0;
+        }
+      }),
+  );
+
+// v6: boards can be starred; existing ones aren't.
+db.version(6)
+  .stores({
+    notes: 'id, updatedAt, trashedAt, position, boardId, *labelIds',
+    labels: 'id, &name',
+    attachments: 'id, noteId',
+    imageFiles: 'id',
+    boards: 'id, position',
+    columns: 'id, boardId',
+  })
+  .upgrade((tx) =>
+    tx
+      .table('boards')
+      .toCollection()
+      .modify((board: { starred?: unknown }) => {
+        if (board.starred === undefined) board.starred = false;
+      }),
+  );
