@@ -159,7 +159,6 @@ describe('restoreBackup', () => {
     const byId = <T extends { id: string }>(rows: T[]) => [...rows].sort((x, y) => x.id.localeCompare(y.id));
     expect(byId(after.notes)).toEqual(byId(before.notes));
     expect(byId(after.labels)).toEqual(byId(before.labels));
-    expect(localStorage.getItem('hasNotes')).toBe('1');
   });
 
   it('changes nothing when the same backup is restored twice', async () => {

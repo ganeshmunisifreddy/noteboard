@@ -22,7 +22,3 @@
   text-transform: uppercase;
   color: var(--text-muted);
 }
-
-:global(html[data-has-notes]) .emptyState {
-  display: none;
-}

@@ -15,11 +15,10 @@ afterEach(() => {
 });
 
 describe('runStartup', () => {
-  it('migrates, purges old trash and refreshes the marker', async () => {
+  it('migrates and purges old trash', async () => {
     localStorage.setItem(LEGACY_KEY, JSON.stringify([{ id: 'a', title: 'A', content: '', pinned: false }]));
     expect(await runStartup()).toBe('ready');
     expect(await db.notes.get('a')).toBeDefined();
-    expect(localStorage.getItem('hasNotes')).toBe('1');
 
     const old = await createNote({ kind: 'note' });
     await db.notes.update(old.id, { trashedAt: Date.now() - TRASH_RETENTION_MS - 1 });

@@ -33,7 +33,7 @@ afterEach(() => {
 });
 
 describe('createNote', () => {
-  it('fills defaults and sets the hasNotes marker', async () => {
+  it('fills defaults', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1000);
     const note = await createNote({ kind: 'list', title: 'Groceries' });
     expect(note).toMatchObject({
@@ -50,7 +50,6 @@ describe('createNote', () => {
       updatedAt: 1000,
     });
     expect(await db.notes.get(note.id)).toEqual(note);
-    expect(localStorage.getItem('hasNotes')).toBe('1');
   });
 
   it('keeps a given id', async () => {
@@ -86,20 +85,12 @@ describe('toggleItem', () => {
 });
 
 describe('trash', () => {
-  it('trashes, restores and updates the marker', async () => {
+  it('trashes and restores', async () => {
     const note = await createNote({ kind: 'note', title: 'A' });
     await trashNote(note.id);
     expect((await db.notes.get(note.id))?.trashedAt).not.toBeNull();
-    expect(localStorage.getItem('hasNotes')).toBeNull();
     await restoreNote(note.id);
     expect((await db.notes.get(note.id))?.trashedAt).toBeNull();
-    expect(localStorage.getItem('hasNotes')).toBe('1');
-  });
-
-  it('does not count archived notes for the marker', async () => {
-    const note = await createNote({ kind: 'note', title: 'A' });
-    await setArchived(note.id, true);
-    expect(localStorage.getItem('hasNotes')).toBeNull();
   });
 
   it('empties only trashed notes', async () => {

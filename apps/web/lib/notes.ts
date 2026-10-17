@@ -8,21 +8,15 @@ import { keepProgress, markDoneChanges, newDue, seenIfPast } from './due';
 import { selectBoardNotes, type BoardNotes } from './filters';
 import { needsRenumber, positionBetween } from './order';
 import { columnNotes, endOf, renumberColumn, sortedColumns } from './places';
-import { requestPersistentStorage, setHasNotesMarker } from './storage';
+import { requestPersistentStorage } from './storage';
 import type { BoardFilter, ChecklistItem, Due, Label, Note, NoteChanges, NoteKind, Repeat } from './types';
 
 export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type NewNote = Partial<Omit<Note, 'createdAt' | 'updatedAt' | 'trashedAt'>> & { kind: NoteKind };
 
-export const refreshHasNotesMarker = async () => {
-  const active = await db.notes.filter((n) => n.trashedAt === null && !n.archived).count();
-  setHasNotesMarker(active > 0);
-};
-
 const afterWrite = async () => {
   requestPersistentStorage();
-  await refreshHasNotesMarker();
 };
 
 // A position above every note, so it lands at the top of its section.

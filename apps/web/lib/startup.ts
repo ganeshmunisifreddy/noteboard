@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { db } from './db';
 import { migrateFromLocalStorage } from './migrate';
-import { purgeOldTrash, refreshHasNotesMarker } from './notes';
+import { purgeOldTrash } from './notes';
 
 export type StartupStatus = 'pending' | 'ready' | 'unavailable';
 
@@ -14,7 +14,6 @@ export const runStartup = async (): Promise<'ready' | 'unavailable'> => {
   // Each step is independent; a failure in one must not block the app.
   await migrateFromLocalStorage().catch(() => {});
   await purgeOldTrash().catch(() => {});
-  await refreshHasNotesMarker().catch(() => {});
   return 'ready';
 };
 

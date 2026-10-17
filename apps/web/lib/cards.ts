@@ -1,6 +1,6 @@
 import { db } from './db';
 import { markDoneChanges, seenIfPast } from './due';
-import { createNote, nextTopPosition, refreshHasNotesMarker } from './notes';
+import { createNote, nextTopPosition } from './notes';
 import { needsRenumber, positionBetween } from './order';
 import { columnNotes, endOf, renumberColumn, sortedColumns, topOf } from './places';
 import type { Column, Note } from './types';
@@ -175,7 +175,6 @@ export const archiveCards = async (ids: string[]): Promise<CardState[]> => {
     await Promise.all(notes.map((n) => db.notes.update(n.id, { archived: true, pinned: false, updatedAt: now })));
     return notes.map(({ id }) => ({ id, archived: false }));
   });
-  await refreshHasNotesMarker();
   return states;
 };
 
@@ -200,5 +199,4 @@ export const putBackCards = async (states: CardState[]) => {
   await db.transaction('rw', db.notes, async () => {
     await Promise.all(states.map(({ id, ...fields }) => db.notes.update(id, { ...fields, updatedAt: now })));
   });
-  await refreshHasNotesMarker();
 };

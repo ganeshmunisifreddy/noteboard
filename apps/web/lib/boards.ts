@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { v4 as uuid } from 'uuid';
 import { db } from './db';
-import { nextTopPosition, refreshHasNotesMarker } from './notes';
+import { nextTopPosition } from './notes';
 import { moveToIndex } from './order';
 import { byBoardPosition, byPosition, columnNotes, endOf, sortedColumns } from './places';
 import type { Board, Column, Note } from './types';
@@ -139,7 +139,6 @@ export const deleteBoard = async (id: string, notesTo: 'keep' | 'trash'): Promis
     await db.boards.delete(id);
     return { board, columns, notes };
   });
-  if (snapshot) await refreshHasNotesMarker();
   return snapshot;
 };
 
@@ -150,7 +149,6 @@ export const restoreBoard = async ({ board, columns, notes }: BoardSnapshot) => 
     await db.columns.bulkPut(columns);
     await putBackPlaces(notes);
   });
-  await refreshHasNotesMarker();
 };
 
 export const addColumn = async (boardId: string, name: string): Promise<Column> => {

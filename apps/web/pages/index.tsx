@@ -1,7 +1,7 @@
 import type { NextPage } from 'next';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import MoreMenu from '../components/board/MoreMenu';
 import type { CardMode } from '../components/board/NoteCard';
 import NoteGrid from '../components/board/NoteGrid';
@@ -23,7 +23,6 @@ import { emptyMessage, filterToQuery, isReorderable, parseFilter } from '../lib/
 import { emptyTrash, useBoardNotes, useLabels } from '../lib/notes';
 import { boardHref, markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../lib/routes';
 import { useStartup } from '../lib/startup';
-import { hasNotesMarker } from '../lib/storage';
 import { useNow } from '../lib/time';
 import type { BoardFilter, NoteKind } from '../lib/types';
 import styles from '../styles/Home.module.css';
@@ -76,18 +75,6 @@ const Home: NextPage = () => {
       router.events.off('routeChangeComplete', onRouteChangeComplete);
     };
   }, [router.events]);
-
-  // Coming back from the editor skips _document's pre-paint script, so hide
-  // the empty state again until the notes have loaded.
-  useLayoutEffect(() => {
-    if (hasNotesMarker()) document.documentElement.setAttribute('data-has-notes', '');
-  }, []);
-
-  // Notes are on screen now, so stop force-hiding the empty state
-  // (the attribute is set before first paint in _document).
-  useEffect(() => {
-    if (loaded) document.documentElement.removeAttribute('data-has-notes');
-  }, [loaded]);
 
   // Back from the editor: return to where the user was on the board.
   useEffect(() => {
@@ -223,12 +210,8 @@ const Home: NextPage = () => {
               )}
             </>
           )}
-          {/* Also rendered on the server and while loading; _document hides it
-              before first paint when notes exist. */}
-          {total === 0 && filter.view !== 'boards' && (
-            <div className={styles.emptyState}>
-              <EmptyState filter={filter} text={emptyMessage(filter)} />
-            </div>
+          {loaded && total === 0 && filter.view !== 'boards' && (
+            <EmptyState filter={filter} text={emptyMessage(filter)} />
           )}
         </main>
       </AppShell>

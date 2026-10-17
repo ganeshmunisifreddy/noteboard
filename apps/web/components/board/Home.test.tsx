@@ -39,19 +39,17 @@ beforeEach(async () => {
   await db.delete();
   await db.open();
   localStorage.clear();
-  document.documentElement.removeAttribute('data-has-notes');
   router.query = {};
   sessionStorage.clear();
 });
 
 describe('Home', () => {
-  it('hides the empty state while notes load when returning to the board', async () => {
+  it('does not show the empty state before notes have loaded', async () => {
     await createNote({ kind: 'note', title: 'Sprint' });
-    expect(localStorage.getItem('hasNotes')).toBe('1');
     render(<Home />);
-    expect(document.documentElement.hasAttribute('data-has-notes')).toBe(true);
+    expect(screen.queryByText('Notes you add appear here')).not.toBeInTheDocument();
     expect(await screen.findByText('Sprint')).toBeInTheDocument();
-    await waitFor(() => expect(document.documentElement.hasAttribute('data-has-notes')).toBe(false));
+    expect(screen.queryByText('Notes you add appear here')).not.toBeInTheDocument();
   });
 
   it('shows the search from the URL after Back', async () => {

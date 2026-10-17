@@ -9,7 +9,7 @@ import { DISPLAYABLE_TYPES } from './images';
 import { db } from './db';
 import { downloadFile } from './download';
 import { selectBoardNotes } from './filters';
-import { getAllData, refreshHasNotesMarker } from './notes';
+import { getAllData } from './notes';
 import { byBoardPosition, byPosition } from './places';
 import { isQuotaError } from './storage';
 import {
@@ -416,7 +416,6 @@ export const restoreBackup = async (contents: string): Promise<MergeCounts> => {
     await db.imageFiles.bulkPut(images.map((image) => image.file));
     return plan.counts;
   });
-  await refreshHasNotesMarker();
   return counts;
 };
 
