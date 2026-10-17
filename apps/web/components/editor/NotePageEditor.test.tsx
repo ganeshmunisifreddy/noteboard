@@ -1,22 +1,12 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../../lib/db';
 import { createLabel, createNote, setDue } from '../../lib/notes';
-import NotePage from '../../pages/note';
+import { renderAt } from '../../lib/testRouter';
+import NotePage from '../../routes/NotePage';
 import { ToastProvider } from '../ui/Toast';
 
-const router = vi.hoisted(() => ({
-  pathname: '/note',
-  query: {} as Record<string, string>,
-  isReady: true,
-  push: vi.fn(),
-  replace: vi.fn(),
-  back: vi.fn(),
-}));
-
-vi.mock('next/router', () => ({ useRouter: () => router }));
-vi.mock('next/head', () => ({ default: () => null }));
 
 beforeEach(async () => {
   await db.delete();
@@ -24,11 +14,11 @@ beforeEach(async () => {
 });
 
 const openNote = (id: string) => {
-  router.query = { id };
-  return render(
+  return renderAt(
     <ToastProvider>
       <NotePage />
     </ToastProvider>,
+    `/note?id=${id}`,
   );
 };
 

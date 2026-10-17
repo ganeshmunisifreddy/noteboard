@@ -1,24 +1,14 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addDays, localDate, weekdayOf } from '../../lib/calendar';
 import { db } from '../../lib/db';
 import { createNote, markDone, setDue, trashNote } from '../../lib/notes';
 import { presetRepeat } from '../../lib/repeat';
-import NotePage from '../../pages/note';
+import { renderAt } from '../../lib/testRouter';
+import NotePage from '../../routes/NotePage';
 import { ToastProvider } from '../ui/Toast';
 
-const router = vi.hoisted(() => ({
-  pathname: '/note',
-  query: {} as Record<string, string>,
-  isReady: true,
-  push: vi.fn(),
-  replace: vi.fn(),
-  back: vi.fn(),
-}));
-
-vi.mock('next/router', () => ({ useRouter: () => router }));
-vi.mock('next/head', () => ({ default: () => null }));
 vi.mock('./RichEditor', async () => {
   const { default: NoteBody } = await import('./NoteBody');
   return {
@@ -42,11 +32,11 @@ afterEach(() => {
 });
 
 const open = (query: Record<string, string>) => {
-  router.query = query;
-  return render(
+  return renderAt(
     <ToastProvider>
       <NotePage />
     </ToastProvider>,
+    `/note?${new URLSearchParams(query)}`,
   );
 };
 

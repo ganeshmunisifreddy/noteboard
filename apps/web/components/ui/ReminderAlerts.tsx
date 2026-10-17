@@ -1,7 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { AlarmClock, X } from 'lucide-react';
-import Link from 'next/link';
-import { useRouter } from 'next/router';
 import { useEffect, useId, useRef, useState } from 'react';
 import { addDays, localDate, localMoment } from '../../lib/calendar';
 import { putBackPlace } from '../../lib/cards';
@@ -9,6 +7,7 @@ import { db } from '../../lib/db';
 import { formatDue, formatTime, lowerNearDay } from '../../lib/due';
 import { markDone, snooze } from '../../lib/notes';
 import { showSystemNotification, titleOf, useReminderClock, type DueNote } from '../../lib/reminders';
+import { Link, useNav } from '../../lib/navigation';
 import { noteHref, openEditor } from '../../lib/routes';
 import { useNow } from '../../lib/time';
 import type { Note } from '../../lib/types';
@@ -86,7 +85,7 @@ const ReminderRow = ({ note, now, onOpen, onSnooze, onDone, onDismiss }: RowProp
 // Reminders that came due in this tab, newest first. Rows stay until acted
 // on (WCAG 2.2.1); they aren't kept across reloads (the note stays overdue).
 const ReminderAlerts = () => {
-  const router = useRouter();
+  const nav = useNav();
   const toast = useToast();
   const now = useNow();
   const [rows, setRows] = useState<string[]>([]);
@@ -95,7 +94,7 @@ const ReminderAlerts = () => {
   useReminderClock((due, fromClock) => {
     const at = Date.now();
     // One system notification, from the tab that claimed the reminders.
-    if (fromClock) void showSystemNotification(due, at, (url) => void router.push(url));
+    if (fromClock) void showSystemNotification(due, at, (url) => nav.go(url));
     const ids = due.map((note) => note.id);
     setRows((current) => [...ids, ...current.filter((id) => !ids.includes(id))]);
     const text =
@@ -111,12 +110,12 @@ const ReminderAlerts = () => {
     const onMessage = (event: MessageEvent) => {
       const data = event.data as { type?: unknown; url?: unknown } | null;
       if (data?.type === 'open-reminder' && typeof data.url === 'string' && data.url.startsWith('/')) {
-        void router.push(data.url);
+        nav.go(data.url);
       }
     };
     container.addEventListener('message', onMessage);
     return () => container.removeEventListener('message', onMessage);
-  }, [router]);
+  }, [nav]);
 
   const key = rows.join('\n');
   const notes = useLiveQuery(
@@ -155,7 +154,7 @@ const ReminderAlerts = () => {
 
   const open = (id: string) => {
     dismiss(id);
-    openEditor(router, noteHref(id));
+    openEditor(nav, noteHref(id));
   };
 
   const done = async (id: string) => {
@@ -200,7 +199,7 @@ const ReminderAlerts = () => {
             ))}
           </ul>
           {more > 0 && (
-            <Link href='/?view=upcoming' className={styles.more}>
+            <Link to='/?view=upcoming' className={styles.more}>
               {`+${more} more · View in Upcoming`}
             </Link>
           )}

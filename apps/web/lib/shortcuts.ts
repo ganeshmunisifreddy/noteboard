@@ -1,5 +1,5 @@
-import { useRouter } from 'next/router';
 import { useEffect } from 'react';
+import { useNav } from './navigation';
 import { newNoteHref, openEditor } from './routes';
 
 export const SEARCH_INPUT_ID = 'note-search';
@@ -26,7 +26,7 @@ export const shortcutFor = (event: KeyInfo): Shortcut | null => {
 };
 
 export const useGlobalShortcuts = () => {
-  const router = useRouter();
+  const nav = useNav();
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const shortcut = shortcutFor(event);
@@ -39,9 +39,9 @@ export const useGlobalShortcuts = () => {
         return;
       }
       event.preventDefault();
-      openEditor(router, newNoteHref(shortcut === 'new-note' ? 'note' : 'list'));
+      openEditor(nav, newNoteHref(shortcut === 'new-note' ? 'note' : 'list'));
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [router]);
+  }, [nav]);
 };

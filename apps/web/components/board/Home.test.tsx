@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBoard } from '../../lib/boards';
@@ -6,31 +6,9 @@ import { db } from '../../lib/db';
 import { addDays, localDate } from '../../lib/calendar';
 import { createNote, setDue } from '../../lib/notes';
 import { sortedColumns } from '../../lib/places';
-import Home from '../../pages/index';
+import { renderAt } from '../../lib/testRouter';
+import Home from '../../routes/Home';
 
-const router = vi.hoisted(() => {
-  const handlers = new Map<string, Set<() => void>>();
-  return {
-    events: {
-      on: (event: string, handler: () => void) => {
-        if (!handlers.has(event)) handlers.set(event, new Set());
-        handlers.get(event)?.add(handler);
-      },
-      off: (event: string, handler: () => void) => handlers.get(event)?.delete(handler),
-      emit: (event: string) => handlers.get(event)?.forEach((handler) => handler()),
-    },
-    pathname: '/',
-  asPath: '/',
-  query: {} as Record<string, string>,
-  isReady: true,
-  push: vi.fn(),
-  replace: vi.fn(),
-    back: vi.fn(),
-  };
-});
-
-vi.mock('next/router', () => ({ useRouter: () => router }));
-vi.mock('next/head', () => ({ default: () => null }));
 
 const editorLoad = vi.hoisted(() => ({ preload: vi.fn(() => Promise.resolve()) }));
 vi.mock('../editor/useRichEditor', () => ({ preloadRichEditor: editorLoad.preload }));
@@ -39,30 +17,28 @@ beforeEach(async () => {
   await db.delete();
   await db.open();
   localStorage.clear();
-  router.query = {};
   sessionStorage.clear();
 });
 
 describe('Home', () => {
   it('does not show the empty state before notes have loaded', async () => {
     await createNote({ kind: 'note', title: 'Sprint' });
-    render(<Home />);
+    renderAt(<Home />);
     expect(screen.queryByText('Notes you add appear here')).not.toBeInTheDocument();
     expect(await screen.findByText('Sprint')).toBeInTheDocument();
     expect(screen.queryByText('Notes you add appear here')).not.toBeInTheDocument();
   });
 
-  it('shows the search from the URL after Back', async () => {
+  it('shows the search from the URL after Back, and keeps typing in place', async () => {
     const user = userEvent.setup();
-    const { rerender } = render(<Home />);
-    // The user typed a search, then pressed Back to an earlier one.
-    await user.type(screen.getByRole('searchbox', { name: 'Search notes' }), 'eggs');
-    router.query = { q: 'milk' };
-    act(() => {
-      window.dispatchEvent(new PopStateEvent('popstate'));
-      router.events.emit('routeChangeComplete');
-    });
-    rerender(<Home />);
+    const view = renderAt(<Home />, ['/?q=milk', '/']);
+    const box = screen.getByRole('searchbox', { name: 'Search notes' });
+    await user.type(box, 'eggs');
+    expect(view.url()).toBe('/?q=eggs');
+    // Typing replaces the URL without remounting the box, so it keeps focus.
+    expect(screen.getByRole('searchbox', { name: 'Search notes' })).toBe(box);
+    expect(box).toHaveFocus();
+    view.back();
     expect(screen.getByRole('searchbox', { name: 'Search notes' })).toHaveValue('milk');
   });
 
@@ -70,7 +46,7 @@ describe('Home', () => {
     const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
     await createNote({ kind: 'note', title: 'Long board' });
     sessionStorage.setItem('boardScroll', JSON.stringify({ url: '/', y: 640 }));
-    render(<Home />);
+    renderAt(<Home />);
     await screen.findByText('Long board');
     await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 640));
     expect(sessionStorage.getItem('boardScroll')).toBeNull();
@@ -78,7 +54,7 @@ describe('Home', () => {
   });
 
   it('restores a backup chosen in the file picker', async () => {
-    const { container } = render(<Home />);
+    const { container } = renderAt(<Home />);
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     const backup = JSON.stringify({
       format: 'noteboard-backup',
@@ -93,22 +69,24 @@ describe('Home', () => {
 
   it('starts a new note straight away from New and the phone + button', async () => {
     const user = userEvent.setup();
-    render(<Home />);
+    const view = renderAt(<Home />);
     await user.click(await screen.findByRole('button', { name: 'New' }));
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-    expect(router.push.mock.lastCall?.[0]).toMatchObject({ pathname: '/note', query: { new: 'note' } });
-    router.push.mockClear();
+    expect(view.path()).toBe('/note');
+    expect(view.query()).toMatchObject({ new: 'note' });
+    view.back();
     await user.click(screen.getByRole('button', { name: 'New note' }));
-    expect(router.push.mock.lastCall?.[0]).toMatchObject({ pathname: '/note', query: { new: 'note' } });
+    expect(view.path()).toBe('/note');
+    expect(view.query()).toMatchObject({ new: 'note' });
   });
 
   it('loads the note editor in the background', async () => {
-    render(<Home />);
+    renderAt(<Home />);
     await waitFor(() => expect(editorLoad.preload).toHaveBeenCalled(), { timeout: 3000 });
   });
 
   it('keeps app options in the header and sections in the sidebar', async () => {
-    render(<Home />);
+    renderAt(<Home />);
     const header = await screen.findByRole('banner');
     expect(within(header).getByRole('button', { name: 'More options' })).toBeInTheDocument();
     expect(within(header).getByRole('button', { name: /Switch to (dark|light) theme/ })).toBeInTheDocument();
@@ -120,27 +98,24 @@ describe('Home', () => {
     const bill = await createNote({ kind: 'note', title: 'Pay bill' });
     await setDue(bill.id, addDays(localDate(Date.now()), -1), null, null);
     await createNote({ kind: 'note', title: 'No date' });
-    render(<Home />);
+    renderAt(<Home />);
     await screen.findByText('Pay bill');
     expect(screen.getAllByRole('link', { name: /^Upcoming/ })[0]).toHaveAttribute('href', '/?view=upcoming');
 
-    router.query = { view: 'upcoming' };
-    const { unmount } = render(<Home />);
+    const { unmount } = renderAt(<Home />, '/?view=upcoming');
     expect(await screen.findByRole('heading', { name: 'Overdue' })).toBeInTheDocument();
     unmount();
   });
 
   it('shows a small empty state with the section’s message', async () => {
-    router.query = { view: 'archive' };
-    render(<Home />);
+    renderAt(<Home />, '/?view=archive');
     expect(await screen.findByText('Archive is empty')).toBeInTheDocument();
     expect(document.querySelector('img')).toBeNull();
   });
 
   it('says when nothing has a date', async () => {
-    router.query = { view: 'upcoming' };
     await createNote({ kind: 'note', title: 'No date' });
-    render(<Home />);
+    renderAt(<Home />, '/?view=upcoming');
     expect(await screen.findByText('No upcoming dates. Add one from a note’s ⏰ button.')).toBeInTheDocument();
   });
 
@@ -149,36 +124,34 @@ describe('Home', () => {
     const [todo] = await sortedColumns(board.id);
     await createNote({ kind: 'note', title: 'Logo idea', boardId: board.id, columnId: todo.id, boardPosition: 0 });
     await createNote({ kind: 'note', title: 'Groceries' });
-    const { unmount } = render(<Home />);
+    const { unmount } = renderAt(<Home />);
     await screen.findByText('Groceries');
     expect(screen.queryByText('Logo idea')).not.toBeInTheDocument();
     unmount();
 
-    router.query = { q: 'logo' };
-    render(<Home />);
+    renderAt(<Home />, '/?q=logo');
     // The title's match is marked, so the heading's text is split.
     expect(await screen.findByRole('heading', { name: 'Logo idea' })).toBeInTheDocument();
     expect(screen.getByText('Website · To do')).toBeInTheDocument();
   });
 
   it('links to Boards from the sidebar', async () => {
-    render(<Home />);
+    renderAt(<Home />);
     expect((await screen.findAllByRole('link', { name: 'Boards' }))[0]).toHaveAttribute('href', '/?view=boards');
   });
 
   it('shows board tiles in the Boards view', async () => {
     await createBoard('House move', 'basic');
-    router.query = { view: 'boards' };
-    render(<Home />);
+    renderAt(<Home />, '/?view=boards');
     expect(await screen.findByRole('link', { name: /House move/ })).toBeInTheDocument();
     expect(screen.queryByText('Notes you add appear here')).not.toBeInTheDocument();
   });
 
   it('searches all notes from the Boards view', async () => {
     const user = userEvent.setup();
-    router.query = { view: 'boards' };
-    render(<Home />);
+    const view = renderAt(<Home />, '/?view=boards');
     await user.type(await screen.findByRole('searchbox', { name: 'Search notes' }), 'x');
-    expect(router.replace).toHaveBeenLastCalledWith({ pathname: '/', query: { q: 'x' } }, undefined, { shallow: true });
+    expect(view.url()).toBe('/?q=x');
+    expect(view.action()).toBe('REPLACE');
   });
 });

@@ -1,6 +1,4 @@
 import { ArrowLeft, EllipsisVertical, ListFilter, Plus } from 'lucide-react';
-import Head from 'next/head';
-import { useRouter } from 'next/router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useBoardImages } from '../../lib/attachments';
 import { EMPTY_FILTER, isFiltering, matchesCard, type CardFilter } from '../../lib/boardFilter';
@@ -15,6 +13,7 @@ import {
 } from '../../lib/boards';
 import { useLabels } from '../../lib/notes';
 import { useNow } from '../../lib/time';
+import { useNav } from '../../lib/navigation';
 import { BOARDS_HREF, markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../../lib/routes';
 import type { NoteKind } from '../../lib/types';
 import IconButton from '../ui/IconButton';
@@ -27,7 +26,7 @@ import FilterBar from './FilterBar';
 import InlineName from './InlineName';
 
 const BoardView = ({ data }: { data: BoardData }) => {
-  const router = useRouter();
+  const nav = useNav();
   const toast = useToast();
   const labels = useLabels();
   const images = useBoardImages();
@@ -44,9 +43,9 @@ const BoardView = ({ data }: { data: BoardData }) => {
     markOnBoard();
   }, []);
   useEffect(() => {
-    const y = takeBoardScroll(router.asPath);
+    const y = takeBoardScroll(nav.url);
     if (y !== null) window.scrollTo(0, y);
-  }, [router.asPath]);
+  }, [nav.url]);
 
   const stopRenaming = () => {
     setRenaming(false);
@@ -84,21 +83,19 @@ const BoardView = ({ data }: { data: BoardData }) => {
   const noteCount = [...cards.values()].reduce((sum, list) => sum + list.length, 0);
 
   const addCard = (columnId: string, kind: NoteKind, at: 'top' | 'bottom' = 'bottom') =>
-    openEditor(router, newNoteHref(kind, { columnId, boardId: board.id, at }));
+    openEditor(nav, newNoteHref(kind, { columnId, boardId: board.id, at }));
 
   const remove = async (notesTo: 'keep' | 'trash') => {
     const snapshot = await deleteBoard(board.id, notesTo);
-    void router.push(BOARDS_HREF);
+    nav.go(BOARDS_HREF);
     if (snapshot) toast({ message: 'Board deleted', actionLabel: 'Undo', onAction: () => void restoreBoard(snapshot) });
   };
 
   return (
     <div className={styles.page}>
-      <Head>
-        <title>{`${board.name} | Noteboard`}</title>
-      </Head>
+      <title>{`${board.name} | Noteboard`}</title>
       <header className={styles.bar}>
-        <IconButton label='Back to boards' onClick={() => void router.push(BOARDS_HREF)}>
+        <IconButton label='Back to boards' onClick={() => nav.go(BOARDS_HREF)}>
           <ArrowLeft size={20} aria-hidden />
         </IconButton>
         {renaming ? (
@@ -191,7 +188,7 @@ const BoardView = ({ data }: { data: BoardData }) => {
           onKeepShown={(id) => {
             if (filtering) setKept((ids) => new Set(ids).add(id));
           }}
-          onOpen={(id) => openEditor(router, noteHref(id))}
+          onOpen={(id) => openEditor(nav, noteHref(id))}
           onAddCard={(columnId, kind) => addCard(columnId, kind)}
           startAddingColumn={addingColumn > 0}
         />

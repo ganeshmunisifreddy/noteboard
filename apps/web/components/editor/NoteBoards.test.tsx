@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBoard } from '../../lib/boards';
@@ -6,19 +6,10 @@ import { db } from '../../lib/db';
 import { newDue } from '../../lib/due';
 import { createNote } from '../../lib/notes';
 import { sortedColumns } from '../../lib/places';
-import NotePage from '../../pages/note';
+import { renderAt } from '../../lib/testRouter';
+import NotePage from '../../routes/NotePage';
 import { ToastProvider } from '../ui/Toast';
 
-const router = vi.hoisted(() => ({
-  pathname: '/note',
-  query: {} as Record<string, string>,
-  isReady: true,
-  push: vi.fn(),
-  replace: vi.fn(),
-  back: vi.fn(),
-}));
-vi.mock('next/router', () => ({ useRouter: () => router }));
-vi.mock('next/head', () => ({ default: () => null }));
 vi.mock('./RichEditor', async () => {
   const { default: NoteBody } = await import('./NoteBody');
   return {
@@ -35,11 +26,11 @@ beforeEach(async () => {
 });
 
 const open = (query: Record<string, string>) => {
-  router.query = query;
-  return render(
+  return renderAt(
     <ToastProvider>
       <NotePage />
     </ToastProvider>,
+    `/note?${new URLSearchParams(query)}`,
   );
 };
 
@@ -66,7 +57,8 @@ describe('boards in the editor', () => {
     (await screen.findByRole('menuitem', { name: 'Website' })).focus();
     await user.keyboard('{ArrowRight}');
     expect(await screen.findByRole('menuitemcheckbox', { name: 'Doing' })).toBeChecked();
-    await user.keyboard('{Escape}{Escape}{Escape}');
+    // One Escape closes the menu and its submenus; another would leave the editor.
+    await user.keyboard('{Escape}');
     const chip = await screen.findByRole('button', { name: 'Board: Website · Doing' });
     await user.click(chip);
     await user.click(await screen.findByRole('menuitem', { name: 'Remove from board' }));

@@ -1,26 +1,23 @@
-import type { NextPage } from 'next';
-import Link from 'next/link';
-import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import NoteEditor from '../components/editor/NoteEditor';
 import NotFound from '../components/NotFound';
+import { Link, useNav, useQuery } from '../lib/navigation';
 import { useNote } from '../lib/notes';
 import { newNoteHref, type NewCardPlace } from '../lib/routes';
 import { useStartup } from '../lib/startup';
 import type { NoteKind } from '../lib/types';
 import styles from '../styles/NotePage.module.css';
+import PageLoading from './PageLoading';
 
 const single = (value: string | string[] | undefined) => (typeof value === 'string' && value ? value : null);
 
 const parseKind = (value: string | string[] | undefined): NoteKind | null =>
   value === 'note' || value === 'list' ? value : null;
 
-const Loading = () => <div className={styles.loading} aria-busy='true' />;
-
 const Missing = () => (
   <div className={styles.missing}>
     <NotFound text='Note not found' />
-    <Link href='/' className={styles.backLink}>
+    <Link to='/' className={styles.backLink}>
       Back to notes
     </Link>
   </div>
@@ -38,30 +35,31 @@ const EditorLoader = ({ id, newKind, newPlace }: LoaderProps) => {
   if (editing || canEdit) {
     return <NoteEditor key={id} noteId={id} stored={stored ?? null} newKind={newKind} newPlace={newPlace} />;
   }
-  if (stored === undefined) return <Loading />;
+  if (stored === undefined) return <PageLoading />;
   return <Missing />;
 };
 
-const NotePage: NextPage = () => {
-  const router = useRouter();
+const NotePage = () => {
+  const nav = useNav();
+  const query = useQuery();
   const status = useStartup();
-  const id = single(router.query.id);
-  const newKind = parseKind(router.query.new);
+  const id = single(query.id);
+  const newKind = parseKind(query.new);
   // A new card from a board column carries its place.
-  const column = single(router.query.column);
+  const column = single(query.column);
   const newPlace: NewCardPlace | null =
     newKind && column
-      ? { columnId: column, boardId: single(router.query.board) ?? undefined, at: router.query.at === 'top' ? 'top' : 'bottom' }
+      ? { columnId: column, boardId: single(query.board) ?? undefined, at: query.at === 'top' ? 'top' : 'bottom' }
       : null;
 
   // `/note?new=list` without an id: give the draft its id up front.
   useEffect(() => {
-    if (router.isReady && newKind && !id) void router.replace(newNoteHref(newKind));
-  }, [router, newKind, id]);
+    if (newKind && !id) nav.swap(newNoteHref(newKind));
+  }, [nav, newKind, id]);
 
-  if (!router.isReady || status === 'pending') return <Loading />;
+  if (status === 'pending') return <PageLoading />;
   if (id) return <EditorLoader key={id} id={id} newKind={newKind} newPlace={newPlace} />;
-  if (newKind) return <Loading />;
+  if (newKind) return <PageLoading />;
   return <Missing />;
 };
 

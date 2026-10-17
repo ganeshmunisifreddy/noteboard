@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { localDate } from '../../lib/calendar';
@@ -6,18 +6,10 @@ import { db } from '../../lib/db';
 import { newDue } from '../../lib/due';
 import { snooze, trashNote } from '../../lib/notes';
 import { makeNote } from '../../lib/testUtils';
+import { renderAt } from '../../lib/testRouter';
 import ReminderAlerts from './ReminderAlerts';
 import { ToastProvider } from './Toast';
 
-const router = vi.hoisted(() => ({
-  pathname: '/',
-  asPath: '/',
-  query: {},
-  push: vi.fn(),
-  replace: vi.fn(),
-  back: vi.fn(),
-}));
-vi.mock('next/router', () => ({ useRouter: () => router }));
 
 const due = () => ({ ...newDue(localDate(Date.now()), '09:00', null), snoozedUntil: Date.now() - 1000 });
 
@@ -33,7 +25,7 @@ afterEach(() => {
 });
 
 const renderPanel = () =>
-  render(
+  renderAt(
     <ToastProvider>
       <ReminderAlerts />
     </ToastProvider>,
@@ -71,9 +63,9 @@ describe('ReminderAlerts', () => {
   it('opens the note', async () => {
     const user = userEvent.setup();
     await db.notes.add(makeNote({ id: 'n1', title: 'Groceries', due: due() }));
-    renderPanel();
+    const view = renderPanel();
     await user.click(within(await panel()).getByRole('button', { name: 'Open' }));
-    expect(router.push).toHaveBeenCalledWith({ pathname: '/note', query: { id: 'n1' } });
+    expect(view.url()).toBe('/note?id=n1');
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Reminders' })).not.toBeInTheDocument());
   });
 
@@ -144,11 +136,11 @@ describe('ReminderAlerts', () => {
     const container = new EventTarget();
     Object.defineProperty(navigator, 'serviceWorker', { value: container, configurable: true });
     try {
-      renderPanel();
+      const view = renderPanel();
       act(() => {
         container.dispatchEvent(new MessageEvent('message', { data: { type: 'open-reminder', url: '/note?id=n9' } }));
       });
-      expect(router.push).toHaveBeenCalledWith('/note?id=n9');
+      expect(view.url()).toBe('/note?id=n9');
     } finally {
       Reflect.deleteProperty(navigator, 'serviceWorker');
     }

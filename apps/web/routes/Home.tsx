@@ -1,6 +1,3 @@
-import type { NextPage } from 'next';
-import Head from 'next/head';
-import { useRouter } from 'next/router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import MoreMenu from '../components/board/MoreMenu';
 import type { CardMode } from '../components/board/NoteCard';
@@ -19,26 +16,28 @@ import { useBoardImages } from '../lib/attachments';
 import { usePlaceNames } from '../lib/boards';
 import { downloadBackup, downloadMarkdown, restoreBackup, restoreErrorMessage, restoredMessage } from '../lib/backup';
 import { upcomingSections } from '../lib/due';
-import { emptyMessage, filterToQuery, isReorderable, parseFilter } from '../lib/filters';
+import { emptyMessage, isReorderable, parseFilter } from '../lib/filters';
 import { emptyTrash, useBoardNotes, useLabels } from '../lib/notes';
-import { boardHref, markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../lib/routes';
+import { useNav, usePopKey, useQuery } from '../lib/navigation';
+import { boardHref, homeHref, markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../lib/routes';
 import { useStartup } from '../lib/startup';
 import { useNow } from '../lib/time';
 import type { BoardFilter, NoteKind } from '../lib/types';
 import styles from '../styles/Home.module.css';
+import { loadNotePage } from './lazyPages';
 
-const Home: NextPage = () => {
-  const router = useRouter();
+const Home = () => {
+  const nav = useNav();
   const toast = useToast();
   const status = useStartup();
-  const filter = parseFilter(router.query);
+  const filter = parseFilter(useQuery());
   const board = useBoardNotes(filter);
   const labels = useLabels();
   const placeNames = usePlaceNames();
   const [labelsOpen, setLabelsOpen] = useState(false);
-  // Bumped after Back/Forward so the search box picks up the URL's query
-  // (typing only replaces the URL, so it never triggers this).
-  const [historyKey, setHistoryKey] = useState(0);
+  // Changes after Back/Forward, so the search box picks up the URL's query
+  // (typing only replaces the URL, so it never changes this).
+  const popKey = usePopKey();
   const restoreInput = useRef<HTMLInputElement>(null);
   // Loaded with the notes, so cards appear with their images in place.
   const images = useBoardImages();
@@ -54,47 +53,29 @@ const Home: NextPage = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
       preloadRichEditor().catch(() => {});
+      loadNotePage().catch(() => {});
     }, 500);
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    let popped = false;
-    const onPopState = () => {
-      popped = true;
-    };
-    const onRouteChangeComplete = () => {
-      if (!popped) return;
-      popped = false;
-      setHistoryKey((key) => key + 1);
-    };
-    window.addEventListener('popstate', onPopState);
-    router.events.on('routeChangeComplete', onRouteChangeComplete);
-    return () => {
-      window.removeEventListener('popstate', onPopState);
-      router.events.off('routeChangeComplete', onRouteChangeComplete);
-    };
-  }, [router.events]);
-
   // Back from the editor: return to where the user was on the board.
   useEffect(() => {
     if (!loaded) return;
-    const y = takeBoardScroll(router.asPath);
+    const y = takeBoardScroll(nav.url);
     if (y !== null) window.scrollTo(0, y);
-  }, [loaded, router.asPath]);
+  }, [loaded, nav.url]);
 
   const labelNames = useMemo(() => new Map((labels ?? []).map((l) => [l.id, l.name])), [labels]);
 
-  const showFilter = (next: Pick<BoardFilter, 'view' | 'labelId'>) =>
-    void router.push({ pathname: '/', query: filterToQuery({ ...filter, ...next }) }, undefined, { shallow: true });
+  const showFilter = (next: Pick<BoardFilter, 'view' | 'labelId'>) => nav.go(homeHref({ ...filter, ...next }));
 
   const search = (query: string) => {
     const view = filter.view === 'boards' && query ? 'all' : filter.view;
-    void router.replace({ pathname: '/', query: filterToQuery({ ...filter, view, query }) }, undefined, { shallow: true });
+    nav.swap(homeHref({ ...filter, view, query }));
   };
 
-  const openNote = (id: string) => openEditor(router, noteHref(id));
-  const newNote = (kind: NoteKind) => openEditor(router, newNoteHref(kind));
+  const openNote = (id: string) => openEditor(nav, noteHref(id));
+  const newNote = (kind: NoteKind) => openEditor(nav, newNoteHref(kind));
 
   const clearTrash = async () => {
     if (!window.confirm('Delete all notes in Trash forever? This can’t be undone.')) return;
@@ -140,16 +121,13 @@ const Home: NextPage = () => {
 
   return (
     <>
-      <Head>
-        <title>Noteboard</title>
-        <meta name='description' content='Notes and lists by Nine Technology' />
-      </Head>
+      <title>Noteboard</title>
       <AppShell
         onEditLabels={() => setLabelsOpen(true)}
         renderTop={(onMenu) => (
           <TopBar
             initialQuery={filter.query}
-            searchKey={router.isReady ? `ready-${historyKey}` : 'loading'}
+            searchKey={`pop-${popKey}`}
             onQueryChange={search}
             onNew={newNote}
             onMenu={onMenu}
@@ -173,7 +151,7 @@ const Home: NextPage = () => {
             onEmptyTrash={() => void clearTrash()}
           />
           {filter.view === 'boards' ? (
-            <BoardTiles onOpen={(id) => void router.push(boardHref(id))} />
+            <BoardTiles onOpen={(id) => nav.go(boardHref(id))} />
           ) : sections ? (
             <UpcomingView sections={sections} labelNames={labelNames} onOpen={openNote} images={images} placeNames={placeNames} />
           ) : (

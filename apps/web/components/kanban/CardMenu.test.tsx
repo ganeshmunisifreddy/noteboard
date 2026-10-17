@@ -1,24 +1,14 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBoard } from '../../lib/boards';
 import { db } from '../../lib/db';
 import { createLabel, createNote } from '../../lib/notes';
 import { sortedColumns } from '../../lib/places';
-import BoardPage from '../../pages/board';
+import { renderAt } from '../../lib/testRouter';
+import BoardPage from '../../routes/BoardPage';
 import { ToastProvider } from '../ui/Toast';
 
-const router = vi.hoisted(() => ({
-  pathname: '/board',
-  asPath: '/board',
-  query: {} as Record<string, string>,
-  isReady: true,
-  push: vi.fn(),
-  replace: vi.fn(),
-  back: vi.fn(),
-}));
-vi.mock('next/router', () => ({ useRouter: () => router }));
-vi.mock('next/head', () => ({ default: () => null }));
 
 beforeEach(async () => {
   await db.delete();
@@ -27,11 +17,11 @@ beforeEach(async () => {
 });
 
 const open = (id: string) => {
-  router.query = { id };
-  return render(
+  return renderAt(
     <ToastProvider>
       <BoardPage />
     </ToastProvider>,
+    `/board?id=${id}`,
   );
 };
 

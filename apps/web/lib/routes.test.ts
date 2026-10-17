@@ -1,9 +1,8 @@
-import type { NextRouter } from 'next/router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { BOARDS_HREF, boardHref, leaveEditor, markOnBoard, newNoteHref, noteHref, openEditor } from './routes';
+import type { Nav } from './navigation';
+import { BOARDS_HREF, boardHref, homeHref, leaveEditor, markOnBoard, newNoteHref, noteHref, openEditor } from './routes';
 
-const fakeRouter = (pathname: string, asPath = pathname) =>
-  ({ pathname, asPath, push: vi.fn(), replace: vi.fn(), back: vi.fn() }) as unknown as NextRouter;
+const fakeNav = (path: string, url = path): Nav => ({ path, url, go: vi.fn(), swap: vi.fn(), back: vi.fn() });
 
 beforeEach(() => {
   markOnBoard();
@@ -12,38 +11,53 @@ beforeEach(() => {
 
 describe('hrefs', () => {
   it('builds editor URLs', () => {
-    expect(noteHref('abc')).toEqual({ pathname: '/note', query: { id: 'abc' } });
+    expect(noteHref('abc')).toBe('/note?id=abc');
     const href = newNoteHref('list');
-    expect(href.query).toEqual({ new: 'list', id: expect.any(String) });
-    expect(newNoteHref('list').query).not.toEqual(href.query);
+    expect(href).toMatch(/^\/note\?new=list&id=[\w-]+$/);
+    expect(newNoteHref('list')).not.toBe(href);
+  });
+
+  it('builds board links', () => {
+    expect(boardHref('b1')).toBe('/board?id=b1');
+    expect(BOARDS_HREF).toBe('/?view=boards');
+  });
+
+  it('builds a new card link with its place', () => {
+    const query = new URLSearchParams(newNoteHref('list', { columnId: 'c1', boardId: 'b1', at: 'bottom' }).split('?')[1]);
+    expect(Object.fromEntries(query)).toMatchObject({ new: 'list', column: 'c1', at: 'bottom', board: 'b1' });
+    expect(query.get('id')).toEqual(expect.any(String));
+  });
+
+  it('builds board-view links, leaving out defaults', () => {
+    expect(homeHref({ view: 'all', labelId: null, query: '' })).toBe('/');
+    expect(homeHref({ view: 'lists', labelId: null, query: 'eggs & milk' })).toBe('/?view=lists&q=eggs+%26+milk');
   });
 });
 
 describe('openEditor / leaveEditor', () => {
   it('goes back to the board it came from', () => {
-    const board = fakeRouter('/');
+    const board = fakeNav('/');
     openEditor(board, noteHref('a'));
-    expect(board.push).toHaveBeenCalledWith(noteHref('a'));
+    expect(board.go).toHaveBeenCalledWith('/note?id=a');
 
-    const editor = fakeRouter('/note');
+    const editor = fakeNav('/note');
     leaveEditor(editor);
     expect(editor.back).toHaveBeenCalled();
-    expect(editor.push).not.toHaveBeenCalled();
+    expect(editor.go).not.toHaveBeenCalled();
   });
 
   it('goes home when the editor was opened directly', () => {
-    const editor = fakeRouter('/note');
+    const editor = fakeNav('/note');
     leaveEditor(editor);
-    expect(editor.push).toHaveBeenCalledWith('/');
+    expect(editor.go).toHaveBeenCalledWith('/');
     expect(editor.back).not.toHaveBeenCalled();
   });
 
   it('replaces history when opening a note from the editor', () => {
-    const board = fakeRouter('/');
-    openEditor(board, noteHref('a'));
-    const editor = fakeRouter('/note');
+    openEditor(fakeNav('/'), noteHref('a'));
+    const editor = fakeNav('/note');
     openEditor(editor, noteHref('b'));
-    expect(editor.replace).toHaveBeenCalledWith(noteHref('b'));
+    expect(editor.swap).toHaveBeenCalledWith('/note?id=b');
     leaveEditor(editor);
     expect(editor.back).toHaveBeenCalled();
   });
@@ -51,30 +65,19 @@ describe('openEditor / leaveEditor', () => {
 
 describe('after a refresh in the editor', () => {
   it('returns to the board with the filter it was opened from', async () => {
-    openEditor(fakeRouter('/', '/?view=lists'), noteHref('a'));
+    openEditor(fakeNav('/', '/?view=lists'), noteHref('a'));
     vi.resetModules();
     const fresh = await import('./routes');
-    const editor = fakeRouter('/note');
+    const editor = fakeNav('/note');
     fresh.leaveEditor(editor);
-    expect(editor.push).toHaveBeenCalledWith('/?view=lists');
+    expect(editor.go).toHaveBeenCalledWith('/?view=lists');
     expect(editor.back).not.toHaveBeenCalled();
   });
 
   it('remembers the board scroll position for the way back', () => {
     window.scrollY = 320;
-    openEditor(fakeRouter('/', '/?label=l1'), noteHref('a'));
+    openEditor(fakeNav('/', '/?label=l1'), noteHref('a'));
     expect(JSON.parse(sessionStorage.getItem('boardScroll') ?? 'null')).toEqual({ url: '/?label=l1', y: 320 });
     window.scrollY = 0;
-  });
-
-  it('builds board links', () => {
-    expect(boardHref('b1')).toEqual({ pathname: '/board', query: { id: 'b1' } });
-    expect(BOARDS_HREF).toEqual({ pathname: '/', query: { view: 'boards' } });
-  });
-
-  it('builds a new card link with its place', () => {
-    const href = newNoteHref('list', { columnId: 'c1', at: 'bottom' });
-    expect(href.query).toMatchObject({ new: 'list', column: 'c1', at: 'bottom' });
-    expect(typeof (href.query as Record<string, string>).id).toBe('string');
   });
 });

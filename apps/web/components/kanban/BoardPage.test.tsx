@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBoard } from '../../lib/boards';
@@ -6,20 +6,11 @@ import { db } from '../../lib/db';
 import { createNote } from '../../lib/notes';
 import { sortedColumns } from '../../lib/places';
 import { leaveEditor, noteHref, openEditor } from '../../lib/routes';
-import BoardPage from '../../pages/board';
+import type { Nav } from '../../lib/navigation';
+import { renderAt } from '../../lib/testRouter';
+import BoardPage from '../../routes/BoardPage';
 import { ToastProvider } from '../ui/Toast';
 
-const router = vi.hoisted(() => ({
-  pathname: '/board',
-  asPath: '/board',
-  query: {} as Record<string, string>,
-  isReady: true,
-  push: vi.fn(),
-  replace: vi.fn(),
-  back: vi.fn(),
-}));
-vi.mock('next/router', () => ({ useRouter: () => router }));
-vi.mock('next/head', () => ({ default: () => null }));
 
 beforeEach(async () => {
   await db.delete();
@@ -29,12 +20,11 @@ beforeEach(async () => {
 });
 
 const open = (id: string) => {
-  router.query = { id };
-  router.asPath = `/board?id=${id}`;
-  return render(
+  return renderAt(
     <ToastProvider>
       <BoardPage />
     </ToastProvider>,
+    `/board?id=${id}`,
   );
 };
 
@@ -79,16 +69,20 @@ describe('board page', () => {
   it('opens a card and adds cards in a column', async () => {
     const user = userEvent.setup();
     const { board, columns } = await setup();
-    open(board.id);
+    const view = open(board.id);
     await user.click(await screen.findByRole('button', { name: 'Open note: Wireframes' }));
-    expect(router.push).toHaveBeenLastCalledWith({ pathname: '/note', query: { id: 'n1' } });
-    await user.click(screen.getByRole('button', { name: 'Add card to To do' }));
+    expect(view.url()).toBe('/note?id=n1');
+    // The page reads the URL, so it shows the board again after Back.
+    view.back();
+    await user.click(await screen.findByRole('button', { name: 'Add card to To do' }));
     await user.click(screen.getByRole('button', { name: 'Open in editor' }));
-    expect(router.push.mock.lastCall?.[0]).toMatchObject({ query: { new: 'note', column: columns[0].id, at: 'bottom' } });
-    await user.click(screen.getByRole('button', { name: 'Add a list to To do' }));
-    expect(router.push.mock.lastCall?.[0]).toMatchObject({ query: { new: 'list', column: columns[0].id } });
-    await user.click(screen.getByRole('button', { name: 'Add card' }));
-    expect(router.push.mock.lastCall?.[0]).toMatchObject({ query: { new: 'note', column: columns[0].id, at: 'top' } });
+    expect(view.query()).toMatchObject({ new: 'note', column: columns[0].id, at: 'bottom' });
+    view.back();
+    await user.click(await screen.findByRole('button', { name: 'Add a list to To do' }));
+    expect(view.query()).toMatchObject({ new: 'list', column: columns[0].id });
+    view.back();
+    await user.click(await screen.findByRole('button', { name: 'Add card' }));
+    expect(view.query()).toMatchObject({ new: 'note', column: columns[0].id, at: 'top' });
   });
 
   it('adds cards quickly, one after another', async () => {
@@ -132,13 +126,13 @@ describe('board page', () => {
   it('opens a typed quick-add card in the editor', async () => {
     const user = userEvent.setup();
     const { board } = await setup();
-    open(board.id);
+    const view = open(board.id);
     await user.click(await screen.findByRole('button', { name: 'Add card to Doing' }));
     await user.type(screen.getByRole('textbox', { name: 'Card title for Doing' }), 'Copy');
     await user.click(screen.getByRole('button', { name: 'Open in editor' }));
-    await waitFor(() => expect(router.push.mock.lastCall?.[0]).toMatchObject({ pathname: '/note' }));
+    await waitFor(() => expect(view.path()).toBe('/note'));
     const note = (await db.notes.toArray()).find((n) => n.title === 'Copy');
-    expect(router.push.mock.lastCall?.[0]).toMatchObject({ query: { id: note?.id } });
+    expect(view.query()).toMatchObject({ id: note?.id });
   });
 
   it('archives all of a column’s cards with one Undo', async () => {
@@ -150,6 +144,8 @@ describe('board page', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Archive all cards' }));
     await waitFor(async () => expect((await db.notes.toArray()).every((n) => n.archived)).toBe(true));
     expect(await screen.findByText('Archived 2 cards')).toBeInTheDocument();
+    // The column menu blocks pointer events on the page until it has fully closed.
+    await waitFor(() => expect(document.body.style.pointerEvents).not.toBe('none'));
     await user.click(screen.getByRole('button', { name: 'Undo' }));
     await waitFor(async () => expect((await db.notes.toArray()).some((n) => n.archived)).toBe(false));
   });
@@ -252,7 +248,7 @@ describe('board page', () => {
   it('deletes the board, keeping or trashing its notes', async () => {
     const user = userEvent.setup();
     const { board } = await setup();
-    open(board.id);
+    const view = open(board.id);
     await user.click(await screen.findByRole('button', { name: 'Board actions' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Delete board…' }));
     const dialog = await screen.findByRole('alertdialog', { name: 'Delete “Website redesign”?' });
@@ -261,7 +257,7 @@ describe('board page', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Move notes to Trash' }));
     await waitFor(async () => expect(await db.boards.count()).toBe(0));
     expect((await db.notes.get('n1'))?.trashedAt).not.toBeNull();
-    expect(router.push).toHaveBeenLastCalledWith({ pathname: '/', query: { view: 'boards' } });
+    expect(view.url()).toBe('/?view=boards');
     // The modal blocks pointer events on the page until it has fully closed.
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
     await waitFor(() => expect(document.body.style.pointerEvents).not.toBe('none'));
@@ -274,9 +270,9 @@ describe('board page', () => {
   it('goes back to the Boards view', async () => {
     const user = userEvent.setup();
     const { board } = await setup();
-    open(board.id);
+    const view = open(board.id);
     await user.click(await screen.findByRole('button', { name: 'Back to boards' }));
-    expect(router.push).toHaveBeenLastCalledWith({ pathname: '/', query: { view: 'boards' } });
+    expect(view.url()).toBe('/?view=boards');
   });
 
   it('puts focus in the name field when renaming or adding a column from a menu', async () => {
@@ -325,13 +321,13 @@ describe('board page', () => {
 
   it('forgets “opened from a board” once the board shows again', async () => {
     const { board } = await setup();
-    router.pathname = '/board';
-    router.asPath = `/board?id=${board.id}`;
-    openEditor(router as never, noteHref('n1'));
+    const fromBoard: Nav = { path: '/board', url: `/board?id=${board.id}`, go: vi.fn(), swap: vi.fn(), back: vi.fn() };
+    openEditor(fromBoard, noteHref('n1'));
     open(board.id);
     await screen.findByRole('heading', { level: 1, name: 'Website redesign' });
-    leaveEditor(router as never);
-    expect(router.back).not.toHaveBeenCalled();
+    const editor: Nav = { path: '/note', url: '/note?id=n1', go: vi.fn(), swap: vi.fn(), back: vi.fn() };
+    leaveEditor(editor);
+    expect(editor.back).not.toHaveBeenCalled();
   });
 
   it('reads column counts as cards', async () => {

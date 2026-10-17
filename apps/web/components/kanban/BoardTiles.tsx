@@ -11,9 +11,9 @@ import {
   type DragOverEvent,
 } from '@dnd-kit/core';
 import { EllipsisVertical, Plus, Star } from 'lucide-react';
-import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { moveBoardTo, orderInGroup, starBoard, useBoardSummaries, type BoardSummary } from '../../lib/boards';
+import { Link } from '../../lib/navigation';
 import { boardHref } from '../../lib/routes';
 import IconButton from '../ui/IconButton';
 import Menu, { type MenuItem } from '../ui/Menu';
@@ -118,7 +118,7 @@ const BoardTiles = ({ onOpen }: { onOpen: (id: string) => void }) => {
     return (
       <DraggableTile key={board.id} id={board.id}>
         <Link
-          href={boardHref(board.id)}
+          to={boardHref(board.id)}
           className={styles.tile}
           onClickCapture={(e) => {
             if (dragged.current) e.preventDefault();

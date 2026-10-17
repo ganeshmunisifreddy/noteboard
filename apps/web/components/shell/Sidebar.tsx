@@ -1,9 +1,8 @@
 import { Archive, Bell, Pencil, SquareKanban, StickyNote, Tag, Trash2 } from 'lucide-react';
-import Link from 'next/link';
-import { useRouter } from 'next/router';
 import type { ReactNode } from 'react';
 import { upcomingSections } from '../../lib/due';
 import { filterToQuery, parseFilter, sectionOf } from '../../lib/filters';
+import { Link, useQuery } from '../../lib/navigation';
 import { useBoardNotes, useLabels } from '../../lib/notes';
 import { useNow } from '../../lib/time';
 import type { BoardFilter } from '../../lib/types';
@@ -19,8 +18,7 @@ const UPCOMING_FILTER: BoardFilter = { view: 'upcoming', labelId: null, query: '
 
 // Every section, the labels, Archive and Trash. Links keep the current search.
 const Sidebar = ({ variant, onNavigate, onEditLabels }: Props) => {
-  const router = useRouter();
-  const filter = parseFilter(router.query);
+  const filter = parseFilter(useQuery());
   const current = sectionOf(filter);
   const labels = [...(useLabels() ?? [])].sort((a, b) => a.name.localeCompare(b.name));
   const now = useNow();
@@ -39,8 +37,7 @@ const Sidebar = ({ variant, onNavigate, onEditLabels }: Props) => {
   const item = (key: string, to: string, icon: ReactNode, name: string, badge = 0) => (
     <li key={key}>
       <Link
-        href={to}
-        shallow
+        to={to}
         className={styles.item}
         aria-current={current === key ? 'page' : undefined}
         aria-label={badge > 0 ? `${name}, ${badge} due` : undefined}

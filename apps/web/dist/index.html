@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Noteboard</title>
+    <meta name="description" content="Notes and lists by Nine Technology" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="shortcut icon" href="/icon.png" />
+    <link rel="apple-touch-icon" href="/icon.png" />
+    <meta name="theme-color" content="#fff" />
+    <!-- Runs before first paint: apply the saved theme and the collapsed
+         sidebar. Keep in sync with lib/theme.ts. -->
+    <script>
+      try{var s=localStorage,d=document.documentElement,t=s.getItem("theme");d.dataset.theme=t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";if(s.getItem("sidebar")==="rail")d.setAttribute("data-sidebar","rail")}catch(e){}
+    </script>
+    <script type="module" crossorigin src="/assets/index-Y7sYkfCK.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/dist-CbtWdazs.js">
+    <link rel="stylesheet" crossorigin href="/assets/dist-MZjrZOX2.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-DHxYv5zp.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

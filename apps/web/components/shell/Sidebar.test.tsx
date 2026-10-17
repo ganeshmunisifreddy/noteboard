@@ -1,23 +1,13 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addDays, localDate } from '../../lib/calendar';
 import { db } from '../../lib/db';
 import { createLabel, createNote, setDue } from '../../lib/notes';
+import { renderAt } from '../../lib/testRouter';
 import AppShell from './AppShell';
 import Sidebar from './Sidebar';
 
-const router = vi.hoisted(() => ({
-  pathname: '/',
-  asPath: '/',
-  query: {} as Record<string, string>,
-  isReady: true,
-  push: vi.fn(),
-  replace: vi.fn(),
-  prefetch: vi.fn(() => Promise.resolve()),
-  events: { on: vi.fn(), off: vi.fn() },
-}));
-vi.mock('next/router', () => ({ useRouter: () => router }));
 
 const original = window.matchMedia;
 const desktop = (matches: boolean) => {
@@ -37,7 +27,6 @@ beforeEach(async () => {
   await db.delete();
   await db.open();
   localStorage.clear();
-  router.query = {};
   desktop(true);
 });
 
@@ -50,8 +39,7 @@ const nav = () => screen.getAllByRole('navigation', { name: 'Sections' })[0];
 describe('Sidebar', () => {
   it('lists every section and the labels, and marks the current one', async () => {
     await createLabel('Office');
-    router.query = { view: 'lists' };
-    render(<Sidebar variant='side' onEditLabels={vi.fn()} />);
+    renderAt(<Sidebar variant='side' onEditLabels={vi.fn()} />, '/?view=lists');
     expect(await within(nav()).findByRole('link', { name: 'Office' })).toHaveAttribute('href', expect.stringContaining('label='));
     for (const name of ['Notes', 'Upcoming', 'Boards', 'Archive', 'Trash']) {
       expect(within(nav()).getByRole('link', { name: new RegExp(`^${name}`) })).toBeInTheDocument();
@@ -68,13 +56,13 @@ describe('Sidebar', () => {
     await setDue(a.id, addDays(today, -1), null, null);
     await setDue(b.id, today, null, null);
     await setDue(c.id, addDays(today, 3), null, null);
-    render(<Sidebar variant='side' onEditLabels={vi.fn()} />);
+    renderAt(<Sidebar variant='side' onEditLabels={vi.fn()} />);
     expect(await within(nav()).findByRole('link', { name: 'Upcoming, 2 due' })).toBeInTheDocument();
   });
 
   it('opens Edit labels', async () => {
     const onEditLabels = vi.fn();
-    render(<Sidebar variant='side' onEditLabels={onEditLabels} />);
+    renderAt(<Sidebar variant='side' onEditLabels={onEditLabels} />);
     await userEvent.setup().click(within(nav()).getByRole('button', { name: 'Edit labels' }));
     expect(onEditLabels).toHaveBeenCalled();
   });
@@ -91,7 +79,7 @@ describe('AppShell', () => {
 
   it('collapses to the rail on desktop and remembers it', async () => {
     const user = userEvent.setup();
-    const { unmount } = render(
+    const { unmount } = renderAt(
       <AppShell renderTop={top} onEditLabels={vi.fn()}>
         body
       </AppShell>,
@@ -99,7 +87,7 @@ describe('AppShell', () => {
     await user.click(screen.getByRole('button', { name: 'Main menu' }));
     expect(localStorage.getItem('sidebar')).toBe('rail');
     unmount();
-    render(
+    renderAt(
       <AppShell renderTop={top} onEditLabels={vi.fn()}>
         body
       </AppShell>,
@@ -110,7 +98,7 @@ describe('AppShell', () => {
   it('opens a drawer below desktop width, closes it on a pick and returns focus', async () => {
     desktop(false);
     const user = userEvent.setup();
-    render(
+    renderAt(
       <AppShell renderTop={top} onEditLabels={vi.fn()}>
         body
       </AppShell>,
@@ -125,7 +113,7 @@ describe('AppShell', () => {
 
   it('returns focus to ☰ even when the click didn’t focus it (Safari)', async () => {
     desktop(false);
-    render(
+    renderAt(
       <AppShell renderTop={top} onEditLabels={vi.fn()}>
         body
       </AppShell>,
@@ -149,7 +137,7 @@ describe('AppShell', () => {
       removeListener: () => {},
       dispatchEvent: () => false,
     })) as typeof window.matchMedia;
-    render(
+    renderAt(
       <AppShell renderTop={top} onEditLabels={vi.fn()}>
         body
       </AppShell>,

@@ -1,6 +1,4 @@
 import { SquareKanban, Tag } from 'lucide-react';
-import Head from 'next/head';
-import { useRouter } from 'next/router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { convertKind, isNoteEmpty } from '../../lib/checklist';
 import {
@@ -33,6 +31,7 @@ import {
 import { newCardPlace, placeAtEnd, putBackPlace, removeFromBoard } from '../../lib/cards';
 import { useBoardColumns, usePlaceNames } from '../../lib/boards';
 import { formatDue } from '../../lib/due';
+import { useNav } from '../../lib/navigation';
 import { leaveEditor, noteHref, openEditor, type NewCardPlace } from '../../lib/routes';
 import { isQuotaError } from '../../lib/storage';
 import { formatEdited, useNow } from '../../lib/time';
@@ -101,7 +100,7 @@ type Props = {
 };
 
 const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
-  const router = useRouter();
+  const nav = useNav();
   const toast = useToast();
   const labels = useLabels() ?? [];
   // `stored` only seeds the draft; after that the draft is the source of truth.
@@ -152,7 +151,7 @@ const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
         createdRef.current = true;
         // Saved while leaving: the router is already on another page, and
         // rewriting the URL now would navigate back into this note.
-        if (mountedRef.current) void router.replace(noteHref(noteId), undefined, { shallow: true });
+        if (mountedRef.current) nav.swap(noteHref(noteId), { keepScroll: true });
       }
     } catch (error) {
       dirtyRef.current = true;
@@ -176,7 +175,7 @@ const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
       await create(draftRef.current);
       createdRef.current = true;
       dirtyRef.current = false;
-      if (mountedRef.current) void router.replace(noteHref(noteId), undefined, { shallow: true });
+      if (mountedRef.current) nav.swap(noteHref(noteId), { keepScroll: true });
     });
     // A failed create must not block the saves queued after it.
     queueRef.current = run.catch(() => {});
@@ -370,7 +369,7 @@ const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
     if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing) return;
     // Popovers and menus close themselves on Escape.
     if (event.target instanceof Element && event.target.closest('[role="dialog"],[role="menu"]')) return;
-    leaveEditor(router);
+    leaveEditor(nav);
   });
 
   useEffect(() => {
@@ -407,7 +406,7 @@ const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
     update({ archived: archiving, pinned: archiving ? false : draft.pinned });
     await flush();
     if (!archiving || !before) return;
-    leaveEditor(router);
+    leaveEditor(nav);
     toast({ message: 'Note archived', actionLabel: 'Undo', onAction: () => void restoreSnapshot(before) });
   };
 
@@ -418,7 +417,7 @@ const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
       await trashNote(noteId);
       toast({ message: 'Moved to trash', actionLabel: 'Undo', onAction: () => void undoTrash(noteId) });
     }
-    leaveEditor(router);
+    leaveEditor(nav);
   };
 
   const copy = async () => {
@@ -432,7 +431,7 @@ const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
       return;
     }
     if (!duplicate) return;
-    openEditor(router, noteHref(duplicate.id));
+    openEditor(nav, noteHref(duplicate.id));
     toast({ message: 'Copy created' });
   };
 
@@ -445,7 +444,7 @@ const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
     if (!window.confirm('Delete this note forever? This can’t be undone.')) return;
     editedRef.current = false;
     await deleteForever(noteId);
-    leaveEditor(router);
+    leaveEditor(nav);
   };
 
   const rich = useRichEditor();
@@ -481,14 +480,12 @@ const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
           Drop to add images
         </div>
       )}
-      <Head>
-        <title>{`${draft.title || 'Untitled'} | Noteboard`}</title>
-      </Head>
+      <title>{`${draft.title || 'Untitled'} | Noteboard`}</title>
       <div className={styles.top}>
         <EditorToolbar
           draft={draft}
           trashed={trashed}
-          onBack={() => leaveEditor(router)}
+          onBack={() => leaveEditor(nav)}
           onChange={update}
           onTogglePin={togglePin}
           onSwitchKind={() => update(convertKind(draftRef.current))}

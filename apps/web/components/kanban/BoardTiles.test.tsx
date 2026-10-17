@@ -1,10 +1,11 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBoard } from '../../lib/boards';
 import { db } from '../../lib/db';
 import { createNote } from '../../lib/notes';
 import { sortedColumns } from '../../lib/places';
+import { renderAt } from '../../lib/testRouter';
 import BoardTiles from './BoardTiles';
 
 beforeEach(async () => {
@@ -14,7 +15,7 @@ beforeEach(async () => {
 
 describe('BoardTiles', () => {
   it('invites you to create the first board', async () => {
-    render(<BoardTiles onOpen={vi.fn()} />);
+    renderAt(<BoardTiles onOpen={vi.fn()} />);
     expect(await screen.findByText('No boards yet. Create one to organise notes into columns.')).toBeInTheDocument();
   });
 
@@ -22,7 +23,7 @@ describe('BoardTiles', () => {
     const board = await createBoard('Website redesign', 'basic');
     const [todo] = await sortedColumns(board.id);
     await createNote({ kind: 'note', boardId: board.id, columnId: todo.id, boardPosition: 0 });
-    render(<BoardTiles onOpen={vi.fn()} />);
+    renderAt(<BoardTiles onOpen={vi.fn()} />);
     const link = await screen.findByRole('link', { name: /Website redesign/ });
     expect(link).toHaveAttribute('href', '/board?id=' + board.id);
     expect(within(link).getByText('3 columns · 1 card')).toBeInTheDocument();
@@ -31,7 +32,7 @@ describe('BoardTiles', () => {
   it('creates a board from a template and opens it', async () => {
     const user = userEvent.setup();
     const onOpen = vi.fn();
-    render(<BoardTiles onOpen={onOpen} />);
+    renderAt(<BoardTiles onOpen={onOpen} />);
     await user.click(await screen.findByRole('button', { name: 'New board' }));
     const dialog = await screen.findByRole('dialog', { name: 'New board' });
     await user.click(within(dialog).getByRole('button', { name: 'Create' }));
@@ -50,7 +51,7 @@ describe('BoardTiles', () => {
     const user = userEvent.setup();
     await createBoard('Home', 'empty');
     const work = await createBoard('Work', 'empty');
-    render(<BoardTiles onOpen={vi.fn()} />);
+    renderAt(<BoardTiles onOpen={vi.fn()} />);
     await screen.findByRole('link', { name: /Home/ });
     expect(screen.queryByRole('heading', { name: 'Starred' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Star Work' }));
@@ -66,7 +67,7 @@ describe('BoardTiles', () => {
     const user = userEvent.setup();
     await createBoard('A', 'empty');
     await createBoard('B', 'empty');
-    render(<BoardTiles onOpen={vi.fn()} />);
+    renderAt(<BoardTiles onOpen={vi.fn()} />);
     await user.click(await screen.findByRole('button', { name: 'Board actions for B' }));
     expect(screen.queryByRole('menuitem', { name: 'Move later' })).not.toBeInTheDocument();
     await user.click(await screen.findByRole('menuitem', { name: 'Move earlier' }));
@@ -78,7 +79,7 @@ describe('BoardTiles', () => {
 
   it('offers templates as option cards that work as radios', async () => {
     const user = userEvent.setup();
-    render(<BoardTiles onOpen={vi.fn()} />);
+    renderAt(<BoardTiles onOpen={vi.fn()} />);
     await user.click(await screen.findByRole('button', { name: 'New board' }));
     const pipeline = screen.getByRole('radio', { name: 'Pipeline' });
     await user.click(pipeline);
@@ -89,7 +90,7 @@ describe('BoardTiles', () => {
   it('creates one board even when Create is pressed twice', async () => {
     const user = userEvent.setup();
     const onOpen = vi.fn();
-    render(<BoardTiles onOpen={onOpen} />);
+    renderAt(<BoardTiles onOpen={onOpen} />);
     await user.click(await screen.findByRole('button', { name: 'New board' }));
     const dialog = await screen.findByRole('dialog', { name: 'New board' });
     await user.type(within(dialog).getByLabelText('Name'), 'Twice');

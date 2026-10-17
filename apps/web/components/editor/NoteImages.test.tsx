@@ -1,23 +1,13 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../../lib/db';
 import { createNote } from '../../lib/notes';
 import { bytesOf } from '../../lib/testUtils';
-import NotePage from '../../pages/note';
+import { renderAt } from '../../lib/testRouter';
+import NotePage from '../../routes/NotePage';
 import { ToastProvider } from '../ui/Toast';
 
-const router = vi.hoisted(() => ({
-  pathname: '/note',
-  query: {} as Record<string, string>,
-  isReady: true,
-  push: vi.fn(),
-  replace: vi.fn(),
-  back: vi.fn(),
-}));
-
-vi.mock('next/router', () => ({ useRouter: () => router }));
-vi.mock('next/head', () => ({ default: () => null }));
 // Lets a test hold image processing open, like a slow phone photo.
 const processing = vi.hoisted(() => ({ gate: null as Promise<void> | null }));
 // jsdom can't decode images; the processing itself is tested in lib/images.test.ts.
@@ -55,11 +45,11 @@ beforeEach(async () => {
 const photo = (name = 'receipt.jpg') => new File(['x'], name, { type: 'image/jpeg' });
 
 const open = (query: Record<string, string>) => {
-  router.query = query;
-  return render(
+  return renderAt(
     <ToastProvider>
       <NotePage />
     </ToastProvider>,
+    `/note?${new URLSearchParams(query)}`,
   );
 };
 
@@ -79,12 +69,12 @@ describe('images in the note editor', () => {
   });
 
   it('saves a new note when its first image is added and keeps it on leaving', async () => {
-    const { unmount } = open({ new: 'note', id: 'fresh' });
+    const view = open({ new: 'note', id: 'fresh' });
     await screen.findByRole('button', { name: 'Add image' });
     choose([photo()]);
     await screen.findByRole('button', { name: 'Open image 1 of 1' });
-    expect(router.replace).toHaveBeenCalled();
-    unmount();
+    expect(view.url()).toBe('/note?id=fresh');
+    view.unmount();
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(await db.notes.get('fresh')).toMatchObject({ trashedAt: null });
   });

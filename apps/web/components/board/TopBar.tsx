@@ -7,7 +7,7 @@ import styles from './TopBar.module.css';
 
 type Props = {
   initialQuery: string;
-  searchKey: string; // remounts the input once the URL is known
+  searchKey: string; // remounts the input after Back/Forward
   onQueryChange: (query: string) => void;
   onNew: (kind: NoteKind) => void;
   onMenu: (button: HTMLElement) => void; // ☰: collapse the sidebar, or open it as a drawer

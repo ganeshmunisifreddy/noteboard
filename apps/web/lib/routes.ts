@@ -1,25 +1,29 @@
-import type { NextRouter } from 'next/router';
-import type { UrlObject } from 'url';
 import { v4 as uuid } from 'uuid';
-import type { NoteKind } from './types';
+import { filterToQuery } from './filters';
+import type { Nav } from './navigation';
+import type { BoardFilter, NoteKind } from './types';
 
-export const noteHref = (id: string): UrlObject => ({ pathname: '/note', query: { id } });
+const withQuery = (path: string, query: Record<string, string>) => {
+  const search = new URLSearchParams(query).toString();
+  return search ? `${path}?${search}` : path;
+};
+
+export const noteHref = (id: string) => withQuery('/note', { id });
 
 export type NewCardPlace = { columnId: string; boardId?: string; at: 'top' | 'bottom' };
 
 // New notes get their id up front so the editor's URL and identity stay the
 // same when the note is first saved. A new card also carries its column.
-export const newNoteHref = (kind: NoteKind, place?: NewCardPlace): UrlObject => ({
-  pathname: '/note',
-  query: {
+export const newNoteHref = (kind: NoteKind, place?: NewCardPlace) =>
+  withQuery('/note', {
     new: kind,
     id: uuid(),
     ...(place ? { column: place.columnId, at: place.at, ...(place.boardId ? { board: place.boardId } : {}) } : {}),
-  },
-});
+  });
 
-export const boardHref = (id: string): UrlObject => ({ pathname: '/board', query: { id } });
-export const BOARDS_HREF: UrlObject = { pathname: '/', query: { view: 'boards' } };
+export const boardHref = (id: string) => withQuery('/board', { id });
+export const BOARDS_HREF = '/?view=boards';
+export const homeHref = (filter: BoardFilter) => withQuery('/', filterToQuery(filter));
 
 let openedFromBoard = false;
 
@@ -27,7 +31,7 @@ let openedFromBoard = false;
 const BOARD_URL_KEY = 'boardUrl';
 
 // The board renders after its notes load, too late for the browser's own
-// scroll restoration, so it restores this itself (see pages/index.tsx).
+// scroll restoration, so it restores this itself (see routes/Home.tsx).
 const BOARD_SCROLL_KEY = 'boardScroll';
 
 const rememberBoard = (url: string) => {
@@ -65,26 +69,26 @@ export const markOnBoard = () => {
   openedFromBoard = false;
 };
 
-export const openEditor = (router: NextRouter, href: UrlObject) => {
+export const openEditor = (nav: Nav, href: string) => {
   // From the board or a kanban board: Back returns there.
-  if (router.pathname === '/' || router.pathname === '/board') {
+  if (nav.path === '/' || nav.path === '/board') {
     openedFromBoard = true;
-    rememberBoard(router.asPath);
-    void router.push(href);
+    rememberBoard(nav.url);
+    nav.go(href);
   } else {
     // Editor to editor (Make a copy, shortcuts): keep one history entry so
     // Back still lands on the board.
-    void router.replace(href);
+    nav.swap(href);
   }
 };
 
 // Back from the editor: pop history when we came from the board, so it keeps
 // its filter and scroll position; otherwise reopen the last board view.
-export const leaveEditor = (router: NextRouter) => {
+export const leaveEditor = (nav: Nav) => {
   if (openedFromBoard) {
     openedFromBoard = false;
-    router.back();
+    nav.back();
   } else {
-    void router.push(savedBoardUrl());
+    nav.go(savedBoardUrl());
   }
 };

@@ -1,22 +1,13 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../../lib/db';
 import { createNote } from '../../lib/notes';
-import NotePage from '../../pages/note';
+import { useScrollToTop } from '../../lib/navigation';
+import { renderAt } from '../../lib/testRouter';
+import NotePage from '../../routes/NotePage';
 import { ToastProvider } from '../ui/Toast';
 
-const router = vi.hoisted(() => ({
-  pathname: '/note',
-  query: {} as Record<string, string>,
-  isReady: true,
-  push: vi.fn(),
-  replace: vi.fn(),
-  back: vi.fn(),
-}));
-
-vi.mock('next/router', () => ({ useRouter: () => router }));
-vi.mock('next/head', () => ({ default: () => null }));
 // Typing into Tiptap's contenteditable is unreliable in jsdom; the editor is
 // tested in RichEditor.test.tsx and FormatBar.test.tsx.
 vi.mock('./RichEditor', async () => {
@@ -39,57 +30,63 @@ const savedContent = async (id: string) => (await db.notes.get(id))?.content;
 
 describe('NotePage', () => {
   it('keeps the same editor and text when a new note is first saved', async () => {
-    router.query = { new: 'note', id: 'n1' };
     const user = userEvent.setup();
-    const { rerender } = render(<NotePage />);
+    const view = renderAt(<NotePage />, '/note?new=note&id=n1');
     const body = await screen.findByRole('textbox', { name: 'Note' });
     await user.type(body, 'Milk');
-    await waitFor(() =>
-      expect(router.replace).toHaveBeenCalledWith({ pathname: '/note', query: { id: 'n1' } }, undefined, {
-        shallow: true,
-      }),
-    );
-    router.query = { id: 'n1' };
-    rerender(<NotePage />);
+    await waitFor(() => expect(view.url()).toBe('/note?id=n1'));
+    expect(view.action()).toBe('REPLACE');
     await user.type(body, ' and eggs');
     expect(screen.getByRole('textbox', { name: 'Note' })).toBe(body);
     expect(body).toHaveFocus();
     await waitFor(async () => expect(await savedContent('n1')).toBe('Milk and eggs'));
   });
 
+  it('keeps the scroll position when a new note is first saved', async () => {
+    const user = userEvent.setup();
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    const Page = () => {
+      useScrollToTop();
+      return <NotePage />;
+    };
+    const view = renderAt(<Page />, '/note?new=note&id=n12');
+    await user.type(await screen.findByRole('textbox', { name: 'Note' }), 'Milk');
+    await waitFor(() => expect(view.url()).toBe('/note?id=n12'));
+    // Let the router's (transition) render for the new URL commit.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(scrollTo).not.toHaveBeenCalled();
+    scrollTo.mockRestore();
+  });
+
   it('saves the last keystrokes when the editor closes before the autosave delay', async () => {
     await createNote({ id: 'n2', kind: 'note', title: 'Draft' });
-    router.query = { id: 'n2' };
     const user = userEvent.setup();
-    const { unmount } = render(<NotePage />);
+    const { unmount } = renderAt(<NotePage />, '/note?id=n2');
     await user.type(await screen.findByRole('textbox', { name: 'Note' }), 'Quick');
     unmount();
     await waitFor(async () => expect(await savedContent('n2')).toBe('Quick'));
   });
 
   it('does not navigate back into a new note saved while leaving', async () => {
-    router.query = { new: 'note', id: 'n7' };
     const user = userEvent.setup();
-    const { unmount } = render(<NotePage />);
+    const view = renderAt(<NotePage />, '/note?new=note&id=n7');
     await user.type(await screen.findByRole('textbox', { name: 'Note' }), 'Milk');
-    unmount();
+    view.unmount();
     await waitFor(async () => expect(await savedContent('n7')).toBe('Milk'));
-    expect(router.replace).not.toHaveBeenCalled();
+    expect(view.url()).toBe('/note?new=note&id=n7');
   });
 
   it('moves a note the user emptied to trash on leaving', async () => {
     await createNote({ id: 'n3', kind: 'note', content: 'x' });
-    router.query = { id: 'n3' };
     const user = userEvent.setup();
-    const { unmount } = render(<NotePage />);
+    const { unmount } = renderAt(<NotePage />, '/note?id=n3');
     await user.clear(await screen.findByRole('textbox', { name: 'Note' }));
     unmount();
     await waitFor(async () => expect((await db.notes.get('n3'))?.trashedAt).not.toBeNull());
   });
 
   it('does not save an untouched new note', async () => {
-    router.query = { new: 'list', id: 'n4' };
-    const { unmount } = render(<NotePage />);
+    const { unmount } = renderAt(<NotePage />, '/note?new=list&id=n4');
     await screen.findByRole('textbox', { name: 'Add list item' });
     unmount();
     await new Promise((resolve) => setTimeout(resolve, 400));
@@ -98,28 +95,25 @@ describe('NotePage', () => {
 
   it('goes home on Escape when opened directly', async () => {
     await createNote({ id: 'n5', kind: 'note', title: 'Esc' });
-    router.query = { id: 'n5' };
     const user = userEvent.setup();
-    render(<NotePage />);
+    const view = renderAt(<NotePage />, '/note?id=n5');
     await screen.findByRole('textbox', { name: 'Title' });
     await user.keyboard('{Escape}');
-    expect(router.push).toHaveBeenCalledWith('/');
+    expect(view.url()).toBe('/');
   });
 
   it('stays in the editor when Escape ends an IME composition', async () => {
     await createNote({ id: 'n8', kind: 'note', title: 'IME' });
-    router.query = { id: 'n8' };
-    render(<NotePage />);
+    const view = renderAt(<NotePage />, '/note?id=n8');
     const body = await screen.findByRole('textbox', { name: 'Note' });
     fireEvent.keyDown(body, { key: 'Escape', isComposing: true });
-    expect(router.push).not.toHaveBeenCalled();
+    expect(view.url()).toBe('/note?id=n8');
   });
 
   it('saves straight away when the tab is hidden', async () => {
     await createNote({ id: 'n9', kind: 'note', title: 'Hide' });
-    router.query = { id: 'n9' };
     const user = userEvent.setup();
-    render(<NotePage />);
+    renderAt(<NotePage />, '/note?id=n9');
     await user.type(await screen.findByRole('textbox', { name: 'Note' }), 'Swipe');
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
     document.dispatchEvent(new Event('visibilitychange'));
@@ -131,19 +125,20 @@ describe('NotePage', () => {
   it('puts an archived note back exactly as it was on Undo', async () => {
     await createNote({ id: 'n10', kind: 'note', title: 'Keep order', pinned: true });
     await db.notes.update('n10', { updatedAt: 1000 });
-    router.query = { id: 'n10' };
     const user = userEvent.setup();
-    render(
+    renderAt(
       <ToastProvider>
         <NotePage />
       </ToastProvider>,
+      '/note?id=n10',
     );
     await screen.findByRole('textbox', { name: 'Title' });
     await user.click(screen.getByRole('button', { name: 'More actions' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Archive' }));
+    const undo = await screen.findByRole('button', { name: 'Undo' });
     // Leaving the editor can leave pointer events blocked for a moment.
     await waitFor(() => expect(document.body.style.pointerEvents).not.toBe('none'));
-    await user.click(await screen.findByRole('button', { name: 'Undo' }));
+    await user.click(undo);
     await waitFor(async () =>
       expect(await db.notes.get('n10')).toMatchObject({ archived: false, pinned: true, updatedAt: 1000 }),
     );
@@ -152,12 +147,12 @@ describe('NotePage', () => {
   it('puts a deleted note back in its place on Undo', async () => {
     await createNote({ id: 'top', kind: 'note', title: 'Top', position: 0 });
     await createNote({ id: 'n11', kind: 'note', title: 'Stay put', position: 5 });
-    router.query = { id: 'n11' };
     const user = userEvent.setup();
-    render(
+    renderAt(
       <ToastProvider>
         <NotePage />
       </ToastProvider>,
+      '/note?id=n11',
     );
     await screen.findByRole('textbox', { name: 'Title' });
     await user.click(screen.getByRole('button', { name: 'More actions' }));
@@ -169,38 +164,31 @@ describe('NotePage', () => {
   it('shows a trashed note read-only with Restore', async () => {
     await createNote({ id: 'n6', kind: 'note', title: 'Old' });
     await db.notes.update('n6', { trashedAt: 1 });
-    router.query = { id: 'n6' };
     const user = userEvent.setup();
-    render(<NotePage />);
+    renderAt(<NotePage />, '/note?id=n6');
     expect(await screen.findByRole('textbox', { name: 'Title' })).toHaveAttribute('readonly');
     await user.click(screen.getByRole('button', { name: 'Restore' }));
     await waitFor(async () => expect((await db.notes.get('n6'))?.trashedAt).toBeNull());
   });
 
   it('says when a note does not exist', async () => {
-    router.query = { id: 'missing' };
-    render(<NotePage />);
+    renderAt(<NotePage />, '/note?id=missing');
     expect(await screen.findByText('Note not found')).toBeInTheDocument();
   });
 
   it('gives a new note an id when the URL has none', async () => {
-    router.query = { new: 'note' };
-    render(<NotePage />);
-    await waitFor(() =>
-      expect(router.replace).toHaveBeenCalledWith({
-        pathname: '/note',
-        query: { new: 'note', id: expect.any(String) },
-      }),
-    );
+    const view = renderAt(<NotePage />, '/note?new=note');
+    await waitFor(() => expect(view.url()).toMatch(/^\/note\?new=note&id=[\w-]+$/));
+    expect(view.action()).toBe('REPLACE');
   });
 
   it('does not show the formatting bar for list notes', async () => {
     await createNote({ id: 'n20', kind: 'list', title: 'Shop' });
-    router.query = { id: 'n20' };
-    render(
+    renderAt(
       <ToastProvider>
         <NotePage />
       </ToastProvider>,
+      '/note?id=n20',
     );
     await screen.findByRole('textbox', { name: 'Title' });
     expect(screen.queryByRole('toolbar', { name: 'Formatting' })).toBeNull();

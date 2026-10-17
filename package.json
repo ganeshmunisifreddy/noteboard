@@ -12,6 +12,7 @@
   "scripts": {
     "dev": "npm run dev -w @noteboard/web",
     "build": "npm run build -w @noteboard/web",
+    "preview": "npm run preview -w @noteboard/web",
     "lint": "npm run lint -w @noteboard/web",
     "typecheck": "npm run typecheck -w @noteboard/web",
     "test": "npm test -w @noteboard/web --"
