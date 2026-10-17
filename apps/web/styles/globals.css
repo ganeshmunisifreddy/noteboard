@@ -1,0 +1,54 @@
+/* Arial sized like Lato (the metrics next/font generated), so text doesn't
+   reflow when Lato finishes loading. */
+@font-face {
+  font-family: 'Lato Fallback';
+  src: local('Arial');
+  ascent-override: 101.03%;
+  descent-override: 21.8%;
+  line-gap-override: 0%;
+  size-adjust: 97.69%;
+}
+
+html,
+body {
+  font-family: Lato, 'Lato Fallback', sans-serif;
+  padding: 0;
+  margin: 0;
+  color: var(--text);
+  background: var(--bg);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+* {
+  margin: 0;
+  box-sizing: border-box;
+}
+
+/* Form controls don't inherit the page font by default. */
+button,
+input,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
