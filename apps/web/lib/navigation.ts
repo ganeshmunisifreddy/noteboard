@@ -1,5 +1,5 @@
-import { useLayoutEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate, useNavigationType } from 'react-router';
+import { useContext, useLayoutEffect, useMemo, useState } from 'react';
+import { UNSAFE_NavigationContext, useLocation, useNavigate, useNavigationType } from 'react-router';
 
 // The only module (with App and main) that talks to the router, so a router
 // change stays here.
@@ -30,11 +30,18 @@ export type Nav = {
   go: (href: string) => void; // a new history entry
   swap: (href: string, options?: NavOptions) => void; // replaces the current entry
   back: () => void;
+  // The address right now, even while the page for it is still loading
+  // (navigations render in a transition, so `url` can lag behind).
+  current: () => string;
 };
+
+type WithLocation = { location?: { pathname: string; search: string } };
 
 export const useNav = (): Nav => {
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
+  // The browser (or test) history behind the router.
+  const { navigator } = useContext(UNSAFE_NavigationContext);
   return useMemo(
     () => ({
       path: pathname,
@@ -43,8 +50,12 @@ export const useNav = (): Nav => {
       swap: (href, options) =>
         void navigate(href, { replace: true, state: options?.keepScroll ? { keepScroll: true } : undefined }),
       back: () => void navigate(-1),
+      current: () => {
+        const location = (navigator as WithLocation).location ?? window.location;
+        return location.pathname + location.search;
+      },
     }),
-    [navigate, pathname, search],
+    [navigate, navigator, pathname, search],
   );
 };
 

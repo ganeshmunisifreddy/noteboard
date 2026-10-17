@@ -32,7 +32,7 @@ import { newCardPlace, placeAtEnd, putBackPlace, removeFromBoard } from '../../l
 import { useBoardColumns, usePlaceNames } from '../../lib/boards';
 import { formatDue } from '../../lib/due';
 import { useNav } from '../../lib/navigation';
-import { leaveEditor, noteHref, openEditor, type NewCardPlace } from '../../lib/routes';
+import { isEditingNote, leaveEditor, noteHref, openEditor, type NewCardPlace } from '../../lib/routes';
 import { isQuotaError } from '../../lib/storage';
 import { formatEdited, useNow } from '../../lib/time';
 import type { Attachment, ChecklistItem, Note, NoteKind, Repeat } from '../../lib/types';
@@ -151,7 +151,7 @@ const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
         createdRef.current = true;
         // Saved while leaving: the router is already on another page, and
         // rewriting the URL now would navigate back into this note.
-        if (mountedRef.current) nav.swap(noteHref(noteId), { keepScroll: true });
+        if (mountedRef.current && isEditingNote(nav.current(), noteId)) nav.swap(noteHref(noteId), { keepScroll: true });
       }
     } catch (error) {
       dirtyRef.current = true;
@@ -175,7 +175,7 @@ const NoteEditor = ({ noteId, stored, newKind, newPlace }: Props) => {
       await create(draftRef.current);
       createdRef.current = true;
       dirtyRef.current = false;
-      if (mountedRef.current) nav.swap(noteHref(noteId), { keepScroll: true });
+      if (mountedRef.current && isEditingNote(nav.current(), noteId)) nav.swap(noteHref(noteId), { keepScroll: true });
     });
     // A failed create must not block the saves queued after it.
     queueRef.current = run.catch(() => {});

@@ -45,6 +45,24 @@ describe('useQuery and useNav', () => {
   });
 });
 
+describe('nav.current', () => {
+  let nav: Nav;
+  const Probe = () => {
+    nav = useNav();
+    return null;
+  };
+
+  it('reads the address straight away, before the page renders it', () => {
+    renderAt(<Probe />, '/note?id=a');
+    let during = '';
+    act(() => {
+      nav.go('/board?id=b');
+      during = nav.current();
+    });
+    expect(during).toBe('/board?id=b');
+  });
+});
+
 describe('usePopKey', () => {
   let key = -1;
   let nav: Nav;

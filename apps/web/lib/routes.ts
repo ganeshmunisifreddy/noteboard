@@ -25,6 +25,13 @@ export const boardHref = (id: string) => withQuery('/board', { id });
 export const BOARDS_HREF = '/?view=boards';
 export const homeHref = (filter: BoardFilter) => withQuery('/', filterToQuery(filter));
 
+// Whether `url` is still this note's editor; a save that finishes after the
+// user has left must not put the editor's address back.
+export const isEditingNote = (url: string, noteId: string) => {
+  const { pathname, searchParams } = new URL(url, 'http://localhost');
+  return pathname === '/note' && searchParams.get('id') === noteId;
+};
+
 let openedFromBoard = false;
 
 // Survives a refresh in the editor, when the in-memory flag above is lost.
@@ -61,9 +68,11 @@ const RESTORE_TIMEOUT_MS = 1000;
 
 // The board's height comes from measuring its cards, a frame or two after the
 // notes load, and until then the page can't scroll that far. Tries each frame
-// for up to a second, and gives up as soon as the user scrolls themselves.
+// for up to a second, and gives up as soon as the user scrolls themselves or
+// the page changes (Forward). Returns a function that stops it.
 export const restoreScroll = (y: number) => {
   const deadline = performance.now() + RESTORE_TIMEOUT_MS;
+  const page = window.location.href;
   let stopped = false;
   const stop = () => {
     stopped = true;
@@ -72,11 +81,16 @@ export const restoreScroll = (y: number) => {
   for (const name of USER_SCROLL_EVENTS) window.addEventListener(name, stop, { passive: true });
   const attempt = () => {
     if (stopped) return;
+    if (window.location.href !== page) {
+      stop();
+      return;
+    }
     window.scrollTo(0, y);
     if (window.scrollY >= y - 1 || performance.now() > deadline) stop();
     else requestAnimationFrame(attempt);
   };
   attempt();
+  return stop;
 };
 
 const savedBoardUrl = () => {

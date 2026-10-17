@@ -4,6 +4,7 @@ import {
   BOARDS_HREF,
   boardHref,
   homeHref,
+  isEditingNote,
   leaveEditor,
   markOnBoard,
   newNoteHref,
@@ -12,7 +13,7 @@ import {
   restoreScroll,
 } from './routes';
 
-const fakeNav = (path: string, url = path): Nav => ({ path, url, go: vi.fn(), swap: vi.fn(), back: vi.fn() });
+const fakeNav = (path: string, url = path): Nav => ({ path, url, go: vi.fn(), swap: vi.fn(), back: vi.fn(), current: () => url });
 
 beforeEach(() => {
   markOnBoard();
@@ -41,6 +42,16 @@ describe('hrefs', () => {
   it('builds board-view links, leaving out defaults', () => {
     expect(homeHref({ view: 'all', labelId: null, query: '' })).toBe('/');
     expect(homeHref({ view: 'lists', labelId: null, query: 'eggs & milk' })).toBe('/?view=lists&q=eggs+%26+milk');
+  });
+});
+
+describe('isEditingNote', () => {
+  it('is true only on that note’s editor address', () => {
+    expect(isEditingNote('/note?id=a', 'a')).toBe(true);
+    expect(isEditingNote('/note?new=note&id=a', 'a')).toBe(true);
+    expect(isEditingNote('/note?id=b', 'a')).toBe(false);
+    expect(isEditingNote('/board?id=a', 'a')).toBe(false);
+    expect(isEditingNote('/', 'a')).toBe(false);
   });
 });
 
@@ -119,6 +130,27 @@ describe('restoreScroll', () => {
     page.height = 1000;
     nextFrame();
     expect(page.y).toBe(320);
+  });
+
+  it('can be cancelled, as when the page closes', () => {
+    const { page, frames, nextFrame } = fakePage(0);
+    const cancel = restoreScroll(320);
+    cancel();
+    page.height = 1000;
+    nextFrame();
+    expect(page.y).toBe(0);
+    expect(frames).toHaveLength(0);
+  });
+
+  it('stops when the page changes, as with Forward', () => {
+    const { page, frames, nextFrame } = fakePage(0);
+    restoreScroll(320);
+    history.pushState(null, '', '/note?id=a');
+    page.height = 1000;
+    nextFrame();
+    history.replaceState(null, '', '/');
+    expect(page.y).toBe(0);
+    expect(frames).toHaveLength(0);
   });
 
   it('stops when the user scrolls first', () => {

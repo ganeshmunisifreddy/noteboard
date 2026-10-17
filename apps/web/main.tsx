@@ -7,6 +7,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
 import App from './App';
+import { reloadOnStaleChunk } from './lib/staleChunk';
+
+window.addEventListener('vite:preloadError', () => reloadOnStaleChunk());
 
 // Production only, as before: in development the worker would serve stale code.
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {

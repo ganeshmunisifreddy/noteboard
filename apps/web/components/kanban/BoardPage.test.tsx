@@ -321,11 +321,12 @@ describe('board page', () => {
 
   it('forgets “opened from a board” once the board shows again', async () => {
     const { board } = await setup();
-    const fromBoard: Nav = { path: '/board', url: `/board?id=${board.id}`, go: vi.fn(), swap: vi.fn(), back: vi.fn() };
+    const url = `/board?id=${board.id}`;
+    const fromBoard: Nav = { path: '/board', url, go: vi.fn(), swap: vi.fn(), back: vi.fn(), current: () => url };
     openEditor(fromBoard, noteHref('n1'));
     open(board.id);
     await screen.findByRole('heading', { level: 1, name: 'Website redesign' });
-    const editor: Nav = { path: '/note', url: '/note?id=n1', go: vi.fn(), swap: vi.fn(), back: vi.fn() };
+    const editor: Nav = { path: '/note', url: '/note?id=n1', go: vi.fn(), swap: vi.fn(), back: vi.fn(), current: () => '/note?id=n1' };
     leaveEditor(editor);
     expect(editor.back).not.toHaveBeenCalled();
   });

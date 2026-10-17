@@ -44,6 +44,8 @@ Open [http://localhost:4000](http://localhost:4000).
 | `npm run lint`      | Run ESLint                                                     |
 | `npm run typecheck` | Run TypeScript                                                 |
 
+`eslint-plugin-react` and `eslint-plugin-jsx-a11y` don't list ESLint 10 as supported yet, so updating or reinstalling them needs `npm install --force` (installs from the lockfile, including `npm ci`, work as usual).
+
 Vercel builds and serves `apps/web/dist` as configured in `vercel.json` (every address falls back to `index.html`).
 
 ## Project Structure

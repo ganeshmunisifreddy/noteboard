@@ -14,11 +14,16 @@ export default defineConfig({
         injectRegister: false,
         manifest: false,
         injectManifest: {
+          // A classic worker script, as the old one was.
+          rollupFormat: 'iife',
           globPatterns: ['**/*.{js,css,html,woff2,png,svg,ico,json}'],
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         },
       }),
   ],
+  // The main chunk (React, Radix, dnd-kit, Dexie, the board) is ~650 kB before
+  // gzip; the editor and boards load as their own chunks.
+  build: { chunkSizeWarningLimit: 800 },
   server: { port: 4000, strictPort: true },
   preview: { port: 4100, strictPort: true },
   test: {

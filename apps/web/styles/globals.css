@@ -1,6 +1,17 @@
+/* Arial sized like Lato (the metrics next/font generated), so text doesn't
+   reflow when Lato finishes loading. */
+@font-face {
+  font-family: 'Lato Fallback';
+  src: local('Arial');
+  ascent-override: 101.03%;
+  descent-override: 21.8%;
+  line-gap-override: 0%;
+  size-adjust: 97.69%;
+}
+
 html,
 body {
-  font-family: Lato, sans-serif;
+  font-family: Lato, 'Lato Fallback', sans-serif;
   padding: 0;
   margin: 0;
   color: var(--text);

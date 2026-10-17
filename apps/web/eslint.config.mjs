@@ -6,7 +6,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 // The rules eslint-config-next/core-web-vitals turned on, minus the Next plugin.
-export default [
+const config = [
   {
     ignores: ['.next/**', 'dist/**', 'dev-dist/**', 'coverage/**', 'public/**', 'next-env.d.ts'],
   },
@@ -37,6 +37,16 @@ export default [
       'jsx-a11y/aria-unsupported-elements': 'warn',
       'jsx-a11y/role-has-required-aria-props': 'warn',
       'jsx-a11y/role-supports-aria-props': 'warn',
+      // eslint-plugin-import's no-anonymous-default-export, with its defaults
+      // (calls such as defineConfig() are allowed).
+      'no-restricted-syntax': [
+        'warn',
+        {
+          selector:
+            'ExportDefaultDeclaration > :matches(ArrowFunctionExpression, ArrayExpression, ObjectExpression, Literal, TemplateLiteral, NewExpression, FunctionDeclaration[id=null], ClassDeclaration[id=null])',
+          message: 'Assign to a named variable before exporting as the module default.',
+        },
+      ],
     },
   },
   {
@@ -44,3 +54,5 @@ export default [
     plugins: { '@typescript-eslint': tseslint.plugin },
   },
 ];
+
+export default config;
