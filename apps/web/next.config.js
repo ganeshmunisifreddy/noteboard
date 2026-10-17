@@ -12,4 +12,5 @@ module.exports = withPWA({
   reactStrictMode: true,
   // Don't let `next dev` generate an AGENTS.md in the repo root.
   agentRules: false,
+  transpilePackages: ['@noteboard/shared'],
 });
