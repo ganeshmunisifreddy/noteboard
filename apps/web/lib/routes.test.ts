@@ -1,6 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Nav } from './navigation';
-import { BOARDS_HREF, boardHref, homeHref, leaveEditor, markOnBoard, newNoteHref, noteHref, openEditor } from './routes';
+import {
+  BOARDS_HREF,
+  boardHref,
+  homeHref,
+  leaveEditor,
+  markOnBoard,
+  newNoteHref,
+  noteHref,
+  openEditor,
+  restoreScroll,
+} from './routes';
 
 const fakeNav = (path: string, url = path): Nav => ({ path, url, go: vi.fn(), swap: vi.fn(), back: vi.fn() });
 
@@ -79,5 +89,45 @@ describe('after a refresh in the editor', () => {
     openEditor(fakeNav('/', '/?label=l1'), noteHref('a'));
     expect(JSON.parse(sessionStorage.getItem('boardScroll') ?? 'null')).toEqual({ url: '/?label=l1', y: 320 });
     window.scrollY = 0;
+  });
+});
+
+describe('restoreScroll', () => {
+  // The page can only scroll as far as it is tall; the board grows once its
+  // cards are measured, a frame or two after the notes load.
+  const fakePage = (height: number) => {
+    const page = { height, y: 0 };
+    vi.spyOn(window, 'scrollTo').mockImplementation(((_x: number, y: number) => {
+      page.y = Math.min(y, page.height);
+    }) as typeof window.scrollTo);
+    vi.spyOn(window, 'scrollY', 'get').mockImplementation(() => page.y);
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => frames.push(cb));
+    const nextFrame = () => frames.shift()?.(0);
+    return { page, frames, nextFrame };
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('keeps trying until the page is tall enough', () => {
+    const { page, nextFrame } = fakePage(0);
+    restoreScroll(320);
+    expect(page.y).toBe(0);
+    nextFrame();
+    page.height = 1000;
+    nextFrame();
+    expect(page.y).toBe(320);
+  });
+
+  it('stops when the user scrolls first', () => {
+    const { page, frames, nextFrame } = fakePage(0);
+    restoreScroll(320);
+    window.dispatchEvent(new Event('wheel'));
+    page.height = 1000;
+    nextFrame();
+    expect(page.y).toBe(0);
+    expect(frames).toHaveLength(0);
   });
 });

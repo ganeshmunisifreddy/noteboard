@@ -56,6 +56,29 @@ export const takeBoardScroll = (url: string): number | null => {
   }
 };
 
+const USER_SCROLL_EVENTS = ['wheel', 'touchstart', 'keydown', 'mousedown'] as const;
+const RESTORE_TIMEOUT_MS = 1000;
+
+// The board's height comes from measuring its cards, a frame or two after the
+// notes load, and until then the page can't scroll that far. Tries each frame
+// for up to a second, and gives up as soon as the user scrolls themselves.
+export const restoreScroll = (y: number) => {
+  const deadline = performance.now() + RESTORE_TIMEOUT_MS;
+  let stopped = false;
+  const stop = () => {
+    stopped = true;
+    for (const name of USER_SCROLL_EVENTS) window.removeEventListener(name, stop);
+  };
+  for (const name of USER_SCROLL_EVENTS) window.addEventListener(name, stop, { passive: true });
+  const attempt = () => {
+    if (stopped) return;
+    window.scrollTo(0, y);
+    if (window.scrollY >= y - 1 || performance.now() > deadline) stop();
+    else requestAnimationFrame(attempt);
+  };
+  attempt();
+};
+
 const savedBoardUrl = () => {
   try {
     return sessionStorage.getItem(BOARD_URL_KEY) ?? '/';

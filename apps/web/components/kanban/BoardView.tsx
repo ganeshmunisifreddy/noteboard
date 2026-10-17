@@ -14,7 +14,7 @@ import {
 import { useLabels } from '../../lib/notes';
 import { useNow } from '../../lib/time';
 import { useNav } from '../../lib/navigation';
-import { BOARDS_HREF, markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../../lib/routes';
+import { BOARDS_HREF, markOnBoard, newNoteHref, noteHref, openEditor, restoreScroll, takeBoardScroll } from '../../lib/routes';
 import type { NoteKind } from '../../lib/types';
 import IconButton from '../ui/IconButton';
 import Menu from '../ui/Menu';
@@ -44,7 +44,7 @@ const BoardView = ({ data }: { data: BoardData }) => {
   }, []);
   useEffect(() => {
     const y = takeBoardScroll(nav.url);
-    if (y !== null) window.scrollTo(0, y);
+    if (y !== null) restoreScroll(y);
   }, [nav.url]);
 
   const stopRenaming = () => {

@@ -19,7 +19,7 @@ import { upcomingSections } from '../lib/due';
 import { emptyMessage, isReorderable, parseFilter } from '../lib/filters';
 import { emptyTrash, useBoardNotes, useLabels } from '../lib/notes';
 import { useNav, usePopKey, useQuery } from '../lib/navigation';
-import { boardHref, homeHref, markOnBoard, newNoteHref, noteHref, openEditor, takeBoardScroll } from '../lib/routes';
+import { boardHref, homeHref, markOnBoard, newNoteHref, noteHref, openEditor, restoreScroll, takeBoardScroll } from '../lib/routes';
 import { useStartup } from '../lib/startup';
 import { useNow } from '../lib/time';
 import type { BoardFilter, NoteKind } from '../lib/types';
@@ -62,7 +62,7 @@ const Home = () => {
   useEffect(() => {
     if (!loaded) return;
     const y = takeBoardScroll(nav.url);
-    if (y !== null) window.scrollTo(0, y);
+    if (y !== null) restoreScroll(y);
   }, [loaded, nav.url]);
 
   const labelNames = useMemo(() => new Map((labels ?? []).map((l) => [l.id, l.name])), [labels]);
