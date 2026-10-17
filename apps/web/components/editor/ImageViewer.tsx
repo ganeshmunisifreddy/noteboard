@@ -11,8 +11,6 @@ const FullImage = ({ image, label }: { image: Attachment; label: string }) => {
   const file = useImageFile(image.id);
   const url = useObjectUrl(`${image.id}:full`, file?.bytes, image.type);
   if (file === null) return <p className={styles.missing}>Image unavailable</p>;
-  // Local blob URLs: next/image can't optimise them.
-  // eslint-disable-next-line @next/next/no-img-element
   return url ? <img src={url} alt={image.alt || label} className={styles.image} /> : <div className={styles.loading} />;
 };
 

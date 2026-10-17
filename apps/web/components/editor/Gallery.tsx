@@ -19,8 +19,6 @@ const GalleryItem = ({ image, index, total, single, onOpen }: ItemProps) => {
       aria-label={`Open image ${index + 1} of ${total}${image.alt ? `: ${image.alt}` : ''}`}
       onClick={() => onOpen(index)}
     >
-      {/* Local blob URLs: next/image can't optimise them. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       {url && <img src={url} alt='' className={styles.image} draggable={false} />}
     </button>
   );
