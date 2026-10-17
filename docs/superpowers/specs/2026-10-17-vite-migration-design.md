@@ -29,12 +29,14 @@ Nobody using the app should notice anything changed.
 
 | Question | Choice |
 | --- | --- |
-| Router | React Router 7, plain component (declarative) mode |
+| Router | React Router 8 (current major), plain component (declarative) mode |
 | How components navigate | Through our own small navigation module, never the router directly |
 | Repo layout | npm workspaces: `apps/web`, `packages/shared`; `apps/api` arrives in Phase 1 |
 | Service worker | `vite-plugin-pwa` (`injectManifest`) built from the existing `worker/` code |
 | Font | Lato from `@fontsource/lato` (300, 400, 700) |
 | Hosting | Vercel, configured by a root `vercel.json` |
+
+React Router 8 keeps the declarative API of 7; it only drops `react-router-dom` and some framework-mode flags.
 
 Rejected: a shim that imitates Next's router (keeps Next-shaped code around for no gain); TanStack Router (more than three routes need).
 
