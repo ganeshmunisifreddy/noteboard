@@ -1,16 +1,16 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.js
 
 # testing
 /coverage
 
-# next.js
-/.next/
-/out/
+# build output
+dist/
+dev-dist/
 
 # production
 /build
@@ -37,16 +37,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
-# PWA Files
-**/public/precache.*.*.js
-**/public/sw.js
-**/public/workbox-*.js
-**/public/worker-*.js
-**/public/fallback-*.js
-**/public/precache.*.*.js.map
-**/public/sw.js.map
-**/public/workbox-*.js.map
-**/public/worker-*.js.map
-**/public/fallback-*.js
 # brainstorm mockups
 .superpowers/

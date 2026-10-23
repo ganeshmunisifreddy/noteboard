@@ -1,6 +1,6 @@
 # Noteboard
 
-A notes and checklists app by Nine Technology, built with [Next.js](https://nextjs.org/) (Pages Router). Notes are stored in the browser with IndexedDB (via [Dexie](https://dexie.org/)), and the app installs as a PWA that works offline. There is no server-side storage.
+A notes and checklists app by Nine Technology, built with [Vite](https://vite.dev/) and [React Router](https://reactrouter.com/), in an npm workspaces monorepo (`apps/web` is the app, `packages/shared` the data types). Notes are stored in the browser with IndexedDB (via [Dexie](https://dexie.org/)), and the app installs as a PWA that works offline. There is no server-side storage.
 
 ## Features
 
@@ -35,21 +35,28 @@ Open [http://localhost:4000](http://localhost:4000).
 
 ## Scripts
 
-| Command         | Description                                                       |
-| --------------- | ----------------------------------------------------------------- |
-| `npm run dev`   | Dev server on port 4000 (Turbopack; the service worker is off)    |
-| `npm run build` | Production build (webpack, required by `next-pwa` to emit `sw.js`) |
-| `npm start`     | Serve the production build on port 9090                           |
-| `npm run lint`  | Run ESLint                                                        |
-| `npm test`      | Run unit and component tests (Vitest)                             |
+| Command             | Description                                                    |
+| ------------------- | -------------------------------------------------------------- |
+| `npm run dev`       | Dev server on port 4000 (the service worker is off)            |
+| `npm run build`     | Production build into `apps/web/dist`, with the service worker |
+| `npm run preview`   | Serve the production build on port 4100                        |
+| `npm test`          | Run unit and component tests (Vitest)                          |
+| `npm run lint`      | Run ESLint                                                     |
+| `npm run typecheck` | Run TypeScript                                                 |
 
-In production the app runs under pm2 via `ecosystem.config.js`.
+`eslint-plugin-react` and `eslint-plugin-jsx-a11y` don't list ESLint 10 as supported yet, so updating or reinstalling them needs `npm install --force` (installs from the lockfile, including `npm ci`, work as usual).
+
+Vercel builds and serves `apps/web/dist` as configured in `vercel.json` (every address falls back to `index.html`).
 
 ## Project Structure
 
-- `pages/index.tsx`: board
-- `pages/note.tsx`: editor (`/note?id=…`)
-- `pages/_offline.tsx`: fallback page served by the service worker when offline
+Paths are under `apps/web/` unless noted.
+
+- `index.html`, `main.tsx`, `App.tsx`: the page, the entry point and the routes
+- `lib/navigation.ts`: the only module that talks to React Router (components use it to read the URL and navigate)
+- `routes/Home.tsx`: board
+- `routes/NotePage.tsx`: editor (`/note?id=…`)
+- `routes/NotFoundPage.tsx`: any other address
 - `components/board/`, `components/editor/`, `components/ui/`: UI (Radix Primitives + CSS Modules)
 - `lib/notes.ts`: notes and labels store; `lib/db.ts`: IndexedDB schema
 - `lib/backup.ts`: backup format, restore merge and Markdown export; `lib/order.ts` and `lib/masonry.ts`: board order and layout
@@ -57,7 +64,8 @@ In production the app runs under pm2 via `ecosystem.config.js`.
 - `lib/images.ts`: shrinking images on the device; `lib/attachments.ts`: stored images and thumbnails
 - `lib/calendar.ts`, `lib/repeat.ts`, `lib/due.ts`: dates, repeats and Mark done; `lib/reminders.ts`: the reminder clock (one tab at a time) and notifications. Reminders only fire while Noteboard is open; there's no server.
 - `components/shell/`: the app shell and sidebar; `lib/tasks.ts`: tick boxes in a note's Markdown
-- `pages/board.tsx`, `components/kanban/`: kanban boards; `lib/boards.ts` (boards and columns), `lib/cards.ts` (placing notes on them), `lib/places.ts` (column order), `lib/boardFilter.ts` (the board filter)
+- `routes/BoardPage.tsx`, `components/kanban/`: kanban boards; `lib/boards.ts` (boards and columns), `lib/cards.ts` (placing notes on them), `lib/places.ts` (column order), `lib/boardFilter.ts` (the board filter)
 - `lib/migrate.ts`: one-time move of notes from the old `localStorage` format (the old data is kept as `notes-backup-v1`)
 - `styles/tokens.css`: colours, spacing and type, light and dark
-- `worker/index.js`: serves the board and editor offline, and opens notes from reminder notifications
+- `worker/sw.js`: the service worker (built to `/sw.js`): precaches the app so every page opens offline, clears the old Next.js caches, and opens notes from reminder notifications
+- `packages/shared/` (repo root): data types shared with the future API
